@@ -1,0 +1,7 @@
+# requirements-advanced.txt
+# Optional advanced dependencies for AirWriting Advanced
+# Install: pip install -r requirements-advanced.txt
+
+# vqf>=2.0.1  # enable VQF filter
+# torch>=2.0  # neural models
+# gtsam       # SLAM/graph optimization (platform-specific)

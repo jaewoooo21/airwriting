@@ -1,0 +1,5 @@
+# requirements-dev.txt
+# Development dependencies
+pytest>=7.0
+ruff>=0.1.0
+mypy>=1.0

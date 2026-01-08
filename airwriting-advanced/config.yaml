@@ -1,0 +1,99 @@
+# 3D IMU AirWriting config (IMU 3개: MPU6050 x2 + ICM20948 x1)
+# 네 하드웨어 구조(설명한 그대로 반영):
+# - I2C Bus0: MPU6050 (AD0=LOW -> 0x68), MPU6050 (AD0=HIGH -> 0x69)
+# - I2C Bus1 (ESP32 GPIO32/33): ICM-20948 (너 PDF 기준 addr=0x6A)
+#
+# ⚠️ 체인 매핑(실물 기준)
+# - S2: 상완(Upper Arm)  MPU6050 (AD0=HIGH -> 0x69)
+# - S1: 전완(Forearm)    MPU6050 (AD0=LOW  -> 0x68)
+# - S3: 손/검지(Hand)    ICM-20948 (0x6A)
+#
+# IMU 장착 방향(실물 기준)
+# - 앞쪽(전방) = -Y
+# - 외측(바깥쪽) = +X
+# -> 즉, 모든 IMU에서 X/Y 부호를 뒤집어 공통 좌표계로 맞춘다.
+
+sample_rate_hz: 200.0
+
+sensors:
+  S1:
+    i2c_bus: 0
+    i2c_addr: 0x68
+    has_mag: false
+    axis_map:  [0, 1, 2]
+    axis_sign: [-1, -1, 1]
+    mount_quat_wxyz: [1, 0, 0, 0]
+
+  S2:
+    i2c_bus: 0
+    i2c_addr: 0x69
+    has_mag: false
+    axis_map:  [0, 1, 2]
+    axis_sign: [-1, -1, 1]
+    mount_quat_wxyz: [1, 0, 0, 0]
+
+  S3:
+    i2c_bus: 1
+    i2c_addr: 0x6A
+    has_mag: true
+    axis_map:  [0, 1, 2]
+    axis_sign: [-1, -1, 1]
+    mount_quat_wxyz: [1, 0, 0, 0]
+
+arm_model:
+  upper_arm_len: 0.30
+  forearm_len: 0.26
+  hand_len: 0.14
+  seg_axis: [1.0, 0.0, 0.0]
+
+joint_constraints:
+  enable: true
+  elbow_axis: [0.0, 1.0, 0.0]
+  elbow_strength: 0.15
+  wrist_swing_limit_deg: 70.0
+  wrist_strength: 0.10
+
+writing_plane:
+  enable: true
+  normal_w: [0.0, 1.0, 0.0]
+  d: 0.0
+  u_w: [1.0, 0.0, 0.0]
+  v_w: [0.0, 0.0, 1.0]
+
+stroke:
+  speed_down_th: 0.03
+  speed_up_th: 0.015
+  min_down_time_s: 0.05
+
+screen_mapping:
+  enable: true
+  width: 1280
+  height: 720
+  roll_scale: 420.0
+  pitch_scale: 420.0
+  roll_offset: 0.0
+  pitch_offset: 0.0
+  invert_x: false
+  invert_y: true
+
+logging:
+  save_csv: true
+  out_dir: "runs"
+
+# --- 추가(선택) ---
+# vqf 설치하면 attitude_estimator: vqf 로 돌릴 수 있음.
+filters:
+  attitude_estimator: "auto"   # auto | vqf | mahony | madgwick
+  mahony:
+    kp: 0.8
+    ki: 0.02
+  madgwick:
+    beta: 0.08
+
+calibration:
+  enable_mount_cal: true
+  mount_cal_seconds: 2.0
+
+heading_anchor:
+  enable: true
+  strength: 0.03
