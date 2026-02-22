@@ -109,26 +109,32 @@ class MLEngine:
             print(f"[MLEngine] ❌ Training failed: {e}")
             return False
 
-    def predict(self, stroke_data):
-        """Predicts the label for a given (N, 3) stroke."""
+    def predict(self, stroke_data, top_n=3):
+        """Predicts the top N labels for a given (N, 3) stroke."""
         if self.model is None:
-            return None, 0.0
+            return []
             
         feat = self.extract_feature(stroke_data)
         if feat is None:
-            return None, 0.0
+            return []
             
         feat = feat.reshape(1, -1)
         
         try:
             probs = self.model.predict_proba(feat)[0]
-            max_idx = np.argmax(probs)
-            label = self.model.classes_[max_idx]
-            confidence = probs[max_idx]
-            return label, confidence
+            # Get indices sorted descending by probability
+            top_indices = np.argsort(probs)[::-1][:top_n]
+            
+            results = []
+            for idx in top_indices:
+                results.append({
+                    "label": self.model.classes_[idx],
+                    "confidence": float(probs[idx])
+                })
+            return results
         except Exception as e:
             print(f"[MLEngine] Prediction error: {e}")
-            return None, 0.0
+            return []
 
     def save_stroke(self, label, stroke_data_full):
         """Appends a new stroke (with quaternions) to the CSV."""

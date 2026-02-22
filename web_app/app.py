@@ -119,12 +119,11 @@ def ml_predict():
     stroke_pos = data.get('stroke_pos') # list of [x,y,z]
     
     if not stroke_pos or len(stroke_pos) < 5:
-        return jsonify({"label": None, "confidence": 0.0}), 400
+        return jsonify({"predictions": []}), 400
         
-    label, conf = ml_engine.predict(np.array(stroke_pos))
+    predictions = ml_engine.predict(np.array(stroke_pos), top_n=3)
     return jsonify({
-        "label": label,
-        "confidence": float(conf)
+        "predictions": predictions
     })
 
 if __name__ == '__main__':

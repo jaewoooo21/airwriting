@@ -70,16 +70,16 @@ function computeFK(data) {
 // digital_twin.py 1st person: distance=0.45, elevation=5, azimuth=90, center=(0, 0.5, 0.1)
 // digital_twin.py 3rd person: distance=1.5, elevation=20, azimuth=-40, center=(0, 0.25, 0)
 // We replicate this as orbital camera parameters
-let camDistance = 0.25;
-let camElevation = 0;     // degrees (level horizon)
+let camDistance = 0.45;
+let camElevation = 5;     // degrees (level horizon)
 let camAzimuth = 90;      // degrees
 let camCenterX = 0.0;
-let camCenterY = 0.45;
-let camCenterZ = 0.0;     // look at origin height
+let camCenterY = 0.51;    // Centered around the WRITING PLANE (Arm Length)
+let camCenterZ = 0.1;     // look at origin height
 let isFPV = true;
 
-const CAM_1ST = { distance: 0.25, elevation: 0, azimuth: 90, cx: 0.0, cy: 0.45, cz: 0.0 };
-const CAM_3RD = { distance: 1.0, elevation: 25, azimuth: -40, cx: 0.0, cy: 0.25, cz: 0.0 };
+const CAM_1ST = { distance: 0.45, elevation: 5, azimuth: 90, cx: 0.0, cy: 0.51, cz: 0.1 };
+const CAM_3RD = { distance: 1.0, elevation: 25, azimuth: -40, cx: 0.0, cy: 0.51, cz: 0.0 };
 const FOCAL = 1200;
 
 let isDragging = false;
@@ -367,7 +367,7 @@ function updateFrame(data) {
             updateMlStatus(`Recording '${mlLearningLabel}'...`);
         } else if (mlAutoPredict) {
             updateMlStatus(`Analyzing...`);
-            updateScoreBoard('--', '0.0');
+            updateScoreBoard([]);
         }
     }
 
@@ -425,7 +425,7 @@ if (btnMlRec) {
             btnMlPredict.innerHTML = `⚡ [자동보정] 켜기`;
             btnMlPredict.classList.remove('active');
             updateMlStatus("Idle");
-            updateScoreBoard('--', '0.0');
+            updateScoreBoard([]);
         }
     });
 }
@@ -434,9 +434,41 @@ function updateMlStatus(msg) {
     if (mlStatusText) mlStatusText.innerText = `Status: ${msg}`;
 }
 
-function updateScoreBoard(word, score) {
-    if (aiResultWord) aiResultWord.innerText = word;
-    if (aiResultScore) aiResultScore.innerText = `(${score}%)`;
+function updateScoreBoard(predictions) {
+    if (!predictions || predictions.length === 0) {
+        if (aiResultWord) aiResultWord.innerText = "??";
+        if (aiResultScore) aiResultScore.innerText = "(0.0%)";
+        const aiCandidates = document.getElementById('aiCandidates');
+        if (aiCandidates) aiCandidates.innerHTML = '';
+        return;
+    }
+
+    // Top 1
+    const top1 = predictions[0];
+    if (aiResultWord) aiResultWord.innerText = top1.label;
+    if (aiResultScore) aiResultScore.innerText = `(${(top1.confidence * 100).toFixed(1)}%)`;
+
+    // Top N loop
+    const aiCandidates = document.getElementById('aiCandidates');
+    if (aiCandidates) {
+        aiCandidates.innerHTML = ''; // clear
+        // We show up to top 3
+        for (let i = 0; i < Math.min(3, predictions.length); i++) {
+            let p = predictions[i];
+            let percent = (p.confidence * 100).toFixed(1);
+            let bar = document.createElement('div');
+            bar.className = 'candidate-bar';
+
+            // Highlight the first one with a different border or color
+            if (i === 0) bar.style.borderLeftColor = '#4ADE80';
+
+            bar.innerHTML = `
+                <div class="c-name">${i + 1}. ${p.label}</div>
+                <div class="c-val">${percent}%</div>
+            `;
+            aiCandidates.appendChild(bar);
+        }
+    }
 
     // Pulse animation
     const box = document.getElementById('aiScoreBox');
@@ -445,7 +477,7 @@ function updateScoreBoard(word, score) {
         box.style.borderColor = '#4ADE80';
         setTimeout(() => {
             box.style.transform = 'scale(1)';
-            box.style.borderColor = '';
+            box.style.borderColor = 'var(--border-color)';
         }, 200);
     }
 }
@@ -482,11 +514,12 @@ async function sendMlPredict(strokePosData) {
             body: JSON.stringify({ stroke_pos: strokePosData })
         });
         const json = await res.json();
-        if (res.ok && json.label) {
-            updateScoreBoard(json.label, (json.confidence * 100).toFixed(1));
-            updateMlStatus(`Predicted ${json.label}`);
+
+        if (res.ok && json.predictions && json.predictions.length > 0) {
+            updateScoreBoard(json.predictions);
+            updateMlStatus(`Predicted: ${json.predictions[0].label}`);
         } else {
-            updateScoreBoard("??", "0.0");
+            updateScoreBoard([]);
             updateMlStatus("Unrecognized");
         }
     } catch (e) {
