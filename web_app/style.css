@@ -242,7 +242,6 @@ body {
   margin-top: 5px;
 }
 
-/* CANVAS */
 .canvas-container {
   flex: 1;
   position: relative;
@@ -254,6 +253,15 @@ body {
   background-position: center;
   overflow: hidden;
   border: 1px solid var(--border-color);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+}
+
+.canvas-wrapper {
+  flex: 1;
+  width: 100%;
+  position: relative;
 }
 
 canvas {

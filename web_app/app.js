@@ -8,7 +8,7 @@ const valPos = document.getElementById('valPos');
 const valZupt = document.getElementById('valZupt');
 
 // Configuration
-const WS_URL = "ws://localhost:8765";
+const WS_URL = "ws://localhost:8766";
 let ws = null;
 
 // ══════════════════════════════════════════
@@ -70,17 +70,17 @@ function computeFK(data) {
 // digital_twin.py 1st person: distance=0.45, elevation=5, azimuth=90, center=(0, 0.5, 0.1)
 // digital_twin.py 3rd person: distance=1.5, elevation=20, azimuth=-40, center=(0, 0.25, 0)
 // We replicate this as orbital camera parameters
-let camDistance = 0.45;
-let camElevation = 5;     // degrees (level horizon)
-let camAzimuth = 90;      // degrees
+let camDistance = 0.4;
+let camElevation = 10;     // degrees (level horizon)
+let camAzimuth = 0;        // 0 degrees looks down the +Y axis (arm direction)
 let camCenterX = 0.0;
-let camCenterY = 0.51;    // Centered around the WRITING PLANE (Arm Length)
-let camCenterZ = 0.1;     // look at origin height
+let camCenterY = 0.25;     // Shifted slightly forward
+let camCenterZ = 0.15;     // Shifted up to center the view vertically
 let isFPV = true;
 
-const CAM_1ST = { distance: 0.45, elevation: 5, azimuth: 90, cx: 0.0, cy: 0.51, cz: 0.1 };
-const CAM_3RD = { distance: 1.0, elevation: 25, azimuth: -40, cx: 0.0, cy: 0.51, cz: 0.0 };
-const FOCAL = 1200;
+const CAM_1ST = { distance: 0.4, elevation: 10, azimuth: 0, cx: 0.0, cy: 0.25, cz: 0.15 };
+const CAM_3RD = { distance: 1.2, elevation: 30, azimuth: 45, cx: 0.0, cy: 0.4, cz: 0.0 };
+const FOCAL = 900;
 
 let isDragging = false;
 let lastMouseX = 0, lastMouseY = 0;
