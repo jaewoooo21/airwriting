@@ -308,6 +308,14 @@ function drawCursor(cx, cy) {
 // WebSocket
 // ══════════════════════════════════════════
 function connectWebSocket() {
+    // Prevent Mixed Content errors on deployed HTTPS sites
+    if (window.location.protocol === 'https:' && window.location.hostname !== 'localhost') {
+        valConn.innerHTML = "🔴 HTTPS BLOCKED<br><span style='font-size:0.7em; color:#999;'>(Local connection only)</span>";
+        valConn.className = "data-value warning";
+        console.warn("WebSocket strictly requires HTTP or localhost. Blocked by HTTPS Mixed Content policy.");
+        return;
+    }
+
     valConn.textContent = "🟡 CONNECTING...";
     valConn.className = "data-value warning";
     ws = new WebSocket(WS_URL);
