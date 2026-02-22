@@ -1,0 +1,62 @@
+# IMU Configuration v3.2 (bias auto-calibrated)
+
+sensors:
+  S1:
+    role: forearm
+    type: mpu6050
+    bus: 0
+    address: 104
+    sample_rate_hz: 100
+    bias:
+      accel:
+      - -0.005717
+      - 0.03349
+      - 0.360671
+      gyro:
+      - -0.094432
+      - -0.051104
+      - -0.022684
+  S2:
+    role: hand
+    type: mpu6050
+    bus: 0
+    address: 105
+    sample_rate_hz: 100
+    bias:
+      accel:
+      - 0.254668
+      - 0.208648
+      - 1.992931
+      gyro:
+      - -0.014878
+      - 0.031058
+      - -0.021148
+  S3:
+    role: finger
+    type: icm20948
+    bus: 1
+    address: 104
+    sample_rate_hz: 100
+    has_magnetometer: false
+    bias:
+      accel:
+      - 0.0
+      - 0.0
+      - -9.81
+      gyro:
+      - 0.0
+      - 0.0
+      - 0.0
+skeleton_chain:
+- joint: forearm
+  sensor: S1
+  bone_length_m: 0.25
+  parent: null
+- joint: hand
+  sensor: S2
+  bone_length_m: 0.18
+  parent: forearm
+- joint: finger
+  sensor: S3
+  bone_length_m: 0.08
+  parent: hand
