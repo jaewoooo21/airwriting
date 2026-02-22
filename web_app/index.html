@@ -68,7 +68,7 @@
             <main class="canvas-container">
                 <div class="canvas-wrapper glass-panel">
                     <canvas id="drawingCanvas"></canvas>
-                    <div class="guide-overlay" id="guideText"></div>
+                    <div class="recognized-text-overlay" id="recognizedTextOverlay"></div>
                     <div class="crosshair center"></div>
                     <div class="status-overlay" id="recordingOverlay">🔴 WRITING</div>
                 </div>
@@ -655,6 +655,18 @@
             });
         }
     </script>
+    <!-- ML Label Input Modal -->
+    <div id="labelModal" class="modal-overlay">
+        <div class="modal-content glass-panel">
+            <h3>🎯 가이드 단어 수집</h3>
+            <p>연속 수집할 단어나 글자를 입력하세요.</p>
+            <input type="text" id="labelInput" placeholder="예: APPLE" autocomplete="off">
+            <div class="modal-actions">
+                <button id="btnModalCancel" class="ml-btn ml-btn-predict">취소</button>
+                <button id="btnModalStart" class="ml-btn ml-btn-rec">3초 자동수집 시작</button>
+            </div>
+        </div>
+    </div>
 </body>
 
 </html>

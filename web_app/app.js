@@ -356,37 +356,24 @@ function updateFrame(data) {
 
     valPos.innerHTML = `X: ${penTip[0].toFixed(3)}<br>Y: ${penTip[1].toFixed(3)}<br>Z: ${penTip[2].toFixed(3)}`;
 
-    // ── ML Recording / Prediction Logic ──
-    if (pen && !lastPenState) {
-        // Pen Down -> Start recording
+    // (ML Auto-Recording Loop has been moved to setInterval)
+
+    // ── ML Auto-Predict Logic (Manual Pen Control) ──
+    if (pen && !lastPenState && mlAutoPredict) {
         currentStroke = [];
         strokeHistory.push(currentStroke);
-        mlCurrentFull = [];
         mlCurrentPos = [];
-        if (mlLearningLabel) {
-            updateMlStatus(`Recording '${mlLearningLabel}'...`);
-        } else if (mlAutoPredict) {
-            updateMlStatus(`Analyzing...`);
-            updateScoreBoard([]);
-        }
+        updateMlStatus(`Analyzing...`);
+        updateScoreBoard([]);
     }
 
-    if (pen) {
-        // Pen Drag -> Collect data
+    if (pen && mlAutoPredict) {
         currentStroke.push([...penTip]);
-        let s3q = data.S3q || [1, 0, 0, 0];
         mlCurrentPos.push([...penTip]);
-        mlCurrentFull.push([
-            penTip[0], penTip[1], penTip[2],
-            s3q[0], s3q[1], s3q[2], s3q[3]
-        ]);
     }
 
-    if (!pen && lastPenState) {
-        // Pen Up -> Process Data
-        if (mlLearningLabel && mlCurrentFull.length > 5) {
-            sendMlRecord(mlLearningLabel, mlCurrentFull);
-        } else if (mlAutoPredict && mlCurrentPos.length > 5) {
+    if (!pen && lastPenState && mlAutoPredict) {
+        if (mlCurrentPos.length > 5) {
             sendMlPredict(mlCurrentPos);
         }
     }
@@ -403,24 +390,129 @@ const btnMlPredict = document.getElementById('btnMlPredict');
 const mlStatusText = document.getElementById('mlStatusText');
 const aiResultWord = document.getElementById('aiResultWord');
 const aiResultScore = document.getElementById('aiResultScore');
-const guideText = document.getElementById('guideText');
+const aiResultScore = document.getElementById('aiResultScore');
+
+// Modal Elements
+const labelModal = document.getElementById('labelModal');
+const labelInput = document.getElementById('labelInput');
+const btnModalCancel = document.getElementById('btnModalCancel');
+const btnModalStart = document.getElementById('btnModalStart');
+
+let isAutoRecording = false;
+let autoRecordInterval = null;
+let autoRecordPhase = 'idle';
+let autoRecordTimer = 0;
+
+function startAutoRecordingLoop() {
+    autoRecordPhase = 'idle';
+
+    // Clear any existing interval
+    if (autoRecordInterval) clearInterval(autoRecordInterval);
+
+    autoRecordInterval = setInterval(() => {
+        if (!isAutoRecording || !mlLearningLabel) return;
+
+        let now = performance.now();
+
+        if (autoRecordPhase === 'idle') {
+            autoRecordPhase = 'wait';
+            autoRecordTimer = now;
+            updateMlStatus("준비...");
+            recordingOverlay.innerText = "WAIT 3.. 2.. 1..";
+            recordingOverlay.style.color = "#F59E0B";
+            recordingOverlay.style.display = 'block';
+        }
+        else if (autoRecordPhase === 'wait') {
+            let elapsed = (now - autoRecordTimer) / 1000;
+            if (elapsed >= 1.0) { // 1초 대기 후 수집 시작
+                autoRecordPhase = 'record';
+                autoRecordTimer = now;
+                currentStroke = [];
+                mlCurrentFull = [];
+                updateMlStatus(`Recording '${mlLearningLabel}'...`);
+                recordingOverlay.innerText = "🔴 REC (지금!)";
+                recordingOverlay.style.color = "#EF4444";
+            }
+        }
+        else if (autoRecordPhase === 'record') {
+            let elapsed = (now - autoRecordTimer) / 1000;
+
+            // 수집 중에는 펜 버튼 상태와 무관하게 모든 프레임 데이터 수집
+            if (currentCursorPos) {
+                currentStroke.push([...currentCursorPos]);
+                let s3q = [1, 0, 0, 0]; // Assume S3q is not fully accessible here, fallback
+                if (window.latestData && window.latestData.S3q) s3q = window.latestData.S3q;
+
+                mlCurrentFull.push([
+                    currentCursorPos[0], currentCursorPos[1], currentCursorPos[2],
+                    s3q[0], s3q[1], s3q[2], s3q[3]
+                ]);
+            }
+
+            // 3초가 지나면 1회분 전송 후 다시 wait로 돌아감
+            if (elapsed >= 3.0) {
+                if (mlCurrentFull.length > 5) {
+                    sendMlRecord(mlLearningLabel, mlCurrentFull);
+                }
+                autoRecordPhase = 'wait'; // 루프 반복
+                autoRecordTimer = now;
+                currentStroke = [];
+                mlCurrentFull = [];
+                updateMlStatus("준비...");
+                recordingOverlay.innerText = "WAIT 3.. 2.. 1..";
+                recordingOverlay.style.color = "#F59E0B";
+            }
+        }
+    }, 50); // 50ms마다 체크 (약 20Hz 수집 속도)
+}
+
 
 if (btnMlRec) {
     btnMlRec.addEventListener('click', () => {
-        let label = prompt("학습시킬 단어나 글자를 입력하세요 (예: APPLE):");
-        if (label && label.trim() !== '') {
-            mlLearningLabel = label.trim().toUpperCase();
-            btnMlRec.innerHTML = `🔴 '${mlLearningLabel}' 쓰는중... (떼면 완료)`;
-            btnMlRec.style.background = '#F87171';
+        if (isAutoRecording) {
+            // Stop recording
+            isAutoRecording = false;
+            clearInterval(autoRecordInterval);
+            autoRecordInterval = null;
+            autoRecordPhase = 'idle';
+            mlLearningLabel = null;
+            btnMlRec.innerHTML = `🎯 [가이드] 단어 수집`;
+            btnMlRec.style.background = '';
+            recordingOverlay.style.display = 'none';
+            updateMlStatus("Idle");
+            return;
+        }
 
-            if (guideText) {
-                guideText.innerText = mlLearningLabel;
-                guideText.style.display = 'block';
-            }
-
-            updateMlStatus("Waiting for pen...");
+        // Show Modal
+        if (labelModal) {
+            labelModal.classList.add('active');
+            labelInput.value = '';
+            labelInput.focus();
         }
     });
+
+    if (btnModalCancel) {
+        btnModalCancel.addEventListener('click', () => {
+            labelModal.classList.remove('active');
+        });
+    }
+
+    if (btnModalStart) {
+        btnModalStart.addEventListener('click', () => {
+            let label = labelInput.value.trim().toUpperCase();
+            if (label !== '') {
+                mlLearningLabel = label;
+                isAutoRecording = true;
+
+                labelModal.classList.remove('active');
+
+                btnMlRec.innerHTML = `⏹️ [중지] '${mlLearningLabel}' 연속수집 중...`;
+                btnMlRec.style.background = '#F87171';
+
+                startAutoRecordingLoop();
+            }
+        });
+    }
 
     btnMlPredict.addEventListener('click', () => {
         mlAutoPredict = !mlAutoPredict;
@@ -437,6 +529,38 @@ if (btnMlRec) {
     });
 }
 
+let recognizedSequence = "";
+let lastTop1 = null;
+const recognizedTextOverlay = document.getElementById('recognizedTextOverlay');
+
+document.addEventListener('keydown', (e) => {
+    if (!mlAutoPredict) return;
+
+    if (e.code === 'Space') {
+        e.preventDefault(); // Prevent page scroll
+        if (lastTop1) {
+            recognizedSequence += lastTop1.label;
+            if (recognizedTextOverlay) {
+                recognizedTextOverlay.innerText = recognizedSequence;
+                recognizedTextOverlay.classList.add('active');
+            }
+            lastTop1 = null;
+        }
+        strokeHistory = [];
+        updateScoreBoard([]);
+    } else if (e.code === 'Backspace') {
+        if (recognizedSequence.length > 0) {
+            recognizedSequence = recognizedSequence.slice(0, -1);
+            if (recognizedTextOverlay) {
+                recognizedTextOverlay.innerText = recognizedSequence;
+                if (recognizedSequence === "") {
+                    recognizedTextOverlay.classList.remove('active');
+                }
+            }
+        }
+    }
+});
+
 function updateMlStatus(msg) {
     if (mlStatusText) mlStatusText.innerText = `Status: ${msg}`;
 }
@@ -452,6 +576,7 @@ function updateScoreBoard(predictions) {
 
     // Top 1
     const top1 = predictions[0];
+    lastTop1 = top1;
     if (aiResultWord) aiResultWord.innerText = top1.label;
     if (aiResultScore) aiResultScore.innerText = `(${(top1.confidence * 100).toFixed(1)}%)`;
 
@@ -500,13 +625,8 @@ async function sendMlRecord(label, strokeData) {
         const json = await res.json();
         if (res.ok) {
             updateMlStatus(`Saved '${label}'!`);
-            // Reset button
-            mlLearningLabel = null;
-            btnMlRec.innerHTML = `🎯 [가이드] 단어 학습`;
-            btnMlRec.style.background = '';
-            if (guideText) {
-                guideText.style.display = 'none';
-            }
+            // Do not reset the button or close the guide text explicitly here, 
+            // as the loop will continue seamlessly until the user hits Stop.
         } else {
             updateMlStatus(`Error: ${json.error}`);
         }

@@ -287,22 +287,99 @@ canvas {
   background: #333;
 }
 
-.guide-overlay {
+.recognized-text-overlay {
   position: absolute;
-  top: 50%;
+  top: 15%;
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
   font-family: 'Inter', sans-serif;
-  font-size: 15rem;
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.08);
-  /* Transparent watermark */
+  font-size: 5rem;
+  font-weight: 800;
+  color: #4ADE80;
+  /* bright green */
+  text-shadow: 0 0 20px rgba(74, 222, 128, 0.4);
   pointer-events: none;
+  z-index: 20;
+  letter-spacing: 5px;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 10px 30px;
+  border-radius: 12px;
+  border: 1px solid rgba(74, 222, 128, 0.2);
   display: none;
-  /* Hidden by default */
-  white-space: nowrap;
-  user-select: none;
-  z-index: 10;
+}
+
+.recognized-text-overlay.active {
+  display: block;
+}
+
+/* MODAL */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+
+.modal-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal-content {
+  width: 320px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  text-align: center;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.modal-content h3 {
+  margin: 0;
+  color: var(--text-main);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.modal-content p {
+  margin: 0;
+  font-size: 13px;
+  color: #94A3B8;
+}
+
+#labelInput {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--border-color);
+  color: white;
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 16px;
+  text-align: center;
+  outline: none;
+  font-family: 'Inter', sans-serif;
+}
+
+#labelInput:focus {
+  border-color: #2563EB;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.modal-actions button {
+  flex: 1;
 }
 
 .crosshair::before {
