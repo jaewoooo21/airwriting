@@ -8,7 +8,7 @@ const valPos = document.getElementById('valPos');
 const valZupt = document.getElementById('valZupt');
 
 // Configuration
-const WS_URL = "ws://localhost:8766";
+const WS_URL = "ws://localhost:18765";
 let ws = null;
 
 // ══════════════════════════════════════════
@@ -403,6 +403,7 @@ const btnMlPredict = document.getElementById('btnMlPredict');
 const mlStatusText = document.getElementById('mlStatusText');
 const aiResultWord = document.getElementById('aiResultWord');
 const aiResultScore = document.getElementById('aiResultScore');
+const guideText = document.getElementById('guideText');
 
 if (btnMlRec) {
     btnMlRec.addEventListener('click', () => {
@@ -411,6 +412,12 @@ if (btnMlRec) {
             mlLearningLabel = label.trim().toUpperCase();
             btnMlRec.innerHTML = `🔴 '${mlLearningLabel}' 쓰는중... (떼면 완료)`;
             btnMlRec.style.background = '#F87171';
+
+            if (guideText) {
+                guideText.innerText = mlLearningLabel;
+                guideText.style.display = 'block';
+            }
+
             updateMlStatus("Waiting for pen...");
         }
     });
@@ -497,6 +504,9 @@ async function sendMlRecord(label, strokeData) {
             mlLearningLabel = null;
             btnMlRec.innerHTML = `🎯 [가이드] 단어 학습`;
             btnMlRec.style.background = '';
+            if (guideText) {
+                guideText.style.display = 'none';
+            }
         } else {
             updateMlStatus(`Error: ${json.error}`);
         }

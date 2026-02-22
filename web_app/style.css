@@ -287,6 +287,24 @@ canvas {
   background: #333;
 }
 
+.guide-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: 'Inter', sans-serif;
+  font-size: 15rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.08);
+  /* Transparent watermark */
+  pointer-events: none;
+  display: none;
+  /* Hidden by default */
+  white-space: nowrap;
+  user-select: none;
+  z-index: 10;
+}
+
 .crosshair::before {
   top: 50%;
   left: 0;

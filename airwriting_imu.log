@@ -5640,3 +5640,163 @@
 2026-02-21 23:43:31,348 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=556170 fps=83 pos=(-0.001,-0.000,-0.000) vel=(-0.000,0.000,-0.000) zupt=555846 zaru=555846 decay=24 rto=239 pen=🔵 plane=✅ drift_fix=0 ck_err=0
 2026-02-21 23:43:36,348 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=556587 fps=83 pos=(-0.001,-0.000,-0.000) vel=(0.000,0.000,0.000) zupt=556263 zaru=556263 decay=24 rto=239 pen=🔵 plane=✅ drift_fix=0 ck_err=0
 2026-02-21 23:43:41,351 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=556980 fps=83 pos=(-0.001,-0.000,-0.000) vel=(-0.000,0.000,-0.000) zupt=556656 zaru=556656 decay=24 rto=239 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:10:38,177 [INFO] Main: =======================================================
+2026-02-22 19:10:38,179 [INFO] Main:   AirWriting IMU-Only v2.3
+2026-02-22 19:10:38,179 [INFO] Main: =======================================================
+2026-02-22 19:10:38,220 [INFO] airwriting_imu.core.config_loader: ✅ Config: 3 sensors, 3 skeleton joints (IMU-only)
+2026-02-22 19:10:38,222 [INFO] airwriting_imu.fusion.imu_only_fusion: ✅ IMUOnlyFusion: ESKF-15 initialized
+2026-02-22 19:10:38,222 [INFO] airwriting_imu.constraints.biomechanical: ✅ Constraints: max_vel=3.0m/s max_acc=30.0m/s² max_reach=0.51m
+2026-02-22 19:10:38,223 [INFO] airwriting_imu.fusion.forward_kinematics: ✅ FK: 3 segments, total reach = 0.51m
+2026-02-22 19:10:38,224 [INFO] airwriting_imu.core.controller: ✅ IMU-Only Controller init OK
+2026-02-22 19:10:38,229 [INFO] airwriting_imu.core.controller: 🚀 Listening :12345  →Unity :12346 (IMU-only)
+2026-02-22 19:10:38,230 [INFO] Main: ✅ Running (IMU-only mode).  Ctrl+C to stop.
+2026-02-22 19:10:38,230 [INFO] airwriting_imu.core.controller: 🐛 PARSE V3 n=92 | pkts_sids=['S1', 'S2', 'S3'] | btn=False
+2026-02-22 19:10:38,234 [INFO] airwriting_imu.core.controller: 📐 Cal S1 … keep still!
+2026-02-22 19:10:38,235 [INFO] airwriting_imu.core.controller: 📐 Cal S2 … keep still!
+2026-02-22 19:10:38,235 [INFO] airwriting_imu.core.controller: 📐 Cal S3 … keep still!
+2026-02-22 19:10:38,249 [INFO] airwriting_imu.core.controller: 🐛 PARSE V3 n=92 | pkts_sids=['S1', 'S2', 'S3'] | btn=False
+2026-02-22 19:10:38,254 [INFO] airwriting_imu.core.controller: 🐛 PARSE V3 n=92 | pkts_sids=['S1', 'S2', 'S3'] | btn=False
+2026-02-22 19:10:38,263 [INFO] airwriting_imu.core.controller: 🐛 PARSE V3 n=92 | pkts_sids=['S1', 'S2', 'S3'] | btn=False
+2026-02-22 19:10:38,275 [INFO] airwriting_imu.core.controller: 🐛 PARSE V3 n=92 | pkts_sids=['S1', 'S2', 'S3'] | btn=False
+2026-02-22 19:10:41,815 [INFO] airwriting_imu.core.controller: ─────────────────────────────────────────────
+2026-02-22 19:10:41,821 [INFO] airwriting_imu.core.controller:   S1: A_bias=[-0.0035  0.0501  0.3726]  G_bias=[-0.0959 -0.052  -0.0213]  (n=300)  ✅ GOOD
+2026-02-22 19:10:41,822 [INFO] airwriting_imu.core.controller:       A_std=[0.0354 0.0322 0.0442]  G_std=[0.00316 0.00323 0.00151]
+2026-02-22 19:10:41,823 [INFO] airwriting_imu.core.controller:   S2: A_bias=[ 0.355  -0.0264  1.9685]  G_bias=[-0.0159  0.0309 -0.0211]  (n=300)  ✅ GOOD
+2026-02-22 19:10:41,824 [INFO] airwriting_imu.core.controller:       A_std=[0.0345 0.0318 0.0399]  G_std=[0.00363 0.00231 0.00196]
+2026-02-22 19:10:41,825 [INFO] airwriting_imu.core.controller:   S3: A_bias=[ 0.    0.   -9.81]  G_bias=[0. 0. 0.]  (n=300)  ✅ GOOD
+2026-02-22 19:10:41,826 [INFO] airwriting_imu.core.controller:       A_std=[0. 0. 0.]  G_std=[0. 0. 0.]
+2026-02-22 19:10:41,837 [INFO] airwriting_imu.core.controller: 💾 Bias saved to C:\Users\USER\airwriting_imu_only\config\imu.yaml
+2026-02-22 19:10:41,838 [INFO] airwriting_imu.core.controller: ✅ Calibration done
+2026-02-22 19:10:41,838 [INFO] airwriting_imu.core.controller: ─────────────────────────────────────────────
+2026-02-22 19:10:43,262 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=415 fps=82 pos=(0.000,0.000,-0.000) vel=(-0.000,0.000,-0.000) zupt=111 zaru=111 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:10:48,262 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=837 fps=83 pos=(0.000,0.000,-0.000) vel=(-0.000,0.000,0.000) zupt=533 zaru=533 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:10:53,269 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=1254 fps=83 pos=(0.000,0.000,-0.000) vel=(0.000,0.000,-0.000) zupt=950 zaru=950 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:10:58,269 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=1671 fps=83 pos=(0.000,0.000,-0.000) vel=(0.000,-0.000,0.000) zupt=1367 zaru=1367 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:11:03,276 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=2087 fps=83 pos=(0.000,0.000,-0.000) vel=(-0.000,0.000,0.000) zupt=1783 zaru=1783 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:11:08,290 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=2505 fps=83 pos=(0.000,0.000,-0.000) vel=(-0.000,0.000,0.000) zupt=2201 zaru=2201 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:11:13,290 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=2922 fps=83 pos=(0.000,0.000,-0.000) vel=(0.000,-0.000,-0.000) zupt=2618 zaru=2618 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:11:18,304 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=3338 fps=83 pos=(0.000,0.000,-0.000) vel=(0.000,-0.000,-0.000) zupt=3034 zaru=3034 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:11:23,313 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=3757 fps=83 pos=(0.000,0.000,-0.000) vel=(0.000,0.000,0.000) zupt=3453 zaru=3453 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:11:28,323 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=4174 fps=83 pos=(0.000,0.000,-0.000) vel=(0.000,-0.000,-0.000) zupt=3870 zaru=3870 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:11:33,364 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=4590 fps=83 pos=(0.000,0.000,-0.000) vel=(0.000,0.000,0.000) zupt=4286 zaru=4286 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:11:38,370 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=5012 fps=83 pos=(0.000,0.000,-0.000) vel=(0.000,0.000,0.000) zupt=4708 zaru=4708 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:11:43,376 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=5429 fps=83 pos=(0.000,0.000,-0.000) vel=(0.000,0.000,-0.000) zupt=5125 zaru=5125 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:11:48,379 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=5846 fps=83 pos=(0.000,0.000,-0.000) vel=(-0.000,-0.000,0.000) zupt=5542 zaru=5542 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:11:53,393 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=6263 fps=83 pos=(0.000,0.000,-0.000) vel=(0.000,-0.000,0.000) zupt=5959 zaru=5959 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:11:58,396 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=6680 fps=83 pos=(0.000,0.000,-0.000) vel=(-0.000,-0.000,0.000) zupt=6376 zaru=6376 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:12:03,400 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=7097 fps=83 pos=(0.000,0.000,-0.000) vel=(-0.000,-0.000,0.000) zupt=6793 zaru=6793 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:12:08,437 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=7511 fps=83 pos=(0.000,0.000,-0.000) vel=(0.000,-0.000,-0.000) zupt=7207 zaru=7207 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:12:13,441 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=7934 fps=83 pos=(0.000,0.000,-0.000) vel=(-0.000,0.000,-0.000) zupt=7630 zaru=7630 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:12:18,457 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=8352 fps=83 pos=(0.000,0.000,-0.000) vel=(-0.000,0.000,-0.000) zupt=8048 zaru=8048 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:12:23,493 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=8766 fps=83 pos=(0.000,0.000,-0.000) vel=(0.000,-0.000,-0.000) zupt=8462 zaru=8462 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:12:28,493 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=9188 fps=83 pos=(0.000,0.000,-0.000) vel=(0.000,-0.000,-0.000) zupt=8884 zaru=8884 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:12:33,498 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=9605 fps=83 pos=(0.000,0.000,-0.000) vel=(-0.000,0.000,0.000) zupt=9301 zaru=9301 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:12:38,501 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=10019 fps=83 pos=(0.000,0.000,-0.000) vel=(0.000,0.000,0.000) zupt=9715 zaru=9715 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:12:43,507 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=10440 fps=83 pos=(0.000,0.000,-0.000) vel=(0.000,0.000,-0.000) zupt=10136 zaru=10136 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:12:48,513 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=10857 fps=83 pos=(0.000,-0.000,-0.000) vel=(0.000,-0.000,0.000) zupt=10553 zaru=10553 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:12:53,525 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=11275 fps=83 pos=(0.000,-0.000,-0.000) vel=(-0.000,-0.000,0.000) zupt=10971 zaru=10971 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:12:58,529 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=11692 fps=83 pos=(0.000,-0.000,-0.000) vel=(0.000,-0.000,-0.000) zupt=11388 zaru=11388 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:13:03,540 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=12109 fps=83 pos=(0.000,-0.000,-0.000) vel=(0.000,-0.000,0.000) zupt=11805 zaru=11805 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:13:08,598 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=12526 fps=83 pos=(0.000,-0.000,-0.000) vel=(0.000,-0.000,-0.000) zupt=12222 zaru=12222 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:13:13,600 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=12944 fps=83 pos=(0.000,-0.000,-0.000) vel=(0.000,-0.000,-0.000) zupt=12640 zaru=12640 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:13:18,607 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=13365 fps=83 pos=(0.000,-0.000,-0.000) vel=(0.000,0.000,0.000) zupt=13061 zaru=13061 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:13:23,723 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=13739 fps=83 pos=(0.000,-0.000,-0.000) vel=(-0.000,0.000,-0.000) zupt=13435 zaru=13435 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:13:28,735 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=14128 fps=83 pos=(0.000,-0.000,-0.000) vel=(-0.000,-0.000,0.000) zupt=13824 zaru=13824 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:13:33,739 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=14620 fps=83 pos=(0.000,-0.000,-0.000) vel=(0.000,0.000,0.000) zupt=14316 zaru=14316 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:13:38,739 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=15042 fps=83 pos=(0.000,-0.000,-0.000) vel=(-0.000,-0.000,-0.000) zupt=14738 zaru=14738 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:13:43,747 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=15460 fps=83 pos=(0.000,-0.000,-0.000) vel=(0.000,0.000,0.000) zupt=15156 zaru=15156 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:13:48,765 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=15817 fps=83 pos=(0.000,-0.000,-0.000) vel=(-0.000,-0.000,0.000) zupt=15513 zaru=15513 decay=4 rto=0 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:13:51,364 [INFO] airwriting_imu.core.controller: ✏️ Pen DOWN — stroke start at (0.000,-0.000,-0.000)
+2026-02-22 19:13:51,542 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=15 total=1
+2026-02-22 19:13:51,784 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=15 total=2
+2026-02-22 19:13:52,064 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=43 total=3
+2026-02-22 19:13:52,306 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=15 total=4
+2026-02-22 19:13:52,547 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=15 total=5
+2026-02-22 19:13:52,744 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=15 total=6
+2026-02-22 19:13:52,792 [INFO] airwriting_imu.core.controller: ✏️ Pen UP — RTO applied, pos=(0.000,-0.000,-0.000)
+2026-02-22 19:13:53,766 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=16296 fps=83 pos=(0.000,-0.000,-0.000) vel=(-0.000,-0.000,0.000) zupt=15992 zaru=15992 decay=4 rto=7 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:13:53,884 [INFO] airwriting_imu.core.controller: ✏️ Pen DOWN — stroke start at (0.000,-0.000,-0.000)
+2026-02-22 19:13:54,099 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=15 total=7
+2026-02-22 19:13:54,338 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=33 total=8
+2026-02-22 19:13:54,583 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=15 total=9
+2026-02-22 19:13:54,624 [INFO] airwriting_imu.core.controller: ✏️ Pen UP — RTO applied, pos=(0.000,-0.000,-0.000)
+2026-02-22 19:13:54,973 [INFO] airwriting_imu.core.controller: ✏️ Pen DOWN — stroke start at (0.000,-0.000,-0.000)
+2026-02-22 19:13:55,157 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=15 total=10
+2026-02-22 19:13:55,386 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=15 total=11
+2026-02-22 19:13:55,508 [INFO] airwriting_imu.core.controller: ✏️ Pen UP — RTO applied, pos=(0.000,-0.000,-0.000)
+2026-02-22 19:13:55,834 [INFO] airwriting_imu.core.controller: ✏️ Pen DOWN — stroke start at (0.000,-0.000,-0.000)
+2026-02-22 19:13:56,066 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=15 total=12
+2026-02-22 19:13:56,304 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=15 total=13
+2026-02-22 19:13:56,387 [INFO] airwriting_imu.core.controller: ✏️ Pen UP — RTO applied, pos=(0.000,-0.000,-0.000)
+2026-02-22 19:13:57,087 [INFO] airwriting_imu.core.controller: ✏️ Pen DOWN — stroke start at (0.000,-0.000,-0.000)
+2026-02-22 19:13:57,272 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=15 total=14
+2026-02-22 19:13:57,507 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=15 total=15
+2026-02-22 19:13:57,796 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=15 total=16
+2026-02-22 19:13:57,819 [INFO] airwriting_imu.core.controller: ✏️ Pen UP — RTO applied, pos=(0.000,-0.000,-0.000)
+2026-02-22 19:13:58,396 [INFO] airwriting_imu.core.controller: ✏️ Pen DOWN — stroke start at (0.000,-0.000,-0.000)
+2026-02-22 19:13:58,581 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=15 total=17
+2026-02-22 19:13:58,768 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=16713 fps=83 pos=(0.000,-0.000,-0.000) vel=(-0.000,-0.000,0.000) zupt=16409 zaru=16409 decay=4 rto=22 pen=✏️ plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:13:58,816 [INFO] airwriting_imu.core.controller: ✏️ Pen UP — RTO applied, pos=(0.000,-0.000,-0.000)
+2026-02-22 19:13:59,643 [INFO] airwriting_imu.core.controller: ✏️ Pen DOWN — stroke start at (0.000,-0.000,-0.000)
+2026-02-22 19:13:59,859 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=15 total=18
+2026-02-22 19:14:00,049 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=15 total=19
+2026-02-22 19:14:00,141 [INFO] airwriting_imu.core.controller: ✏️ Pen UP — RTO applied, pos=(0.000,-0.000,-0.000)
+2026-02-22 19:14:00,415 [INFO] airwriting_imu.core.controller: ✏️ Pen DOWN — stroke start at (0.000,-0.000,-0.000)
+2026-02-22 19:14:00,619 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=15 total=20
+2026-02-22 19:14:00,837 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=19 total=21
+2026-02-22 19:14:00,873 [INFO] airwriting_imu.core.controller: ✏️ Pen UP — RTO applied, pos=(0.000,-0.000,-0.000)
+2026-02-22 19:14:01,197 [INFO] airwriting_imu.core.controller: ✏️ Pen DOWN — stroke start at (0.000,-0.000,-0.000)
+2026-02-22 19:14:01,413 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=15 total=22
+2026-02-22 19:14:01,656 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=15 total=23
+2026-02-22 19:14:01,685 [INFO] airwriting_imu.core.controller: ✏️ Pen UP — RTO applied, pos=(0.000,-0.000,-0.000)
+2026-02-22 19:14:02,877 [INFO] airwriting_imu.core.controller: ✏️ Pen DOWN — stroke start at (0.000,-0.000,-0.000)
+2026-02-22 19:14:03,055 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=15 total=24
+2026-02-22 19:14:03,108 [INFO] airwriting_imu.core.controller: ✏️ Pen UP — RTO applied, pos=(0.000,-0.000,-0.000)
+2026-02-22 19:14:03,177 [INFO] airwriting_imu.core.controller: ✏️ Pen DOWN — stroke start at (0.000,-0.000,-0.000)
+2026-02-22 19:14:03,279 [INFO] airwriting_imu.core.controller: ✏️ Pen UP — RTO applied, pos=(0.000,-0.000,-0.000)
+2026-02-22 19:14:03,340 [INFO] airwriting_imu.core.controller: ✏️ Pen DOWN — stroke start at (0.000,-0.000,-0.000)
+2026-02-22 19:14:03,553 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=15 total=25
+2026-02-22 19:14:03,665 [INFO] airwriting_imu.core.controller: ✏️ Pen UP — RTO applied, pos=(0.000,-0.000,-0.000)
+2026-02-22 19:14:03,777 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=17125 fps=83 pos=(0.000,-0.000,-0.000) vel=(0.000,0.000,-0.000) zupt=16821 zaru=16821 decay=4 rto=37 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:14:03,922 [INFO] airwriting_imu.core.controller: ✏️ Pen DOWN — stroke start at (0.000,-0.000,-0.000)
+2026-02-22 19:14:04,095 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=15 total=26
+2026-02-22 19:14:04,343 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=20 total=27
+2026-02-22 19:14:04,575 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=49 total=28
+2026-02-22 19:14:04,821 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=63 total=29
+2026-02-22 19:14:05,056 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=15 total=30
+2026-02-22 19:14:05,323 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=45 total=31
+2026-02-22 19:14:05,557 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=75 total=32
+2026-02-22 19:14:05,780 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=87 total=33
+2026-02-22 19:14:06,017 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=41 total=34
+2026-02-22 19:14:06,259 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=28 total=35
+2026-02-22 19:14:06,497 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=70 total=36
+2026-02-22 19:14:06,735 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=29 total=37
+2026-02-22 19:14:06,980 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=44 total=38
+2026-02-22 19:14:07,221 [INFO] airwriting_imu.constraints.loop_closure: 🔄 Loop closure detected! dist=0.0000m loop_len=50 total=39
+2026-02-22 19:14:07,459 [INFO] airwriting_imu.core.controller: ✏️ Pen UP — RTO applied, pos=(0.000,-0.000,-0.000)
+2026-02-22 19:14:08,783 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=17547 fps=83 pos=(0.000,-0.000,-0.000) vel=(0.000,0.000,-0.000) zupt=17243 zaru=17243 decay=4 rto=52 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:14:13,791 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=17965 fps=83 pos=(0.000,-0.000,-0.000) vel=(0.000,0.000,-0.000) zupt=17661 zaru=17661 decay=4 rto=52 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:14:18,796 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=18382 fps=83 pos=(0.000,-0.000,-0.000) vel=(0.000,0.000,-0.000) zupt=18078 zaru=18078 decay=4 rto=52 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:14:23,810 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=18795 fps=83 pos=(0.000,-0.000,-0.000) vel=(-0.000,0.000,0.000) zupt=18491 zaru=18491 decay=4 rto=52 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:14:28,818 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=19217 fps=83 pos=(0.000,-0.000,-0.000) vel=(-0.000,-0.000,0.000) zupt=18913 zaru=18913 decay=4 rto=52 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:14:33,820 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=19634 fps=83 pos=(0.000,-0.000,-0.000) vel=(0.000,-0.000,-0.000) zupt=19330 zaru=19330 decay=4 rto=52 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:14:38,822 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=20051 fps=83 pos=(0.000,-0.000,-0.000) vel=(-0.000,-0.000,0.000) zupt=19747 zaru=19747 decay=4 rto=52 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:14:43,825 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=20468 fps=83 pos=(0.000,-0.000,-0.000) vel=(0.000,0.000,-0.000) zupt=20164 zaru=20164 decay=4 rto=52 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:14:48,841 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=20885 fps=83 pos=(0.000,-0.000,-0.000) vel=(0.000,-0.000,-0.000) zupt=20581 zaru=20581 decay=4 rto=52 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:14:53,844 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=21303 fps=83 pos=(0.000,-0.000,-0.000) vel=(-0.000,-0.000,0.000) zupt=20999 zaru=20999 decay=4 rto=52 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:14:58,856 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=21720 fps=83 pos=(0.000,-0.000,-0.000) vel=(0.000,0.000,0.000) zupt=21416 zaru=21416 decay=4 rto=52 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:15:03,866 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=22138 fps=83 pos=(0.000,-0.000,-0.000) vel=(-0.000,-0.000,0.000) zupt=21834 zaru=21834 decay=4 rto=52 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:15:08,868 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=22553 fps=83 pos=(0.000,-0.000,-0.000) vel=(0.000,-0.000,-0.000) zupt=22249 zaru=22249 decay=4 rto=52 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:15:13,870 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=22972 fps=83 pos=(0.000,-0.000,-0.000) vel=(-0.000,-0.000,0.000) zupt=22668 zaru=22668 decay=4 rto=52 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:15:18,874 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=23389 fps=83 pos=(0.000,-0.000,-0.000) vel=(-0.000,0.000,0.000) zupt=23085 zaru=23085 decay=4 rto=52 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:15:23,879 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=23806 fps=83 pos=(0.000,-0.000,-0.000) vel=(-0.000,-0.000,-0.000) zupt=23502 zaru=23502 decay=4 rto=52 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:15:28,946 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=24219 fps=83 pos=(0.000,-0.000,-0.000) vel=(-0.000,0.000,0.000) zupt=23915 zaru=23915 decay=4 rto=52 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:15:33,959 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=24632 fps=83 pos=(0.000,-0.000,-0.000) vel=(-0.000,0.000,0.000) zupt=24328 zaru=24328 decay=4 rto=52 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:15:38,960 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=25049 fps=83 pos=(0.000,-0.000,-0.000) vel=(-0.000,-0.000,0.000) zupt=24745 zaru=24745 decay=4 rto=52 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:15:43,966 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=25466 fps=83 pos=(0.000,-0.000,-0.000) vel=(-0.000,0.000,0.000) zupt=25162 zaru=25162 decay=4 rto=52 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:15:48,971 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=25883 fps=83 pos=(0.000,-0.000,-0.000) vel=(0.000,0.000,0.000) zupt=25579 zaru=25579 decay=4 rto=52 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:15:53,972 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=26300 fps=83 pos=(0.000,-0.000,-0.000) vel=(-0.000,-0.000,0.000) zupt=25996 zaru=25996 decay=4 rto=52 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:15:58,972 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=26713 fps=83 pos=(0.000,-0.000,-0.000) vel=(0.000,-0.000,-0.000) zupt=26409 zaru=26409 decay=4 rto=52 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:16:03,979 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=27134 fps=83 pos=(0.000,-0.000,-0.000) vel=(0.000,-0.000,0.000) zupt=26830 zaru=26830 decay=4 rto=52 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:16:08,985 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=27551 fps=83 pos=(0.000,-0.000,-0.000) vel=(-0.000,-0.000,0.000) zupt=27247 zaru=27247 decay=4 rto=52 pen=🔵 plane=✅ drift_fix=0 ck_err=0
+2026-02-22 19:16:14,049 [INFO] airwriting_imu.core.controller: 📊 [RUN] f=27968 fps=83 pos=(0.000,-0.000,-0.000) vel=(-0.000,0.000,0.000) zupt=27664 zaru=27664 decay=4 rto=52 pen=🔵 plane=✅ drift_fix=0 ck_err=0
