@@ -22,6 +22,7 @@ import json
 import socket
 import sys
 import threading
+from tools.ml_engine import MLEngine
 
 import numpy as np
 
@@ -191,7 +192,29 @@ class DigitalTwinWindow(QtWidgets.QMainWindow):
             lbl = QtWidgets.QLabel(w)
             lbl.setStyleSheet("font-size: 16px; color: #F8FAFC; padding: 10px; background: #1E293B; border-radius: 6px; border: 1px solid #334155;")
             left_layout.addWidget(lbl)
+            
+        left_layout.addStretch()
+
+        # ── ML Controls ──
+        ml_title = QtWidgets.QLabel("🛠️ ML CONTROLS")
+        ml_title.setStyleSheet("font-size: 14px; font-weight: bold; color: #94A3B8; letter-spacing: 1px;")
+        left_layout.addWidget(ml_title)
+
+        self.btn_learn = QtWidgets.QPushButton("🎯 [가이드] 새 단어 학습 시작")
+        self.btn_learn.setStyleSheet("QPushButton { font-weight: bold; padding: 12px; background: #2563EB; color: white; border-radius: 6px; } QPushButton:hover { background: #1D4ED8; }")
+        self.btn_learn.clicked.connect(self.start_learning_mode)
+        left_layout.addWidget(self.btn_learn)
+
+        self.btn_predict = QtWidgets.QPushButton("⚡ [자동보정] 실시간 인식 (OFF)")
+        self.btn_predict.setStyleSheet("QPushButton { font-weight: bold; padding: 12px; background: #475569; color: white; border-radius: 6px; } QPushButton:checked { background: #059669; }")
+        self.btn_predict.setCheckable(True)
+        self.btn_predict.clicked.connect(self.toggle_prediction_mode)
+        left_layout.addWidget(self.btn_predict)
         
+        self.lbl_ml_status = QtWidgets.QLabel("Status: Idle")
+        self.lbl_ml_status.setStyleSheet("color: #94A3B8; font-size: 12px;")
+        left_layout.addWidget(self.lbl_ml_status)
+
         left_layout.addStretch()
 
         # Recognition Placeholder
@@ -199,8 +222,8 @@ class DigitalTwinWindow(QtWidgets.QMainWindow):
         recog_title.setStyleSheet("font-size: 14px; font-weight: bold; color: #94A3B8; letter-spacing: 1px;")
         left_layout.addWidget(recog_title)
 
-        self.lbl_score = QtWidgets.QLabel("Graduation\n(98.5%)")
-        self.lbl_score.setStyleSheet("font-size: 28px; font-weight: bold; color: #4ADE80; background: #064E3B; padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #059669;")
+        self.lbl_score = QtWidgets.QLabel("--\n(0.0%)")
+        self.lbl_score.setStyleSheet("font-size: 24px; font-weight: bold; color: #4ADE80; background: #064E3B; padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #059669;")
         self.lbl_score.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         left_layout.addWidget(self.lbl_score)
 
@@ -341,6 +364,13 @@ class DigitalTwinWindow(QtWidgets.QMainWindow):
         self._pen_was_down = False
         self._frame_count = 0
 
+        # ── ML Engine & State ──
+        self.ml_engine = MLEngine()
+        self.learning_label = None        # If not None, we are recording a stroke to learn
+        self.auto_predict_mode = False    # If True, we predict at the end of every stroke
+        self.current_stroke_full = []     # Stores [x,y,z, qw,qx,qy,qz] for CSV
+        self.current_stroke_pos = []      # Stores [x,y,z] for prediction
+
     def keyPressEvent(self, ev):
         if ev.key() == QtCore.Qt.Key.Key_V:
             self._toggle_view()
@@ -385,35 +415,81 @@ class DigitalTwinWindow(QtWidgets.QMainWindow):
         elif self._pen_was_down and not pen:
             self.trail_pts.append(np.array([np.nan, np.nan, np.nan]))
 
+        # ── ML Recording / Prediction Logic ──
+        if pen and not self._pen_was_down:
+            # Pen Down -> Start recording
+            self.current_stroke_full = []
+            self.current_stroke_pos = []
+            if self.learning_label:
+                self.lbl_ml_status.setText(f"Status: Recording '{self.learning_label}'...")
+                self.lbl_ml_status.setStyleSheet("color: #F87171; font-weight: bold;")
+            elif self.auto_predict_mode:
+                self.lbl_ml_status.setText("Status: Analyzing...")
+                self.lbl_score.setText("--\n(...)")
+
+        elif pen and self._pen_was_down:
+            # Pen Drag -> Collect data
+            s3q = data.get("S3q", [1, 0, 0, 0])
+            self.current_stroke_pos.append(pen_tip_pos.copy())
+            self.current_stroke_full.append([
+                pen_tip_pos[0], pen_tip_pos[1], pen_tip_pos[2],
+                s3q[0], s3q[1], s3q[2], s3q[3]
+            ])
+
+        elif not pen and self._pen_was_down:
+            # Pen Up -> End of stroke, process it
+            if self.learning_label and len(self.current_stroke_full) > 5:
+                # Save stroke to CSV
+                self.ml_engine.save_stroke(self.learning_label, self.current_stroke_full)
+                self.lbl_ml_status.setText(f"Status: Saved '{self.learning_label}'!")
+                self.lbl_ml_status.setStyleSheet("color: #4ADE80;")
+                
+                # Turn off learning mode and train in background
+                self.learning_label = None
+                self.btn_learn.setText("🎯 [가이드] 새 단어 학습 시작")
+                self.btn_learn.setStyleSheet("QPushButton { font-weight: bold; padding: 12px; background: #2563EB; color: white; border-radius: 6px; }")
+                
+                # Re-train background
+                threading.Thread(target=self._background_train_task, daemon=True).start()
+
+            elif self.auto_predict_mode and len(self.current_stroke_pos) > 5:
+                # Predict
+                label, conf = self.ml_engine.predict(np.array(self.current_stroke_pos))
+                if label:
+                    # Update huge score board
+                    self.lbl_score.setText(f"{label}\n({conf*100:.1f}%)")
+                    self.lbl_ml_status.setText(f"Status: Predicted {label}")
+                else:
+                    self.lbl_score.setText("??\n(0.0%)")
+                    self.lbl_ml_status.setText("Status: Unrecognized")
+
         self._pen_was_down = pen
 
-        if len(self.trail_pts) > 1:
-            self.trail_line.setData(pos=np.array(self.trail_pts), color=COL_TRAIL)
+    def start_learning_mode(self):
+        text, ok = QtWidgets.QInputDialog.getText(self, "단어 학습", "학습시킬 글자/단어를 입력하세요:\n(예: APPLE, A, B)")
+        if ok and text:
+            self.learning_label = text.strip().upper()
+            self.btn_learn.setText(f"🔴 '{self.learning_label}' 쓰는 중... (버튼 떼면 완료)")
+            self.btn_learn.setStyleSheet("QPushButton { font-weight: bold; padding: 12px; background: #F87171; color: white; border-radius: 6px; }")
+            self.lbl_ml_status.setText("Status: Waiting for pen...")
+            self.lbl_ml_status.setStyleSheet("color: #94A3B8;")
 
-        # ── Update UI Status ──
-        if pen:
-            self.lbl_pen.setText("PEN EVENT: 🔴 WRITING")
-            self.lbl_pen.setStyleSheet("font-weight: bold; font-size: 14px; color: #F87171; font-family: 'Consolas';")
+    def toggle_prediction_mode(self):
+        self.auto_predict_mode = self.btn_predict.isChecked()
+        if self.auto_predict_mode:
+            self.btn_predict.setText("⚡ [자동보정] 실시간 인식 (ON)")
+            self.btn_predict.setStyleSheet("QPushButton { font-weight: bold; padding: 12px; background: #059669; color: white; border-radius: 6px; }")
+            self.lbl_ml_status.setText("Status: Waiting for gesture...")
         else:
-            self.lbl_pen.setText("PEN EVENT: ⚪ IDLE")
-            self.lbl_pen.setStyleSheet("font-weight: bold; font-size: 14px; color: #94A3B8; font-family: 'Consolas';")
+            self.btn_predict.setText("⚡ [자동보정] 실시간 인식 (OFF)")
+            self.btn_predict.setStyleSheet("QPushButton { font-weight: bold; padding: 12px; background: #475569; color: white; border-radius: 6px; }")
+            self.lbl_ml_status.setText("Status: Idle")
+            self.lbl_score.setText("--\n(0.0%)")
 
-        if zupt:
-            self.lbl_zupt.setText("VELOCITY LOCK: 🟢 ACTIVE")
-            self.lbl_zupt.setStyleSheet("color: #4ADE80; font-weight: bold; font-family: 'Consolas';")
-        else:
-            self.lbl_zupt.setText("VELOCITY LOCK: ⚪ MOVING")
-            self.lbl_zupt.setStyleSheet("color: #94A3B8; font-family: 'Consolas';")
-
-        p = pen_tip_pos
-        self.lbl_pos.setText(f"X: {p[0]:8.3f}\nY: {p[1]:8.3f}\nZ: {p[2]:8.3f}")
-
-        # Update Live Velocity Graph
-        s3v = data.get("S3v")
-        vel_mag = np.linalg.norm(s3v) if s3v else 0.0
-        self.plot_data = np.roll(self.plot_data, -1)
-        self.plot_data[-1] = vel_mag
-        self.plot_curve.setData(self.plot_data)
+    def _background_train_task(self):
+        self.lbl_ml_status.setText("Status: Background Training...")
+        self.ml_engine.train_background()
+        self.lbl_ml_status.setText("Status: Training Complete!")
 
     def _apply_cam(self, preset: dict):
         self.view.opts["distance"] = preset["distance"]
