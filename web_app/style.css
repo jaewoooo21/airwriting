@@ -193,6 +193,48 @@ body {
   color: var(--text-main);
 }
 
+/* ML CONTROLS */
+.ml-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ml-btn {
+  padding: 12px;
+  border-radius: 6px;
+  border: none;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ml-btn-rec {
+  background: #2563EB;
+  color: white;
+}
+
+.ml-btn-rec:hover {
+  background: #1D4ED8;
+}
+
+.ml-btn-predict {
+  background: #475569;
+  color: white;
+}
+
+.ml-btn-predict.active {
+  background: #059669;
+}
+
+.ml-status {
+  font-size: 12px;
+  color: #94A3B8;
+  margin-top: 5px;
+}
+
 /* CANVAS */
 .canvas-container {
   flex: 1;

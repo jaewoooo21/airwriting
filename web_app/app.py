@@ -1,7 +1,13 @@
 import os
 import sqlite3
+import threading
+import numpy as np
 from datetime import datetime
 from flask import Flask, request, jsonify, send_from_directory
+
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from tools.ml_engine import MLEngine
 
 # Get the directory of this script (web_app)
 WEB_APP_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -9,6 +15,9 @@ DB_PATH = os.path.join(WEB_APP_DIR, 'comments.db')
 
 # Initialize Flask, treating the web_app directory as the static folder
 app = Flask(__name__, static_folder=WEB_APP_DIR, static_url_path='')
+
+# Initialize ML Engine
+ml_engine = MLEngine()
 
 def init_db():
     """Initialize the SQLite database and create the comments table if it doesn't exist."""
@@ -85,6 +94,38 @@ def add_comment():
     }
     
     return jsonify(new_comment), 201
+
+# ════════════════════════════════════════════════════════════════
+# ML API Endpoints
+# ════════════════════════════════════════════════════════════════
+@app.route('/api/ml/record', methods=['POST'])
+def ml_record():
+    data = request.get_json()
+    label = data.get('label')
+    stroke_full = data.get('stroke_full') # list of [x,y,z, qw,qx,qy,qz]
+    
+    if not label or not stroke_full or len(stroke_full) < 5:
+        return jsonify({"error": "Invalid data"}), 400
+        
+    ml_engine.save_stroke(label.strip().upper(), stroke_full)
+    
+    # Trigger background training
+    threading.Thread(target=ml_engine.train_background, daemon=True).start()
+    return jsonify({"status": "success", "message": f"Saved {label} & Training Started"})
+
+@app.route('/api/ml/predict', methods=['POST'])
+def ml_predict():
+    data = request.get_json()
+    stroke_pos = data.get('stroke_pos') # list of [x,y,z]
+    
+    if not stroke_pos or len(stroke_pos) < 5:
+        return jsonify({"label": None, "confidence": 0.0}), 400
+        
+    label, conf = ml_engine.predict(np.array(stroke_pos))
+    return jsonify({
+        "label": label,
+        "confidence": float(conf)
+    })
 
 if __name__ == '__main__':
     # Run the Flask app on port 5000 (accessible locally by default)

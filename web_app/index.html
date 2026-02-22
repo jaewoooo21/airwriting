@@ -43,12 +43,20 @@
                     <li>Exhibition</li>
                 </ul>
                 <div class="spacer"></div>
-                <div class="ai-box">
+                <div class="ai-box" id="aiScoreBox">
                     <h3 class="ai-title">🤖 AI RECOGNITION</h3>
                     <div class="ai-result">
-                        <span class="word">Graduation</span>
-                        <span class="score">98.5%</span>
+                        <span class="word" id="aiResultWord">--</span>
+                        <span class="score" id="aiResultScore">(0.0%)</span>
                     </div>
+                </div>
+                <div class="spacer"></div>
+
+                <h2 class="panel-title">🛠️ ML CONTROLS</h2>
+                <div class="ml-controls">
+                    <button id="btnMlRec" class="ml-btn ml-btn-rec">🎯 [가이드] 단어 학습</button>
+                    <button id="btnMlPredict" class="ml-btn ml-btn-predict">⚡ [자동보정] 켜기</button>
+                    <div class="ml-status" id="mlStatusText">Status: Idle</div>
                 </div>
             </aside>
 

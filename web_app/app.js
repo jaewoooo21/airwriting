@@ -92,6 +92,12 @@ let lastPenState = false;
 let currentCursorPos = null;
 let armPositions = null; // FK joint positions
 
+// ML State Machine
+let mlLearningLabel = null;
+let mlAutoPredict = false;
+let mlCurrentFull = [];
+let mlCurrentPos = [];
+
 // Cursor Element
 const canvasContainer = document.querySelector('.canvas-container');
 const liveCursor = document.createElement('div');
@@ -350,16 +356,142 @@ function updateFrame(data) {
 
     valPos.innerHTML = `X: ${penTip[0].toFixed(3)}<br>Y: ${penTip[1].toFixed(3)}<br>Z: ${penTip[2].toFixed(3)}`;
 
-    // Stroke recording (using FK pen tip, not S3fk)
+    // ── ML Recording / Prediction Logic ──
     if (pen && !lastPenState) {
+        // Pen Down -> Start recording
         currentStroke = [];
         strokeHistory.push(currentStroke);
+        mlCurrentFull = [];
+        mlCurrentPos = [];
+        if (mlLearningLabel) {
+            updateMlStatus(`Recording '${mlLearningLabel}'...`);
+        } else if (mlAutoPredict) {
+            updateMlStatus(`Analyzing...`);
+            updateScoreBoard('--', '0.0');
+        }
     }
-    if (pen && currentStroke) {
+
+    if (pen) {
+        // Pen Drag -> Collect data
         currentStroke.push([...penTip]);
+        let s3q = data.S3q || [1, 0, 0, 0];
+        mlCurrentPos.push([...penTip]);
+        mlCurrentFull.push([
+            penTip[0], penTip[1], penTip[2],
+            s3q[0], s3q[1], s3q[2], s3q[3]
+        ]);
     }
+
+    if (!pen && lastPenState) {
+        // Pen Up -> Process Data
+        if (mlLearningLabel && mlCurrentFull.length > 5) {
+            sendMlRecord(mlLearningLabel, mlCurrentFull);
+        } else if (mlAutoPredict && mlCurrentPos.length > 5) {
+            sendMlPredict(mlCurrentPos);
+        }
+    }
+
     lastPenState = pen;
     requestAnimationFrame(renderScene);
+}
+
+// ══════════════════════════════════════════
+// ML API Calls & UI
+// ══════════════════════════════════════════
+const btnMlRec = document.getElementById('btnMlRec');
+const btnMlPredict = document.getElementById('btnMlPredict');
+const mlStatusText = document.getElementById('mlStatusText');
+const aiResultWord = document.getElementById('aiResultWord');
+const aiResultScore = document.getElementById('aiResultScore');
+
+if (btnMlRec) {
+    btnMlRec.addEventListener('click', () => {
+        let label = prompt("학습시킬 단어나 글자를 입력하세요 (예: APPLE):");
+        if (label && label.trim() !== '') {
+            mlLearningLabel = label.trim().toUpperCase();
+            btnMlRec.innerHTML = `🔴 '${mlLearningLabel}' 쓰는중... (떼면 완료)`;
+            btnMlRec.style.background = '#F87171';
+            updateMlStatus("Waiting for pen...");
+        }
+    });
+
+    btnMlPredict.addEventListener('click', () => {
+        mlAutoPredict = !mlAutoPredict;
+        if (mlAutoPredict) {
+            btnMlPredict.innerHTML = `⚡ [자동보정] 끄기`;
+            btnMlPredict.classList.add('active');
+            updateMlStatus("Waiting for gesture...");
+        } else {
+            btnMlPredict.innerHTML = `⚡ [자동보정] 켜기`;
+            btnMlPredict.classList.remove('active');
+            updateMlStatus("Idle");
+            updateScoreBoard('--', '0.0');
+        }
+    });
+}
+
+function updateMlStatus(msg) {
+    if (mlStatusText) mlStatusText.innerText = `Status: ${msg}`;
+}
+
+function updateScoreBoard(word, score) {
+    if (aiResultWord) aiResultWord.innerText = word;
+    if (aiResultScore) aiResultScore.innerText = `(${score}%)`;
+
+    // Pulse animation
+    const box = document.getElementById('aiScoreBox');
+    if (box) {
+        box.style.transform = 'scale(1.05)';
+        box.style.borderColor = '#4ADE80';
+        setTimeout(() => {
+            box.style.transform = 'scale(1)';
+            box.style.borderColor = '';
+        }, 200);
+    }
+}
+
+async function sendMlRecord(label, strokeData) {
+    updateMlStatus("Saving...");
+    try {
+        const res = await fetch('/api/ml/record', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ label: label, stroke_full: strokeData })
+        });
+        const json = await res.json();
+        if (res.ok) {
+            updateMlStatus(`Saved '${label}'!`);
+            // Reset button
+            mlLearningLabel = null;
+            btnMlRec.innerHTML = `🎯 [가이드] 단어 학습`;
+            btnMlRec.style.background = '';
+        } else {
+            updateMlStatus(`Error: ${json.error}`);
+        }
+    } catch (e) {
+        console.error(e);
+        updateMlStatus("Network Error");
+    }
+}
+
+async function sendMlPredict(strokePosData) {
+    try {
+        const res = await fetch('/api/ml/predict', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ stroke_pos: strokePosData })
+        });
+        const json = await res.json();
+        if (res.ok && json.label) {
+            updateScoreBoard(json.label, (json.confidence * 100).toFixed(1));
+            updateMlStatus(`Predicted ${json.label}`);
+        } else {
+            updateScoreBoard("??", "0.0");
+            updateMlStatus("Unrecognized");
+        }
+    } catch (e) {
+        console.error(e);
+    }
 }
 
 // ══════════════════════════════════════════
