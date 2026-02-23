@@ -8,7 +8,7 @@ const valPos = document.getElementById('valPos');
 const valZupt = document.getElementById('valZupt');
 
 // Configuration
-const WS_URL = "ws://localhost:18765";
+const WS_URL = `ws://${window.location.hostname}:18765`;
 let ws = null;
 
 // ══════════════════════════════════════════
@@ -157,27 +157,26 @@ function renderScene() {
 
     drawGrid(cx, cy);
     drawCanvasFrame(cx, cy);
+    drawWorkspaceBox(cx, cy); // New visually anchored box
     drawAxisArrows(cx, cy);
     drawArm(cx, cy);
     drawStrokes(cx, cy);
     drawCursor(cx, cy);
 }
 
-// Floor Grid
+// Minimal floor reference (just 2 lines instead of dense grid)
 function drawGrid(cx, cy) {
     ctx.lineWidth = 1;
-    ctx.strokeStyle = 'rgba(26, 26, 51, 0.5)';
+    ctx.strokeStyle = 'rgba(40, 40, 70, 0.3)';
     ctx.shadowBlur = 0;
-    const size = 1.0, step = 0.1, gz = -0.15;
+    const size = 0.6, gz = -0.15;
     ctx.beginPath();
-    for (let x = -size; x <= size + 0.001; x += step) {
-        let a = projectWorld(x, -size, gz), b = projectWorld(x, size, gz);
-        if (a.visible && b.visible) { ctx.moveTo(cx + a.sx, cy + a.sy); ctx.lineTo(cx + b.sx, cy + b.sy); }
-    }
-    for (let y = -size; y <= size + 0.001; y += step) {
-        let a = projectWorld(-size, y, gz), b = projectWorld(size, y, gz);
-        if (a.visible && b.visible) { ctx.moveTo(cx + a.sx, cy + a.sy); ctx.lineTo(cx + b.sx, cy + b.sy); }
-    }
+    // X-axis line
+    let a = projectWorld(-size, 0, gz), b = projectWorld(size, 0, gz);
+    if (a.visible && b.visible) { ctx.moveTo(cx + a.sx, cy + a.sy); ctx.lineTo(cx + b.sx, cy + b.sy); }
+    // Y-axis line
+    a = projectWorld(0, -size, gz); b = projectWorld(0, size, gz);
+    if (a.visible && b.visible) { ctx.moveTo(cx + a.sx, cy + a.sy); ctx.lineTo(cx + b.sx, cy + b.sy); }
     ctx.stroke();
 }
 
@@ -211,6 +210,62 @@ function drawCanvasFrame(cx, cy) {
     }
     ctx.closePath();
     ctx.fill();
+}
+
+// Draw the 3D Bounding Box representing the Anchored local workspace area
+function drawWorkspaceBox(cx, cy) {
+    if (!window.strokeAnchorPos || (!lastPenState && !isAutoRecording)) return;
+
+    // Define a 0.4m x 0.4m semi-transparent board centered at the anchor coordinate
+    // The ML engine learns coordinates relative to this center point.
+    const aw = 0.2; // half-width (X)
+    const ah = 0.2; // half-height (Z)
+    const ax = window.strokeAnchorPos[0];
+    const ay = window.strokeAnchorPos[1]; // Depth is locked (XZ plane)
+    const az = window.strokeAnchorPos[2];
+
+    const corners = [
+        [ax - aw, ay, az - ah], [ax + aw, ay, az - ah],
+        [ax + aw, ay, az + ah], [ax - aw, ay, az + ah],
+        [ax - aw, ay, az - ah]
+    ];
+
+    // Border (Dashed)
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(74, 222, 128, 0.8)'; // Bright green bounding box
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    let first = true;
+    for (const p of corners) {
+        let pt = projectWorld(p[0], p[1], p[2]);
+        if (!pt.visible) continue;
+        if (first) { ctx.moveTo(cx + pt.sx, cy + pt.sy); first = false; }
+        else ctx.lineTo(cx + pt.sx, cy + pt.sy);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]); // Reset dash
+
+    // Fill (Semi-transparent board)
+    ctx.fillStyle = 'rgba(74, 222, 128, 0.15)';
+    ctx.beginPath();
+    first = true;
+    for (const p of corners) {
+        let pt = projectWorld(p[0], p[1], p[2]);
+        if (!pt.visible) continue;
+        if (first) { ctx.moveTo(cx + pt.sx, cy + pt.sy); first = false; }
+        else ctx.lineTo(cx + pt.sx, cy + pt.sy);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    // Anchor Center Dot (0,0,0 coordinate for ML Mode)
+    let centerPt = projectWorld(ax, ay, az);
+    if (centerPt.visible) {
+        ctx.fillStyle = 'rgba(74, 222, 128, 0.9)';
+        ctx.beginPath();
+        ctx.arc(cx + centerPt.sx, cy + centerPt.sy, 5, 0, Math.PI * 2);
+        ctx.fill();
+    }
 }
 
 // Axis Arrows (RGB = XYZ)
@@ -335,6 +390,8 @@ function connectWebSocket() {
     ws.onclose = () => { valConn.textContent = "🔴 DISCONNECTED"; valConn.className = "data-value warning"; setTimeout(connectWebSocket, 3000); };
     ws.onerror = (err) => console.error("WS Error:", err);
 }
+// ── Auto-connect on page load ──
+connectWebSocket();
 
 function updateFrame(data) {
     const pen = data.pen || false;
@@ -356,25 +413,81 @@ function updateFrame(data) {
 
     valPos.innerHTML = `X: ${penTip[0].toFixed(3)}<br>Y: ${penTip[1].toFixed(3)}<br>Z: ${penTip[2].toFixed(3)}`;
 
-    // (ML Auto-Recording Loop has been moved to setInterval)
+    // Store latest data globally (for quaternion access in auto-record)
+    window.latestData = data;
 
     // ── ML Auto-Predict Logic (Manual Pen Control) ──
-    if (pen && !lastPenState && mlAutoPredict) {
+    let localizedTip = [...penTip];
+
+    // Calculate localized position based on anchor
+    if (window.strokeAnchorPos) {
+        localizedTip = [
+            penTip[0] - window.strokeAnchorPos[0],
+            penTip[1] - window.strokeAnchorPos[1],
+            penTip[2] - window.strokeAnchorPos[2]
+        ];
+    }
+
+    if (pen && !lastPenState) {
+        // PEN DOWN EDGE -> Lock new anchor workspace!
+        window.strokeAnchorPos = [...penTip];
+        localizedTip = [0, 0, 0];
+
         currentStroke = [];
         strokeHistory.push(currentStroke);
-        mlCurrentPos = [];
-        updateMlStatus(`Analyzing...`);
-        updateScoreBoard([]);
+
+        if (mlAutoPredict) {
+            mlCurrentPos = [];
+            updateMlStatus(`Analyzing...`);
+            updateScoreBoard([]);
+        }
+
+        // ── Pen-Button Manual Collection Mode ──
+        if (isAutoRecording && mlLearningLabel) {
+            mlCurrentFull = [];
+            window.manualRecAnchor = [...penTip];
+            recordingOverlay.innerText = `🔴 REC (쓰는 중...)`;
+            recordingOverlay.style.color = "#EF4444";
+            recordingOverlay.style.fontSize = '20px';
+            updateMlStatus(`🔴 '${mlLearningLabel}' 녹화 중...`);
+        }
     }
 
-    if (pen && mlAutoPredict) {
+    if (pen) {
+        // Draw the trace in the REAL 3D World (Global coordinates)
         currentStroke.push([...penTip]);
-        mlCurrentPos.push([...penTip]);
+
+        // Feed the ML Engine the Anchored Local Space coordinates
+        if (mlAutoPredict) {
+            mlCurrentPos.push([...localizedTip]);
+        }
+
+        // ── Manual collection: accumulate data while pen is held ──
+        if (isAutoRecording && mlLearningLabel && window.manualRecAnchor) {
+            let lx = penTip[0] - window.manualRecAnchor[0];
+            let ly = penTip[1] - window.manualRecAnchor[1];
+            let lz = penTip[2] - window.manualRecAnchor[2];
+            let s3q = data.S3q || [1, 0, 0, 0];
+            mlCurrentFull.push([lx, ly, lz, s3q[0], s3q[1], s3q[2], s3q[3]]);
+        }
     }
 
-    if (!pen && lastPenState && mlAutoPredict) {
-        if (mlCurrentPos.length > 5) {
+    if (!pen && lastPenState) {
+        // PEN UP EDGE
+        if (mlAutoPredict && mlCurrentPos.length > 5) {
             sendMlPredict(mlCurrentPos);
+        }
+
+        // ── Manual collection: save on pen-up ──
+        if (isAutoRecording && mlLearningLabel && mlCurrentFull.length > 5) {
+            autoRecordSampleCount++;
+            sendMlRecord(mlLearningLabel, mlCurrentFull);
+            recordingOverlay.innerText = `✅ SAVED #${autoRecordSampleCount} — 다시 펜을 누르세요`;
+            recordingOverlay.style.color = "#10B981";
+            recordingOverlay.style.fontSize = '18px';
+            updateMlStatus(`✅ '${mlLearningLabel}' #${autoRecordSampleCount} 저장!`);
+            mlCurrentFull = [];
+            window.manualRecAnchor = null;
         }
     }
 
@@ -390,7 +503,6 @@ const btnMlPredict = document.getElementById('btnMlPredict');
 const mlStatusText = document.getElementById('mlStatusText');
 const aiResultWord = document.getElementById('aiResultWord');
 const aiResultScore = document.getElementById('aiResultScore');
-const aiResultScore = document.getElementById('aiResultScore');
 
 // Modal Elements
 const labelModal = document.getElementById('labelModal');
@@ -403,8 +515,11 @@ let autoRecordInterval = null;
 let autoRecordPhase = 'idle';
 let autoRecordTimer = 0;
 
+let autoRecordSampleCount = 0;
+
 function startAutoRecordingLoop() {
     autoRecordPhase = 'idle';
+    autoRecordSampleCount = 0;
 
     // Clear any existing interval
     if (autoRecordInterval) clearInterval(autoRecordInterval);
@@ -415,55 +530,90 @@ function startAutoRecordingLoop() {
         let now = performance.now();
 
         if (autoRecordPhase === 'idle') {
-            autoRecordPhase = 'wait';
+            autoRecordPhase = 'countdown';
             autoRecordTimer = now;
-            updateMlStatus("준비...");
-            recordingOverlay.innerText = "WAIT 3.. 2.. 1..";
+            recordingOverlay.innerText = "⏳ READY...";
             recordingOverlay.style.color = "#F59E0B";
             recordingOverlay.style.display = 'block';
+            recordingOverlay.style.fontSize = '18px';
+            updateMlStatus(`'${mlLearningLabel}' 수집 준비 중...`);
         }
-        else if (autoRecordPhase === 'wait') {
+        else if (autoRecordPhase === 'countdown') {
             let elapsed = (now - autoRecordTimer) / 1000;
-            if (elapsed >= 1.0) { // 1초 대기 후 수집 시작
+            let remaining = Math.max(0, 1.5 - elapsed).toFixed(1);
+            recordingOverlay.innerText = `⏳ ${remaining}s 후 시작...`;
+            recordingOverlay.style.color = "#F59E0B";
+
+            if (elapsed >= 1.5) {
+                // Start actual recording
                 autoRecordPhase = 'record';
                 autoRecordTimer = now;
-                currentStroke = [];
                 mlCurrentFull = [];
-                updateMlStatus(`Recording '${mlLearningLabel}'...`);
-                recordingOverlay.innerText = "🔴 REC (지금!)";
+                window.autoRecAnchor = null;
+                recordingOverlay.innerText = "🔴 REC 3.0s (지금 쓰세요!)";
                 recordingOverlay.style.color = "#EF4444";
+                recordingOverlay.style.fontSize = '22px';
+                updateMlStatus(`🔴 녹화 중... '${mlLearningLabel}'`);
             }
         }
         else if (autoRecordPhase === 'record') {
             let elapsed = (now - autoRecordTimer) / 1000;
+            let remaining = Math.max(0, 3.0 - elapsed).toFixed(1);
 
-            // 수집 중에는 펜 버튼 상태와 무관하게 모든 프레임 데이터 수집
+            // Live countdown on overlay
+            recordingOverlay.innerText = `🔴 REC ${remaining}s (지금 쓰세요!)`;
+
+            // Collect data every tick (pen state irrelevant during auto-record)
             if (currentCursorPos) {
-                currentStroke.push([...currentCursorPos]);
-                let s3q = [1, 0, 0, 0]; // Assume S3q is not fully accessible here, fallback
+                if (!window.autoRecAnchor) {
+                    window.autoRecAnchor = [...currentCursorPos];
+                }
+
+                let localX = currentCursorPos[0] - window.autoRecAnchor[0];
+                let localY = currentCursorPos[1] - window.autoRecAnchor[1];
+                let localZ = currentCursorPos[2] - window.autoRecAnchor[2];
+
+                let s3q = [1, 0, 0, 0];
                 if (window.latestData && window.latestData.S3q) s3q = window.latestData.S3q;
 
                 mlCurrentFull.push([
-                    currentCursorPos[0], currentCursorPos[1], currentCursorPos[2],
+                    localX, localY, localZ,
                     s3q[0], s3q[1], s3q[2], s3q[3]
                 ]);
             }
 
-            // 3초가 지나면 1회분 전송 후 다시 wait로 돌아감
+            // 3 seconds elapsed → save and loop
             if (elapsed >= 3.0) {
                 if (mlCurrentFull.length > 5) {
+                    autoRecordSampleCount++;
                     sendMlRecord(mlLearningLabel, mlCurrentFull);
+
+                    // Flash "SAVED" briefly
+                    recordingOverlay.innerText = `✅ SAVED #${autoRecordSampleCount}`;
+                    recordingOverlay.style.color = "#10B981";
+                    recordingOverlay.style.fontSize = '20px';
+                    updateMlStatus(`✅ '${mlLearningLabel}' #${autoRecordSampleCount} 저장 완료!`);
+                } else {
+                    recordingOverlay.innerText = "⚠️ 데이터 부족 (다시)";
+                    recordingOverlay.style.color = "#F59E0B";
+                    updateMlStatus("⚠️ 데이터 부족, 다시 시도...");
                 }
-                autoRecordPhase = 'wait'; // 루프 반복
-                autoRecordTimer = now;
-                currentStroke = [];
+
+                // Reset for next cycle
                 mlCurrentFull = [];
-                updateMlStatus("준비...");
-                recordingOverlay.innerText = "WAIT 3.. 2.. 1..";
-                recordingOverlay.style.color = "#F59E0B";
+                autoRecordPhase = 'saved_flash';
+                autoRecordTimer = now;
             }
         }
-    }, 50); // 50ms마다 체크 (약 20Hz 수집 속도)
+        else if (autoRecordPhase === 'saved_flash') {
+            // Brief 0.8s pause to show the SAVED message before restarting
+            let elapsed = (now - autoRecordTimer) / 1000;
+            if (elapsed >= 0.8) {
+                autoRecordPhase = 'countdown';
+                autoRecordTimer = now;
+            }
+        }
+    }, 50); // 50ms tick (~20Hz)
 }
 
 
@@ -475,10 +625,12 @@ if (btnMlRec) {
             clearInterval(autoRecordInterval);
             autoRecordInterval = null;
             autoRecordPhase = 'idle';
+            autoRecordSampleCount = 0;
             mlLearningLabel = null;
             btnMlRec.innerHTML = `🎯 [가이드] 단어 수집`;
             btnMlRec.style.background = '';
             recordingOverlay.style.display = 'none';
+            recordingOverlay.style.fontSize = '';
             updateMlStatus("Idle");
             return;
         }
@@ -503,13 +655,19 @@ if (btnMlRec) {
             if (label !== '') {
                 mlLearningLabel = label;
                 isAutoRecording = true;
+                autoRecordSampleCount = 0;
 
                 labelModal.classList.remove('active');
 
-                btnMlRec.innerHTML = `⏹️ [중지] '${mlLearningLabel}' 연속수집 중...`;
+                btnMlRec.innerHTML = `⏹️ [중지] '${mlLearningLabel}' 수집 중...`;
                 btnMlRec.style.background = '#F87171';
 
-                startAutoRecordingLoop();
+                // Show pen instruction
+                recordingOverlay.innerText = `🎯 '${mlLearningLabel}' — 펜을 눌러 글씨를 쓰세요!`;
+                recordingOverlay.style.color = '#38BDF8';
+                recordingOverlay.style.fontSize = '18px';
+                recordingOverlay.style.display = 'block';
+                updateMlStatus(`대기: 펜을 누르면 녹화 시작`);
             }
         });
     }
@@ -531,32 +689,65 @@ if (btnMlRec) {
 
 let recognizedSequence = "";
 let lastTop1 = null;
+let autocorrectSuggestion = null;
 const recognizedTextOverlay = document.getElementById('recognizedTextOverlay');
+
+function updateTextOverlay() {
+    if (!recognizedTextOverlay) return;
+    if (recognizedSequence === "" && !autocorrectSuggestion) {
+        recognizedTextOverlay.classList.remove('active');
+        return;
+    }
+    recognizedTextOverlay.classList.add('active');
+
+    if (autocorrectSuggestion && autocorrectSuggestion.distance > 0) {
+        recognizedTextOverlay.innerHTML = `
+            <span style="color:#F87171; text-decoration:line-through; opacity:0.6">${recognizedSequence}</span>
+            <span style="color:#4ADE80; margin-left:8px">→ ${autocorrectSuggestion.word}?</span>
+            <span style="font-size:12px; color:#888; margin-left:8px">[Enter=확정]</span>
+        `;
+    } else {
+        recognizedTextOverlay.innerText = recognizedSequence;
+    }
+}
 
 document.addEventListener('keydown', (e) => {
     if (!mlAutoPredict) return;
 
     if (e.code === 'Space') {
-        e.preventDefault(); // Prevent page scroll
+        e.preventDefault();
         if (lastTop1) {
             recognizedSequence += lastTop1.label;
-            if (recognizedTextOverlay) {
-                recognizedTextOverlay.innerText = recognizedSequence;
-                recognizedTextOverlay.classList.add('active');
-            }
             lastTop1 = null;
+
+            // Autocorrect check
+            if (typeof findClosestWords === 'function' && recognizedSequence.length >= 2) {
+                let matches = findClosestWords(recognizedSequence);
+                if (matches.length > 0 && matches[0].distance > 0) {
+                    autocorrectSuggestion = matches[0];
+                } else {
+                    autocorrectSuggestion = null;
+                }
+            }
         }
+        updateTextOverlay();
         strokeHistory = [];
         updateScoreBoard([]);
+    } else if (e.code === 'Enter') {
+        // Accept autocorrect suggestion
+        if (autocorrectSuggestion && autocorrectSuggestion.distance > 0) {
+            recognizedSequence = autocorrectSuggestion.word;
+            autocorrectSuggestion = null;
+            updateTextOverlay();
+        }
     } else if (e.code === 'Backspace') {
         if (recognizedSequence.length > 0) {
             recognizedSequence = recognizedSequence.slice(0, -1);
-            if (recognizedTextOverlay) {
-                recognizedTextOverlay.innerText = recognizedSequence;
-                if (recognizedSequence === "") {
-                    recognizedTextOverlay.classList.remove('active');
-                }
+            autocorrectSuggestion = null;
+            if (recognizedSequence === "") {
+                recognizedTextOverlay?.classList.remove('active');
             }
+            updateTextOverlay();
         }
     }
 });
@@ -614,6 +805,127 @@ function updateScoreBoard(predictions) {
     }
 }
 
+// ML Training Lab Charts
+let sampleDistChart = null;
+let accuracyChart = null;
+
+function initLabCharts() {
+    const ctxDist = document.getElementById('sampleDistChart')?.getContext('2d');
+    if (ctxDist) {
+        sampleDistChart = new Chart(ctxDist, {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Samples Collected',
+                    data: [],
+                    backgroundColor: 'rgba(56, 189, 248, 0.5)',
+                    borderColor: 'rgba(56, 189, 248, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' } },
+                    y: { grid: { display: false }, ticks: { color: '#ccc' } }
+                },
+                plugins: { legend: { display: false } }
+            }
+        });
+    }
+
+    const ctxAcc = document.getElementById('accuracyChart')?.getContext('2d');
+    if (ctxAcc) {
+        accuracyChart = new Chart(ctxAcc, {
+            type: 'line',
+            data: {
+                labels: ['V1 (Base)', 'V2 (MARG)', 'V3 (FK)', 'V4 (Directional/Live)'],
+                datasets: [{
+                    label: 'Accuracy %',
+                    data: [85, 93, 95, 0], // Live accuracy will be updated
+                    borderColor: '#10B981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: { min: 70, max: 100, grid: { color: '#222' }, ticks: { color: '#aaa' } },
+                    x: { grid: { display: false }, ticks: { color: '#aaa' } }
+                }
+            }
+        });
+    }
+}
+initLabCharts();
+
+async function refreshMlStats() {
+    try {
+        const res = await fetch('/api/ml/stats');
+        const stats = await res.json();
+
+        // Update DOM
+        const labAccuracy = document.getElementById('lab-accuracy');
+        const labTotal = document.getElementById('lab-total-samples');
+        const labTime = document.getElementById('lab-last-trained');
+        const labMonitor = document.getElementById('lab-monitor');
+
+        if (labAccuracy) labAccuracy.innerText = (stats.accuracy * 100).toFixed(1) + '%';
+
+        let total = 0;
+        const labels = Object.keys(stats.sample_counts).sort();
+        const data = labels.map(l => {
+            total += stats.sample_counts[l];
+            return stats.sample_counts[l];
+        });
+
+        if (labTotal) labTotal.innerText = total;
+        if (labTime) labTime.innerText = stats.last_trained;
+
+        // Update Chart
+        if (sampleDistChart) {
+            sampleDistChart.data.labels = labels;
+            sampleDistChart.data.datasets[0].data = data;
+            sampleDistChart.update();
+        }
+
+        if (accuracyChart) {
+            // Update the 'Live' point in the accuracy chart
+            accuracyChart.data.datasets[0].data[3] = stats.accuracy * 100;
+            accuracyChart.update();
+        }
+
+        if (labMonitor && stats.last_trained !== 'Never') {
+            const time = new Date().toLocaleTimeString();
+            const logLine = `<div style="color:#10B981">[${time}] Model updated. Accuracy: ${(stats.accuracy * 100).toFixed(1)}%</div>`;
+            labMonitor.innerHTML = logLine + labMonitor.innerHTML;
+        }
+
+        // Update Health Checklist
+        const healthDiverse = document.getElementById('health-diverse');
+        if (healthDiverse) {
+            if (labels.length >= 2) {
+                healthDiverse.querySelector('.check-icon').innerText = '✓';
+                healthDiverse.querySelector('.check-icon').style.color = '#10B981';
+            } else {
+                healthDiverse.querySelector('.check-icon').innerText = '!';
+                healthDiverse.querySelector('.check-icon').style.color = '#f59e0b';
+            }
+        }
+
+    } catch (e) { console.error("Stats fetch error:", e); }
+}
+
+// Stats polling (every 10s)
+setInterval(refreshMlStats, 10000);
+refreshMlStats();
+
 async function sendMlRecord(label, strokeData) {
     updateMlStatus("Saving...");
     try {
@@ -625,8 +937,15 @@ async function sendMlRecord(label, strokeData) {
         const json = await res.json();
         if (res.ok) {
             updateMlStatus(`Saved '${label}'!`);
-            // Do not reset the button or close the guide text explicitly here, 
-            // as the loop will continue seamlessly until the user hits Stop.
+            // Trigger stats refresh after a short delay for training to kick in
+            setTimeout(refreshMlStats, 2000);
+
+            // Aesthetic glow animation on the lab accuracy card if visible
+            const accCard = document.querySelector('.stat-card.gold-glow');
+            if (accCard) {
+                accCard.style.boxShadow = '0 0 30px rgba(245, 158, 11, 0.4)';
+                setTimeout(() => accCard.style.boxShadow = '', 1000);
+            }
         } else {
             updateMlStatus(`Error: ${json.error}`);
         }

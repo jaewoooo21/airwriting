@@ -22,11 +22,12 @@
         </div>
         <div class="nav-tabs">
             <button class="tab-btn active" data-target="tab-studio">🏠 Desktop Studio</button>
-            <button class="tab-btn" data-target="tab-architecture">📐 Architecture & Algorithms</button>
-            <button class="tab-btn" data-target="tab-hardware">⚙️ Hardware Specifications</button>
+            <button class="tab-btn" data-target="tab-architecture">📐 Architecture</button>
+            <button class="tab-btn" data-target="tab-hardware">🔧 Hardware</button>
+            <button class="tab-btn" data-target="tab-training">🧠 ML Training Lab</button>
             <button class="tab-btn" data-target="tab-research">📊 Research Metrics</button>
-            <button class="tab-btn" data-target="tab-roadmap">🗺️ Project Roadmap</button>
-            <button class="tab-btn" data-target="tab-comments">💬 Team Comments</button>
+            <button class="tab-btn" data-target="tab-roadmap">🗺️ Roadmap</button>
+            <button class="tab-btn" data-target="tab-comments">💬 Comments</button>
         </div>
     </nav>
 
@@ -69,7 +70,7 @@
                 <div class="canvas-wrapper glass-panel">
                     <canvas id="drawingCanvas"></canvas>
                     <div class="recognized-text-overlay" id="recognizedTextOverlay"></div>
-                    <div class="crosshair center"></div>
+                    <!-- crosshair removed for clean view -->
                     <div class="status-overlay" id="recordingOverlay">🔴 WRITING</div>
                 </div>
             </main>
@@ -78,7 +79,7 @@
                 <h2 class="panel-title">⚡ ENGINEERING</h2>
                 <div class="data-group">
                     <div class="data-label">UDP STREAM</div>
-                    <div class="data-value success" id="valConn">⚪ WAITING...</div>
+                    <div class="data-value warning" id="valConn">🟡 CONNECTING...</div>
                 </div>
                 <hr>
                 <div class="data-group">
@@ -112,6 +113,36 @@
         <div class="doc-container glass-panel">
             <h1>시스템 아키텍처 및 핵심 알고리즘</h1>
 
+            <h2>📋 현재 시스템 상태 (System Status)</h2>
+            <div class="spec-card highlight-card">
+                <table style="width:100%; border-collapse:collapse; color:#ccc;">
+                    <tr style="border-bottom:1px solid #333;">
+                        <td style="padding:8px; font-weight:bold; color:#4ADE80;">🟢 Fusion Engine</td>
+                        <td style="padding:8px;">v2.5 — 15-State ESKF + FK + 7-Layer Drift Correction</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid #333;">
+                        <td style="padding:8px; font-weight:bold; color:#4ADE80;">🟢 Madgwick AHRS</td>
+                        <td style="padding:8px;">MARG (9축, S3) + IMU (6축, S1/S2) 듀얼 모드 | β=0.1, Warmup=200</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid #333;">
+                        <td style="padding:8px; font-weight:bold; color:#4ADE80;">🟢 Packet Parser</td>
+                        <td style="padding:8px;">V2 (80B) / V3 (92B, 9-DOF) 자동 감지 + XOR Checksum</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid #333;">
+                        <td style="padding:8px; font-weight:bold; color:#4ADE80;">🟢 Neural ZUPT</td>
+                        <td style="padding:8px;">BiLSTM Detector + SHOE Rule-based Fallback</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid #333;">
+                        <td style="padding:8px; font-weight:bold; color:#38BDF8;">🔵 ML Recognition</td>
+                        <td style="padding:8px;">RandomForest 117-dim Feature (60 Spatial + 57 Directional)</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:8px; font-weight:bold; color:#38BDF8;">🔵 Web Dashboard</td>
+                        <td style="padding:8px;">Flask :5000 + WebSocket :18765 | 7 Tabs</td>
+                    </tr>
+                </table>
+            </div>
+
             <h2>System Data Pipeline</h2>
             <div class="mermaid">
                 graph LR
@@ -137,7 +168,7 @@
                 end
                 subgraph OUT["📤 Output Channels"]
                 UDP2["UDP TX<br />Port 12346"]
-                WS["WebSocket Relay<br />Port 8765"]
+                WS["WebSocket Relay<br />Port 18765"]
                 end
                 subgraph VIS["🖥️ Visualization"]
                 DT["Digital Twin<br />(PyQtGraph 3D)"]
@@ -153,6 +184,41 @@
                 FK --> UDP2 & WS
                 UDP2 --> DT & UNITY
                 WS --> WEB
+            </div>
+
+            <h2>📡 UDP 통신 포트 매핑</h2>
+            <div class="mermaid">
+                graph LR
+                subgraph ESP["ESP32 Firmware"]
+                FW["WiFi UDP TX"]
+                end
+                subgraph MAIN["main.py (controller)"]
+                RX["RX Socket<br />bind 0.0.0.0:12345"]
+                TX["TX Socket<br />sendto()"]
+                end
+                subgraph RELAY["web_relay.py"]
+                RUDP["UDP RX<br />bind 0.0.0.0:12346"]
+                WSS["WS Server<br />0.0.0.0:18765"]
+                end
+                subgraph FLASK["app.py (Flask)"]
+                HTTP["HTTP :5000<br />Dashboard + ML API"]
+                end
+                subgraph BROWSER["Browser"]
+                WSCONN["ws://localhost:18765"]
+                HTTPCONN["http://localhost:5000"]
+                end
+
+                FW -->|"Binary 92B<br />UDP :12345"| RX
+                TX -->|"JSON Frame<br />UDP :12346"| RUDP
+                RUDP -->|"broadcast"| WSS
+                WSS -->|"JSON Stream"| WSCONN
+                HTTPCONN -->|"REST API"| HTTP
+
+                style ESP fill:#1e293b,stroke:#f59e0b,color:#fff
+                style MAIN fill:#1e293b,stroke:#10b981,color:#fff
+                style RELAY fill:#1e293b,stroke:#38bdf8,color:#fff
+                style FLASK fill:#1e293b,stroke:#a78bfa,color:#fff
+                style BROWSER fill:#1e293b,stroke:#f472b6,color:#fff
             </div>
 
             <h2>1. 다중 센서 융합 시스템 (Multi-Sensor Fusion)</h2>
@@ -243,6 +309,53 @@
                             드리프트를 주기적으로 리셋합니다.</p>
                 </div>
             </div>
+
+            <h2>7. ML 문자 인식 파이프라인 (Character Recognition)</h2>
+            <div class="mermaid">
+                graph TD
+                subgraph COLLECT["📝 Data Collection"]
+                PEN["Pen Button Down"]
+                ANCHOR["Anchor Position Lock"]
+                LOCAL["Relative Coords<br />(lx, ly, lz)"]
+                QUAT["S3 Quaternion<br />(qw, qx, qy, qz)"]
+                CSV["CSV File<br />airwriting_dataset.csv"]
+                end
+                subgraph FEAT["🔬 Feature Extraction"]
+                NORM["Min-Max Normalize<br />(center + scale)"]
+                RESAMP["Resample to 20 points<br />(linear interp)"]
+                DIR["Direction Vectors<br />(19 unit vectors)"]
+                VEC["117-dim Feature Vector<br />(60 spatial + 57 directional)"]
+                end
+                subgraph TRAIN["🧠 Training"]
+                RF["RandomForest<br />100 Trees"]
+                SPLIT["80/20 Split<br />Accuracy Report"]
+                MODEL["rf_model.pkl"]
+                end
+                subgraph INFER["⚡ Inference"]
+                PRED["predict_proba()"]
+                TOPN["Top-3 Results"]
+                end
+
+                PEN --> ANCHOR --> LOCAL
+                LOCAL & QUAT --> CSV
+                CSV --> NORM --> RESAMP
+                RESAMP --> DIR --> VEC
+                VEC --> RF --> SPLIT --> MODEL
+                VEC --> PRED --> TOPN
+
+                style COLLECT fill:#1e293b,stroke:#4ade80,color:#fff
+                style FEAT fill:#1e293b,stroke:#38bdf8,color:#fff
+                style TRAIN fill:#1e293b,stroke:#f59e0b,color:#fff
+                style INFER fill:#1e293b,stroke:#a78bfa,color:#fff
+            </div>
+            <div class="spec-card">
+                <h3>ML API Endpoints</h3>
+                <div class="code-block">
+                    POST /api/ml/record — 필기 데이터 저장 + 자동 재학습
+                    POST /api/ml/predict — 궤적 인식 (Top-3 결과 반환)
+                    GET /api/ml/stats — 모델 상태 (정확도, 샘플 수, 마지막 학습 시각)
+                </div>
+            </div>
     </section>
 
     <!-- TAB 3: HARDWARE SPECIFICATIONS -->
@@ -291,9 +404,195 @@
             <div class="spec-card">
                 <h3>Network Topology</h3>
                 <div class="code-block">
-                    ESP32 ──[UDP :12345]──▶ Python Fusion Engine ──[UDP :12346]──▶ Digital Twin (PyQtGraph)
-                    └──[WS :8765]───▶ Web Dashboard (Browser)
-                    └──[HTTP :8000]──▶ Static File Server
+                    ESP32 ──[UDP :12345]──▶ Python Fusion Engine (main.py)
+                    │
+                    ├──[UDP :12346]──▶ web_relay.py ──[WS :18765]──▶ Browser (app.js)
+                    ├──[UDP :12347]──▶ Dashboard (예비)
+                    └──[HTTP :5000]──▶ Flask ML API (app.py)
+                </div>
+                <h3>포트 정리</h3>
+                <table style="width:100%; border-collapse:collapse; color:#ccc; font-size:13px;">
+                    <tr style="border-bottom:1px solid #444; color:#38BDF8; font-weight:bold;">
+                        <td style="padding:6px;">포트</td>
+                        <td style="padding:6px;">프로토콜</td>
+                        <td style="padding:6px;">방향</td>
+                        <td style="padding:6px;">용도</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid #333;">
+                        <td style="padding:6px;"><code>12345</code></td>
+                        <td style="padding:6px;">UDP</td>
+                        <td style="padding:6px;">ESP32 → Python</td>
+                        <td style="padding:6px;">IMU 바이너리 패킷 수신</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid #333;">
+                        <td style="padding:6px;"><code>12346</code></td>
+                        <td style="padding:6px;">UDP</td>
+                        <td style="padding:6px;">Python → web_relay</td>
+                        <td style="padding:6px;">처리된 JSON 프레임 전송</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid #333;">
+                        <td style="padding:6px;"><code>18765</code></td>
+                        <td style="padding:6px;">WebSocket</td>
+                        <td style="padding:6px;">web_relay → Browser</td>
+                        <td style="padding:6px;">실시간 JSON 스트림</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:6px;"><code>5000</code></td>
+                        <td style="padding:6px;">HTTP</td>
+                        <td style="padding:6px;">Browser → Flask</td>
+                        <td style="padding:6px;">대시보드 UI + ML API</td>
+                    </tr>
+                </table>
+            </div>
+
+            <h2>4. I2C 센서 배선도</h2>
+            <div class="mermaid">
+                graph LR
+                subgraph ESP32["ESP32 NodeMCU"]
+                I2C0["Wire(0)<br />GPIO 21/22"]
+                I2C1["Wire1(1)<br />GPIO 32/33"]
+                GPIO15["GPIO 15<br />Pen Button"]
+                end
+                S1["S1: MPU-6050<br />Addr 0x68<br />전완 Forearm"]
+                S2["S2: MPU-6050<br />Addr 0x68<br />손등 Hand"]
+                S3["S3: ICM-20948<br />Addr 0x69<br />펜 Pen Tip"]
+                BTN["Push Button<br />INPUT_PULLUP"]
+
+                I2C0 --- S1
+                I2C0 --- S3
+                I2C1 --- S2
+                GPIO15 --- BTN
+
+                style ESP32 fill:#1e293b,stroke:#f59e0b,color:#fff
+                style S1 fill:#1e293b,stroke:#4ade80,color:#fff
+                style S2 fill:#1e293b,stroke:#4ade80,color:#fff
+                style S3 fill:#1e293b,stroke:#38bdf8,color:#fff
+                style BTN fill:#1e293b,stroke:#f472b6,color:#fff
+            </div>
+            <div class="spec-card">
+                <h3>센서 장착 위치 및 역할</h3>
+                <div class="code-block">
+                    [어깨] ──── S1 (전완, 25cm) ──── S2 (손등, 18cm) ──── S3 (펜, 8cm) ──── ✏️ Pen Tip
+                    │ MPU-6050 MPU-6050 ICM-20948 (9축)
+                    │ Roll/Pitch Roll/Pitch Roll/Pitch/Yaw + Mag
+                    Origin(0,0,0) Elbow Wrist End-Effector
+
+                    BONE_DIR = [0, 1, 0] (Y-Forward, Hamilton Quaternion Convention)
+                </div>
+            </div>
+
+            <h2>5. 주요 설정값 (Config Summary)</h2>
+            <div class="spec-card">
+                <table style="width:100%; border-collapse:collapse; color:#ccc; font-size:13px;">
+                    <tr style="border-bottom:1px solid #444; color:#F59E0B; font-weight:bold;">
+                        <td style="padding:6px;">파라미터</td>
+                        <td style="padding:6px;">값</td>
+                        <td style="padding:6px;">설정 파일</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid #333;">
+                        <td style="padding:6px;">IMU Sample Rate</td>
+                        <td style="padding:6px;">85~100 Hz</td>
+                        <td style="padding:6px;">ESP32 Firmware</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid #333;">
+                        <td style="padding:6px;">Madgwick β</td>
+                        <td style="padding:6px;">0.1</td>
+                        <td style="padding:6px;">config/system.yaml</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid #333;">
+                        <td style="padding:6px;">Madgwick Warmup</td>
+                        <td style="padding:6px;">200 samples</td>
+                        <td style="padding:6px;">config/system.yaml</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid #333;">
+                        <td style="padding:6px;">ZUPT Threshold</td>
+                        <td style="padding:6px;">adaptive (σ²-based)</td>
+                        <td style="padding:6px;">config/system.yaml</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid #333;">
+                        <td style="padding:6px;">FK Bone Lengths</td>
+                        <td style="padding:6px;">25cm + 18cm + 8cm</td>
+                        <td style="padding:6px;">config/imu.yaml</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid #333;">
+                        <td style="padding:6px;">Velocity Clamp</td>
+                        <td style="padding:6px;">3.0 m/s</td>
+                        <td style="padding:6px;">config/system.yaml</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid #333;">
+                        <td style="padding:6px;">Writing Plane</td>
+                        <td style="padding:6px;">Absolute Lock (Y-axis suppress)</td>
+                        <td style="padding:6px;">config/system.yaml</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:6px;">Calibration Samples</td>
+                        <td style="padding:6px;">300 frames / 10s timeout</td>
+                        <td style="padding:6px;">config/system.yaml</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- TAB: ML TRAINING LAB (NEW) -->
+    <section id="tab-training" class="tab-content">
+        <div class="doc-container glass-panel">
+            <div class="lab-header">
+                <h1>🧠 ML Training Lab & Analytics</h1>
+                <div class="model-badge">
+                    <span class="status-dot green"></span>
+                    RandomForest.v2 (Directional-Enhanced)
+                </div>
+            </div>
+
+            <div class="training-stats-grid">
+                <div class="stat-card gold-glow">
+                    <div class="stat-icon">📈</div>
+                    <div class="stat-info">
+                        <label>GLOBAL ACCURACY</label>
+                        <div class="stat-value" id="lab-accuracy">0.0%</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">📦</div>
+                    <div class="stat-info">
+                        <label>TOTAL SAMPLES</label>
+                        <div class="stat-value" id="lab-total-samples">0</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🕒</div>
+                    <div class="stat-info">
+                        <label>LAST TRAINED</label>
+                        <div class="stat-value small" id="lab-last-trained">Never</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <h2>Dataset Distribution</h2>
+                    <p class="chart-caption">Number of training samples per character.</p>
+                    <div class="big-chart-wrapper">
+                        <canvas id="sampleDistChart"></canvas>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <h2>Model Health Checklist</h2>
+                    <ul class="health-checklist">
+                        <li><span class="check-icon">✓</span> Multi-modal Feature (60-dim Coords)</li>
+                        <li><span class="check-icon">✓</span> Directional Intent (57-dim Delta Vectors)</li>
+                        <li><span class="check-icon">✓</span> Time-Series Interpolation (20pt Resample)</li>
+                        <li id="health-diverse"><span class="check-icon">!</span> Dataset Diversity (Needs 2+ Labels)
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="training-log-panel spec-card">
+                <h3>Live Inference Engine Monitor</h3>
+                <div class="monitor-console" id="lab-monitor">
+                    [SYSTEM] Inference engine initialized and waiting for data...
                 </div>
             </div>
         </div>
@@ -480,7 +779,7 @@
                 B3 --> B2
                 end
 
-                subgraph PHASE3["🔄 Phase 3: 데이터 수집 (진행 예정)"]
+                subgraph PHASE3["✅ Phase 3: 데이터 수집 (완료)"]
                 C1["영어 알파벳 A-Z<br />필기 데이터 수집"]
                 C2["각 글자당 50+ 샘플<br />CSV 저장"]
                 C3["데이터 전처리<br />정규화 / 리샘플링"]
@@ -506,7 +805,7 @@
 
                 style PHASE1 fill:#064e3b,stroke:#059669
                 style PHASE2 fill:#064e3b,stroke:#059669
-                style PHASE3 fill:#1e293b,stroke:#3b82f6
+                style PHASE3 fill:#064e3b,stroke:#059669
                 style PHASE4 fill:#1e293b,stroke:#3b82f6
                 style PHASE5 fill:#1e293b,stroke:#8b5cf6
             </div>
@@ -610,7 +909,6 @@
         </div>
     </section>
 
-    <script src="app.js"></script>
     <script>
         // Additional Charts (Ablation & Comparison)
         const ctxAblation = document.getElementById('ablationChart');
@@ -667,6 +965,8 @@
             </div>
         </div>
     </div>
+    <script src="dictionary.js"></script>
+    <script src="app.js"></script>
 </body>
 
 </html>
