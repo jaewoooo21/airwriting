@@ -126,7 +126,11 @@ def ml_predict():
         "predictions": predictions
     })
 
+@app.route('/api/ml/stats', methods=['GET'])
+def ml_stats():
+    return jsonify(ml_engine.get_stats())
+
 if __name__ == '__main__':
     # Run the Flask app on port 5000 (accessible locally by default)
     # Host='0.0.0.0' allows external connections if deployed
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=False)

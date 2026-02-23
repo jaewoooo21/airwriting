@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 
 UDP_IP = "0.0.0.0"
 UDP_PORT = 12346
-WS_HOST = "localhost"
+WS_HOST = "0.0.0.0"
 WS_PORT = 18765
 
 connected_clients = set()

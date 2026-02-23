@@ -1,4 +1,5 @@
 import os
+import time
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
@@ -15,6 +16,11 @@ class MLEngine:
             
         self.num_points = 20
         self.model = None
+        self.stats = {
+            "accuracy": 0.0,
+            "sample_counts": {},
+            "last_trained": "Never"
+        }
         
         self.load_model()
 
@@ -59,12 +65,24 @@ class MLEngine:
         return normalized
 
     def extract_feature(self, stroke_data):
-        """Converts raw (N, 3) stroke data into a flattened (60,) feature vector."""
+        """Converts raw (N, 3) stroke data into a flattened (117,) feature vector.
+        Includes 20 points (60 features) + 19 unit direction vectors (57 features).
+        """
         if len(stroke_data) < 5:
             return None
+            
         norm_coords = self.normalize_stroke(stroke_data)
-        resampled = self.resample_stroke(norm_coords)
-        return resampled.flatten()
+        resampled = self.resample_stroke(norm_coords) # (20, 3)
+        
+        # Calculate directional vectors between points
+        diffs = resampled[1:] - resampled[:-1] # (19, 3)
+        norms = np.linalg.norm(diffs, axis=1, keepdims=True)
+        # Avoid division by zero
+        unit_vectors = np.divide(diffs, norms, out=np.zeros_like(diffs), where=norms > 1e-6)
+        
+        # Combine spatial positions + directional flow
+        combined = np.concatenate([resampled.flatten(), unit_vectors.flatten()])
+        return combined
 
     def train_background(self):
         """Reads CSV and trains the RandomForest model. Should be called in a separate thread."""
@@ -95,14 +113,31 @@ class MLEngine:
                 print("[MLEngine] ⚠️ Not enough diverse data to train (needs >=2 classes).")
                 return False
                 
+            # Internal split for accuracy reporting
+            from sklearn.model_selection import train_test_split
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+            
             clf = RandomForestClassifier(n_estimators=100, random_state=42)
+            clf.fit(X_train, y_train)
+            
+            accuracy = clf.score(X_test, y_test)
+            
+            # Re-fit on full data for production
             clf.fit(X, y)
             
             # Atomic save
             joblib.dump(clf, self.model_file)
             self.model = clf
             
-            print(f"[MLEngine] ✅ Training complete! Model knows: {np.unique(y)}")
+            # Update stats
+            unique, counts = np.unique(y, return_counts=True)
+            self.stats = {
+                "accuracy": float(accuracy),
+                "sample_counts": dict(zip(unique, counts.tolist())),
+                "last_trained": time.strftime("%Y-%m-%d %H:%M:%S")
+            }
+            
+            print(f"[MLEngine] ✅ Training complete! Acc: {accuracy:.2f} | Model knows: {list(self.stats['sample_counts'].keys())}")
             return True
             
         except Exception as e:
@@ -166,3 +201,15 @@ class MLEngine:
         except Exception as e:
             print(f"[MLEngine] ❌ Save error: {e}")
             return False
+
+    def get_stats(self):
+        """Returns the current model performance metrics."""
+        # If stats are empty (e.g. just loaded), try to infer counts from CSV
+        if not self.stats["sample_counts"] and os.path.exists(self.csv_file):
+            try:
+                df = pd.read_csv(self.csv_file)
+                unique, counts = np.unique(df['label'], return_counts=True)
+                self.stats["sample_counts"] = dict(zip(unique, counts.tolist()))
+                self.stats["accuracy"] = 0.0 # Unknown until next train
+            except: pass
+        return self.stats

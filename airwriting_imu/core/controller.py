@@ -237,9 +237,7 @@ class AirWritingIMUController:
     # ════════════════════════════════════
     def _parse(self, data: bytes):
         n = len(data)
-        if not hasattr(self, '_debug_count'):
-            self._debug_count = 5
-        
+
         # v3 format: [AA][4B ts][S1 24B][S2 24B][S3 36B][1B btn][1B cksum][55] = 92 bytes
         if n >= self.PKT_LEN_V3:
             if data[0] != self.HEADER or data[91] != self.FOOTER:
@@ -251,20 +249,8 @@ class AirWritingIMUController:
                 self._cksum_err += 1
                 return []
                 
-            # ── 5-Frame Debounce for Pen Button (v2.4) ──
             pen_raw = bool(data[89] & 0x01)
-            if not hasattr(self, "_pen_hist"):
-                self._pen_hist = []
-            
-            self._pen_hist.append(pen_raw)
-            if len(self._pen_hist) > 5:
-                self._pen_hist.pop(0)
-                
-            # Only change state if 5 consecutive frames agree (50ms stable)
-            if all(self._pen_hist):
-                self._pen_down = True
-            elif not any(self._pen_hist):
-                self._pen_down = False
+            self._pen_down = pen_raw
             ts = _FMT_TS.unpack_from(data, 1)[0]
             
             pkts = []
@@ -303,9 +289,6 @@ class AirWritingIMUController:
                 "m": m3,
             })
             
-            if self._debug_count > 0:
-                log.info(f"🐛 PARSE V3 n={n} | pkts_sids={[p['sid'] for p in pkts]} | btn={self._pen_down}")
-                self._debug_count -= 1
 
             return pkts
             

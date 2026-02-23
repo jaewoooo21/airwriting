@@ -8,7 +8,9 @@ const valPos = document.getElementById('valPos');
 const valZupt = document.getElementById('valZupt');
 
 // Configuration
-const WS_URL = `ws://${window.location.hostname}:18765`;
+const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+const wsPort = window.location.hostname === 'localhost' ? ':18765' : '';
+const WS_URL = `${protocol}//${window.location.hostname}${wsPort}`;
 let ws = null;
 
 // ══════════════════════════════════════════
@@ -369,14 +371,6 @@ function drawCursor(cx, cy) {
 // WebSocket
 // ══════════════════════════════════════════
 function connectWebSocket() {
-    // Prevent Mixed Content errors on deployed HTTPS sites
-    if (window.location.protocol === 'https:' && window.location.hostname !== 'localhost') {
-        valConn.innerHTML = "🔴 HTTPS BLOCKED<br><span style='font-size:0.7em; color:#999;'>(Local connection only)</span>";
-        valConn.className = "data-value warning";
-        console.warn("WebSocket strictly requires HTTP or localhost. Blocked by HTTPS Mixed Content policy.");
-        return;
-    }
-
     valConn.textContent = "🟡 CONNECTING...";
     valConn.className = "data-value warning";
     ws = new WebSocket(WS_URL);
@@ -868,7 +862,13 @@ initLabCharts();
 async function refreshMlStats() {
     try {
         const res = await fetch('/api/ml/stats');
-        const stats = await res.json();
+        if (!res.ok) return;
+        const text = await res.text();
+        if (text.trim().startsWith('<')) {
+            console.warn("Stats API returned HTML. Assuming static hosting.");
+            return;
+        }
+        const stats = JSON.parse(text);
 
         // Update DOM
         const labAccuracy = document.getElementById('lab-accuracy');
@@ -1065,9 +1065,9 @@ function updateLiveChart(euler) {
     liveChart.update();
 }
 
-const ctxAcc = document.getElementById('accuracyChart');
-if (ctxAcc) {
-    new Chart(ctxAcc, {
+const ctxAblation = document.getElementById('ablationChart');
+if (ctxAblation) {
+    new Chart(ctxAblation, {
         type: 'bar',
         data: {
             labels: ['Base Accel', 'Accel+Gyro', 'ZUPT+MARG', 'FK 2.5D'],
