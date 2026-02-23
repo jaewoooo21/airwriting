@@ -1,3 +1,12 @@
+# Web Framework
 Flask==3.0.3
 Werkzeug==3.0.3
 gunicorn==22.0.0
+
+# Data Processing (현재 오류 발생 지점)
+numpy
+pandas
+
+# Machine Learning & IMU Data (프로젝트에 필요한 경우 추가)
+scikit-learn
+scipy
