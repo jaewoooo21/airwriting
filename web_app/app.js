@@ -647,7 +647,7 @@ if (btnMlRec) {
     const gridBtns = document.querySelectorAll('.grid-key-btn');
     gridBtns.forEach(btn => {
         btn.addEventListener('click', () => {
-            if(labelInput) {
+            if (labelInput) {
                 labelInput.value = btn.getAttribute('data-key');
                 labelInput.focus();
             }
@@ -707,9 +707,9 @@ if (btnMlRec) {
                         }, 3000);
                     }, 500);
                 }
-            } catch(e) { 
-                console.error(e); 
-                btnMlTrain.innerText = "❌ 확인 필요"; 
+            } catch (e) {
+                console.error(e);
+                btnMlTrain.innerText = "❌ 확인 필요";
                 setTimeout(() => {
                     btnMlTrain.innerText = originalText;
                     btnMlTrain.disabled = false;
@@ -1079,25 +1079,31 @@ if (canvasContainer) {
 // ══════════════════════════════════════════
 Chart.defaults.color = '#666';
 Chart.defaults.font.family = "'JetBrains Mono', monospace";
-const ctxLive = document.getElementById('liveChart').getContext('2d');
+const ctxLive = document.getElementById('liveChart')?.getContext('2d');
 const MAX_DATAPOINTS = 100;
 let pitchData = [], rollData = [], yawData = [], labels = [];
-const liveChart = new Chart(ctxLive, {
-    type: 'line',
-    data: {
-        labels, datasets: [
-            { label: 'Pitch', borderColor: '#ffffff', data: pitchData, borderWidth: 1, pointRadius: 0, tension: 0.1 },
-            { label: 'Roll', borderColor: '#888888', data: rollData, borderWidth: 1, pointRadius: 0, tension: 0.1 },
-            { label: 'Yaw', borderColor: '#444444', data: yawData, borderWidth: 1, pointRadius: 0, tension: 0.1 }
-        ]
-    },
-    options: {
-        responsive: true, maintainAspectRatio: false, animation: false,
-        plugins: { legend: { display: true, position: 'top', labels: { boxWidth: 10, color: '#aaa', font: { size: 10 } } } },
-        scales: { x: { display: false }, y: { min: -180, max: 180, grid: { color: '#222' }, ticks: { stepSize: 90, color: '#666' } } }
-    }
-});
+let liveChart = null;
+
+if (ctxLive) {
+    liveChart = new Chart(ctxLive, {
+        type: 'line',
+        data: {
+            labels, datasets: [
+                { label: 'Pitch', borderColor: '#ffffff', data: pitchData, borderWidth: 1, pointRadius: 0, tension: 0.1 },
+                { label: 'Roll', borderColor: '#888888', data: rollData, borderWidth: 1, pointRadius: 0, tension: 0.1 },
+                { label: 'Yaw', borderColor: '#444444', data: yawData, borderWidth: 1, pointRadius: 0, tension: 0.1 }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, animation: false,
+            plugins: { legend: { display: true, position: 'top', labels: { boxWidth: 10, color: '#aaa', font: { size: 10 } } } },
+            scales: { x: { display: false }, y: { min: -180, max: 180, grid: { color: '#222' }, ticks: { stepSize: 90, color: '#666' } } }
+        }
+    });
+}
+
 function updateLiveChart(euler) {
+    if (!liveChart) return;
     if (labels.length > MAX_DATAPOINTS) { labels.shift(); pitchData.shift(); rollData.shift(); yawData.shift(); }
     labels.push(''); pitchData.push(euler[0]); rollData.push(euler[1]); yawData.push(euler[2]);
     liveChart.update();
@@ -1271,7 +1277,7 @@ async function initActionControl() {
                     actionMappingList.appendChild(li);
                 }
             }
-            
+
             // Connect WS (Use configured port or default 18800)
             const wsPort = config.ports ? config.ports.websocket : 18800;
             const actionWsUrl = `ws://${window.location.hostname}:${wsPort}`;
@@ -1294,32 +1300,32 @@ function connectActionWs(url, port) {
         setTimeout(() => connectActionWs(url, port), 3000);
     };
     actionWs.onerror = (e) => console.error("Action WS error", e);
-    
+
     actionWs.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
             if (data.type === 'action' && actionHistory) {
                 const time = new Date().toLocaleTimeString();
-                
+
                 // Remove empty placeholder
                 if (actionHistory.innerHTML.includes('No actions triggered')) {
                     actionHistory.innerHTML = '';
                 }
-                
+
                 const div = document.createElement('div');
                 div.style.marginBottom = '8px';
                 div.style.borderBottom = '1px solid rgba(255, 255, 255, 0.05)';
                 div.style.paddingBottom = '8px';
-                
+
                 div.innerHTML = `<div style="color:#4ADE80; font-weight:bold;">[${time}] 🚀 ACTION DISPATCH: ${data.label}</div>
                                  <div style="color:#94a3b8; font-size:13px; margin-top:4px;">Keyword: <span style="color:#38bdf8; font-weight:bold;">${data.keyword}</span></div>
-                                 <div style="color:#64748b; font-size:12px; margin-top:2px;">Intent: ${data.intent} | Confidence: ${(data.confidence*100).toFixed(1)}%</div>`;
-                
+                                 <div style="color:#64748b; font-size:12px; margin-top:2px;">Intent: ${data.intent} | Confidence: ${(data.confidence * 100).toFixed(1)}%</div>`;
+
                 actionHistory.prepend(div);
-                
+
                 // Play a brief sound or visual pulse here if desired
             }
-        } catch(e) { console.error(e); }
+        } catch (e) { console.error(e); }
     };
 }
 
