@@ -647,7 +647,7 @@
                 <div class="metric-card">
                     <h2>알고리즘별 글씨체 인식률 (Accuracy)</h2>
                     <div class="big-chart-wrapper">
-                        <canvas id="accuracyChart"></canvas>
+                        <canvas id="researchAccuracyChart"></canvas>
                     </div>
                     <p class="chart-caption">단일 가속도 이중적분 방식은 85%의 인식률에 머문 반면, ZUPT 및 MARG 필터를 융합했을 때 93%으로 상승하며,
                         Forward Kinematics 2.5D 투영을 통하여 최종 98%에 가까운 신뢰도 확보.</p>
@@ -961,15 +961,15 @@
         Chart.defaults.color = '#94A3B8';
 
         // 1. Accuracy Chart (Bar Chart with Gradient)
-        const ctxAcc = document.getElementById('accuracyChart');
-        if (ctxAcc) {
-            const ctx2d = ctxAcc.getContext('2d');
+        const ctxResAcc = document.getElementById('researchAccuracyChart');
+        if (ctxResAcc) {
+            const ctx2d = ctxResAcc.getContext('2d');
             if (ctx2d) {
                 const gradBtn = ctx2d.createLinearGradient(0, 0, 0, 400);
                 gradBtn.addColorStop(0, '#38BDF8');
                 gradBtn.addColorStop(1, 'rgba(56, 189, 248, 0.1)');
 
-                new Chart(ctxAcc, {
+                new Chart(ctxResAcc, {
                     type: 'bar',
                     data: {
                         labels: ['Double Integration (Acc Only)', 'ESKF (6-DOF)', 'MARG (9-DOF)', 'MARG + ZUPT', 'Our FK Model (0-Drift)', 'RF ML Model'],
