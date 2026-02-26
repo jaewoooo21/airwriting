@@ -1109,40 +1109,6 @@ function updateLiveChart(euler) {
     liveChart.update();
 }
 
-const ctxAblation = document.getElementById('ablationChart');
-if (ctxAblation) {
-    new Chart(ctxAblation, {
-        type: 'bar',
-        data: {
-            labels: ['Base Accel', 'Accel+Gyro', 'ZUPT+MARG', 'FK 2.5D'],
-            datasets: [{
-                label: 'Accuracy %', data: [85.2, 88.5, 93.8, 98.1],
-                backgroundColor: ['#222', '#444', '#888', '#fff'], borderWidth: 1, borderColor: '#000'
-            }]
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            scales: { y: { min: 80, max: 100, grid: { color: '#222' } }, x: { grid: { display: false } } }
-        }
-    });
-}
-const ctxDrift = document.getElementById('driftChart');
-if (ctxDrift) {
-    new Chart(ctxDrift, {
-        type: 'line',
-        data: {
-            labels: ['0s', '5s', '10s', '15s', '20s', '25s', '30s'],
-            datasets: [
-                { label: 'No ZUPT', data: [0, 0.1, 0.4, 1.2, 2.5, 4.2, 6.5], borderColor: '#444', borderDash: [5, 5] },
-                { label: 'Neural ZUPT', data: [0, 0.01, 0.02, 0.01, 0.03, 0.02, 0.01], borderColor: '#fff' }
-            ]
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            scales: { y: { title: { display: true, text: 'Drift (m)', color: '#666' }, grid: { color: '#222' } }, x: { grid: { color: '#222' } } }
-        }
-    });
-}
 
 connectWebSocket();
 
