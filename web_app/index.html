@@ -130,8 +130,8 @@
                         <td style="padding:8px;">V2 (80B) / V3 (92B, 9-DOF) 자동 감지 + XOR Checksum</td>
                     </tr>
                     <tr style="border-bottom:1px solid #333;">
-                        <td style="padding:8px; font-weight:bold; color:#4ADE80;">🟢 Neural ZUPT</td>
-                        <td style="padding:8px;">BiLSTM Detector + SHOE Rule-based Fallback</td>
+                        <td style="padding:8px; font-weight:bold; color:#4ADE80;">🟢 ZUPT (Zero-Velocity)</td>
+                        <td style="padding:8px;">SHOE Energy-based Detector (Adaptive Threshold)</td>
                     </tr>
                     <tr style="border-bottom:1px solid #333;">
                         <td style="padding:8px; font-weight:bold; color:#38BDF8;">🔵 ML Recognition</td>
@@ -546,7 +546,8 @@
                         RandomForest.v2 (Directional-Enhanced)
                     </div>
                 </div>
-                <button id="btnMlTrain" class="ml-btn ml-btn-predict" style="margin-bottom: 10px; background: #3b82f6;">🔄 모델 재학습 (Train Model)</button>
+                <button id="btnMlTrain" class="ml-btn ml-btn-predict"
+                    style="margin-bottom: 10px; background: #3b82f6;">🔄 모델 재학습 (Train Model)</button>
             </div>
 
             <div class="training-stats-grid">
@@ -619,7 +620,8 @@
             <div class="metrics-grid">
                 <div class="metric-card">
                     <h2>Recent Actions</h2>
-                    <div id="actionHistory" style="height: 300px; overflow-y: auto; background: rgba(0,0,0,0.2); border-radius: 8px; padding: 10px; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #cbd5e1;">
+                    <div id="actionHistory"
+                        style="height: 300px; overflow-y: auto; background: rgba(0,0,0,0.2); border-radius: 8px; padding: 10px; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #cbd5e1;">
                         <div style="color: #64748b; font-style: italic;">No actions triggered yet...</div>
                     </div>
                 </div>
@@ -668,7 +670,7 @@
                 </div>
             </div>
 
-            <h2>센서 융합 계layer 비교</h2>
+            <h2>센서 데이터 융합 방식(Modality) 성과 비교</h2>
             <div class="spec-card">
                 <h3>IMU-Only (Our) vs. UWB+IMU vs. Camera-Based Systems</h3>
                 <div class="big-chart-wrapper">
@@ -693,98 +695,85 @@
                 </div>
             </div>
 
-            <h2>참고 문헌 (References)</h2>
+            <h2>📖 학술 참고 문헌 (Academic References)</h2>
 
             <div class="spec-card">
-                <h3>Core Theory — Sensor Fusion & State Estimation</h3>
-                <ol style="padding-left: 20px; color: #ccc; line-height: 2.2; font-size: 13px;">
-                    <li><strong>Solà, J.</strong> (2017). "Quaternion kinematics for the error-state Kalman filter."
-                        <em>arXiv:1711.02508.</em>
-                        — 본 프로젝트 ESKF 15-State 설계의 핵심 이론적 기반.
+                <h3>[1] Core Theory: Sensor Fusion & State Estimation</h3>
+                <ul style="list-style: none; padding-left: 0; color: #cbd5e1; line-height: 1.8; font-size: 13.5px;">
+                    <li
+                        style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                        <strong style="color: #f8fafc;">Solà, J. (2017).</strong>
+                        <span style="color: #94a3b8; font-style: italic;">"Quaternion kinematics for the error-state
+                            Kalman filter."</span>
+                        arXiv preprint arXiv:1711.02508.
+                        <br><span style="color: #10b981; font-size: 12px;">↳ 본 프로젝트의 15-State ESKF 자세 추정 수학적 모델링
+                            기반.</span>
                     </li>
-                    <li><strong>Madgwick, S. O. H., Harrison, A. J. L., & Vaidyanathan, R.</strong> (2011).
-                        "Estimation of IMU and MARG orientation using a gradient descent algorithm."
-                        <em>IEEE ICORR, pp. 1-7.</em>
-                        — Madgwick AHRS 필터 원본 논문.
+                    <li
+                        style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                        <strong style="color: #f8fafc;">Madgwick, S. O. H., et al. (2011).</strong>
+                        <span style="color: #94a3b8; font-style: italic;">"Estimation of IMU and MARG orientation using
+                            a gradient descent algorithm."</span>
+                        IEEE ICORR.
+                        <br><span style="color: #10b981; font-size: 12px;">↳ 낮은 컴퓨팅 자원(ESP32 등) 환경에서의 효율적인 9축/6축 쿼터니언 필터
+                            적용.</span>
                     </li>
-                    <li><strong>Skog, I., Händel, P., Nilsson, J. O., & Rantakokko, J.</strong> (2010).
-                        "Zero-velocity detection — An algorithm evaluation."
-                        <em>IEEE Trans. Biomed. Eng., 57(11), pp. 2657-2666.</em>
-                        — ZUPT 알고리즘 및 SHOE 검출기.
+                    <li
+                        style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                        <strong style="color: #f8fafc;">Skog, I., et al. (2010).</strong>
+                        <span style="color: #94a3b8; font-style: italic;">"Zero-velocity detection — An algorithm
+                            evaluation."</span>
+                        IEEE Trans. Biomed. Eng.
+                        <br><span style="color: #10b981; font-size: 12px;">↳ 필기 정지 구간(ZUPT) 에너지 기반 검출(SHOE) 알고리즘.</span>
                     </li>
-                    <li><strong>Foxlin, E.</strong> (2005). "Pedestrian tracking with shoe-mounted inertial sensors."
-                        <em>IEEE CG&A, 25(6), pp. 38-46.</em>
-                        — ZUPT 드리프트 보정 기법 원조 연구.
-                    </li>
-                </ol>
+                </ul>
             </div>
 
             <div class="spec-card">
-                <h3>AirWriting & IMU-Based Handwriting Recognition</h3>
-                <ol start="5" style="padding-left: 20px; color: #ccc; line-height: 2.2; font-size: 13px;">
-                    <li><strong>Amma, C., Georgi, M., & Schultz, T.</strong> (2012).
-                        "Airwriting: Hands-free mobile text input by spotting and continuous recognition of 3D-space
-                        handwriting with inertial sensors."
-                        <em>IEEE ISWC, pp. 52-59.</em>
-                        — 관성 센서 기반 공중 필기 인식의 선구적 연구.
+                <h3>[2] AirWriting & Trajectory Recognition</h3>
+                <ul style="list-style: none; padding-left: 0; color: #cbd5e1; line-height: 1.8; font-size: 13.5px;">
+                    <li
+                        style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                        <strong style="color: #f8fafc;">Amma, C., et al. (2012).</strong>
+                        <span style="color: #94a3b8; font-style: italic;">"Airwriting: Hands-free mobile text input by
+                            spotting 3D-space handwriting with inertial sensors."</span>
+                        IEEE ISWC.
+                        <br><span style="color: #38bdf8; font-size: 12px;">↳ 관성 센서 기반 3D 공중 필기 인식 시스템 최초 제안 연구.</span>
                     </li>
-                    <li><strong>Chen, M., AlRegib, G., & Juang, B. H.</strong> (2016).
-                        "Air-writing recognition — Part I: Modeling and recognition of characters, words and connecting
-                        motions."
-                        <em>IEEE Trans. HMS, 46(3), pp. 403-413.</em>
+                    <li
+                        style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                        <strong style="color: #f8fafc;">Chen, M., et al. (2016).</strong>
+                        <span style="color: #94a3b8; font-style: italic;">"Air-writing recognition — Part I &
+                            II."</span>
+                        IEEE Trans. HMS.
+                        <br><span style="color: #38bdf8; font-size: 12px;">↳ 복잡한 연속 모션에서의 글자 분할 및 기하학적 궤적 특징화 추출
+                            기법.</span>
                     </li>
-                    <li><strong>Chen, M., AlRegib, G., & Juang, B. H.</strong> (2016).
-                        "Air-writing recognition — Part II: Detection and recognition in a continuous stream."
-                        <em>IEEE Trans. HMS, 46(3), pp. 414-425.</em>
-                    </li>
-                    <li><strong>Yanay, T., & Shmueli, E.</strong> (2020).
-                        "Air-writing recognition using smart-bands."
-                        <em>Pervasive and Mobile Computing, 66, 101183.</em>
-                    </li>
-                </ol>
+                </ul>
             </div>
 
             <div class="spec-card">
-                <h3>Forward Kinematics & Arm Modeling</h3>
-                <ol start="9" style="padding-left: 20px; color: #ccc; line-height: 2.2; font-size: 13px;">
-                    <li><strong>Craig, J. J.</strong> (2005). <em>Introduction to Robotics: Mechanics and Control</em>
-                        (3rd ed.). Pearson.
-                        — 순방향 운동학(FK) 체인 이론의 교과서.</li>
-                    <li><strong>Zhou, H., & Hu, H.</strong> (2008).
-                        "Human motion tracking for rehabilitation — A survey."
-                        <em>Biomedical Signal Processing and Control, 3(1), pp. 1-18.</em>
+                <h3>[3] Forward Kinematics & Arm Modeling</h3>
+                <ul style="list-style: none; padding-left: 0; color: #cbd5e1; line-height: 1.8; font-size: 13.5px;">
+                    <li
+                        style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                        <strong style="color: #f8fafc;">Zhou, H., & Hu, H. (2008).</strong>
+                        <span style="color: #94a3b8; font-style: italic;">"Human motion tracking for rehabilitation — A
+                            survey."</span>
+                        Biomedical Signal Processing and Control.
+                        <br><span style="color: #f472b6; font-size: 12px;">↳ 인체 골격 모델(어깨-전완-손등-펜)의 3-Segment IMU 부착 및
+                            기하학 분석.</span>
                     </li>
-                    <li><strong>Seel, T., Raisch, J., & Schauer, T.</strong> (2014).
-                        "IMU-based joint angle measurement for gait analysis."
-                        <em>Sensors, 14(4), pp. 6891-6909.</em>
+                    <li
+                        style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                        <strong style="color: #f8fafc;">Seel, T., et al. (2014).</strong>
+                        <span style="color: #94a3b8; font-style: italic;">"IMU-based joint angle measurement for gait
+                            analysis."</span>
+                        Sensors.
+                        <br><span style="color: #f472b6; font-size: 12px;">↳ 다중 센서 회전 변환을 통한 Joint Position 연산
+                            최적화.</span>
                     </li>
-                </ol>
-            </div>
-
-            <div class="spec-card">
-                <h3>Machine Learning for Trajectory Classification</h3>
-                <ol start="12" style="padding-left: 20px; color: #ccc; line-height: 2.2; font-size: 13px;">
-                    <li><strong>Hochreiter, S., & Schmidhuber, J.</strong> (1997).
-                        "Long short-term memory."
-                        <em>Neural Computation, 9(8), pp. 1735-1780.</em>
-                        — LSTM 원본 논문.
-                    </li>
-                    <li><strong>Vaswani, A., et al.</strong> (2017).
-                        "Attention is all you need."
-                        <em>NeurIPS 2017.</em>
-                        — Transformer 아키텍처. 향후 궤적 인식 모델 후보.
-                    </li>
-                    <li><strong>Xu, C., Pathak, P. H., & Mohapatra, P.</strong> (2015).
-                        "Finger-writing with smartwatch: A case for finger and hand gesture recognition using
-                        smartwatch."
-                        <em>ACM HotMobile, pp. 10-15.</em>
-                    </li>
-                    <li><strong>Ott, F., Zürn, M., Becker, Y., & Schwarz, B.</strong> (2020).
-                        "Benchmarking IMU-based free-space handwriting recognition."
-                        <em>arXiv preprint.</em>
-                        — 자유 공간 필기 인식 벤치마크 방법론.
-                    </li>
-                </ol>
+                </ul>
             </div>
 
         </div>
@@ -823,18 +812,18 @@
                 B1 --> C1 --> C2 --> C3 --> C4
                 end
 
-                subgraph PHASE4["📋 Phase 4: ML 문자 인식"]
-                D1["모델 선정<br />LSTM / CNN-1D / Transformer"]
-                D2["학습 파이프라인<br />Train / Validation / Test"]
-                D3["글자별 정확도 평가<br />Confusion Matrix"]
-                D4["실시간 추론 엔진<br />Python → Web 연동"]
+                subgraph PHASE4["✅ Phase 4: ML 문자 인식 (완료)"]
+                D1["분류 모델 선정<br />RandomForest (100 Trees)"]
+                D2["특징 추출 파이프라인<br />60 Spatial + 57 Directional"]
+                D3["글자별 정확도 평가<br />실시간 Accuracy & Confusion"]
+                D4["온라인 학습 (Online Learning)<br />Web API 연동"]
                 C4 --> D1 --> D2 --> D3 --> D4
                 end
 
-                subgraph PHASE5["🚀 Phase 5: 응용 서비스"]
-                E1["실시간 영어 단어 인식<br />사전 매칭"]
-                E2["정확도 대시보드<br />글자별 % 표시"]
-                E3["추가 응용 탐색<br />(사용자 정의)"]
+                subgraph PHASE5["🚀 Phase 5: 스마트 응용 서비스"]
+                E1["키워드 기반 액션<br />(C=Call, M=Msg 등)"]
+                E2["Web-Phone 연동<br />WebSocket Dispatcher"]
+                E3["향후 딥러닝 고도화<br />(Transformer / LSTM)"]
                 D4 --> E1 --> E2
                 D4 --> E3
                 end
@@ -867,22 +856,23 @@
                 </div>
             </div>
 
-            <h2>Phase 4: ML 문자 인식 모델</h2>
+            <h2>Phase 4: ML 문자 인식 모델 (Current Status)</h2>
             <div class="spec-card">
-                <h3>모델 아키텍처 후보</h3>
+                <h3>현재 적용 모델: RandomForest 기반 앙상블 학습 (v2.0)</h3>
                 <div class="code-block">
-                    Option A: LSTM (Long Short-Term Memory)
-                    Input: 시퀀스 [T×F] (T=타임스텝, F=특징 차원)
-                    Hidden: 128 units × 2 layers (Bidirectional)
-                    Output: Softmax(26) → A-Z 확률 분포
+                    [1] 특징 추출 파이프라인 (117-Dimensional Feature Vector)
+                    - Spatial Feature (60-dim): 20포인트로 선형 보간(Resampling)된 3D 절대 좌표(X,Y,Z)
+                    - Directional Intent (57-dim): 연속된 획 사이의 방향 벡터(이동 델타값)
+                    - 공간 좌표와 획의 방향성을 동시 학습하여 기하학적 유사도 구별 능력 극대화
 
-                    Option B: 1D-CNN + GRU
-                    Conv1D(64, kernel=3) → Conv1D(128) → GRU(64) → Dense(26)
-                    장점: 로컬 패턴(획) 포착에 강함
+                    [2] 분류 알고리즘 (Classifier)
+                    - scikit-learn RandomForestClassifier (n_estimators=100)
+                    - 낮은 연산량으로 브라우저 상에서 실시간 학습(Online Retraining) 및 추론 지원
+                    - predict_proba()를 활용하여 Top-3 후보 및 확률(Confidence) 도출
 
-                    Option C: Transformer Encoder
-                    Positional Encoding → 4-Head Attention × 3 layers
-                    장점: 긴 시퀀스의 글로벌 의존성 학습
+                    [3] 향후 딥러닝 고도화 계획 (Future Work: Option A/B)
+                    - Option A (LSTM): 시계열 특징(T×F)을 보존하여 Bidirectional LSTM 처리
+                    - Option B (Transformer): Attention 기반 긴 궤적 전체의 전역적 패턴 분해
                 </div>
             </div>
 
@@ -994,7 +984,7 @@
         <div class="modal-content glass-panel">
             <h3>🎯 가이드 단어 수집</h3>
             <p style="margin-bottom: 5px;">연속 수집할 단어나 글자를 입력하세요.</p>
-            
+
             <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 15px;">
                 <button class="grid-key-btn" data-key="C">C (CALL)</button>
                 <button class="grid-key-btn" data-key="M">M (MSG)</button>
@@ -1005,7 +995,7 @@
                 <button class="grid-key-btn" data-key="W">W (WTHR)</button>
                 <button class="grid-key-btn" data-key="H">H (HOME)</button>
             </div>
-            
+
             <input type="text" id="labelInput" placeholder="또는 직접 입력 (예: APPLE)" autocomplete="off">
             <div class="modal-actions" style="margin-top: 15px;">
                 <button id="btnModalCancel" class="ml-btn ml-btn-predict">취소</button>
