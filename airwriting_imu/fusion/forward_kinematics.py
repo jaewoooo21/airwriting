@@ -40,8 +40,9 @@ class ForwardKinematics:
                 "joint": joint["joint"],
             })
 
-        # Pre-allocate bone direction vector (default: forward = X-axis)
-        self._bone_dir = np.array([1., 0., 0.], dtype=np.float64)
+        # Pre-allocate bone direction vector (default: forward = Y-axis)
+        # Matches digital_twin.py and Unity conventions
+        self._bone_dir = np.array([0., 1., 0.], dtype=np.float64)
 
         # Pre-allocate output
         self._pen_tip = np.zeros(3, dtype=np.float64)
@@ -66,17 +67,14 @@ class ForwardKinematics:
         for seg in self.segments:
             sid = seg["sensor"]
             length = seg["length"]
-            
-            # Use Z-axis for S3 (finger), X-axis for others
-            local_bone_dir = np.array([0.0, 0.0, 1.0], dtype=np.float64) if sid == "S3" else self._bone_dir
 
             if sid in orientations:
                 R = orientations[sid]
                 # Bone vector: rotate the base direction by joint orientation
-                bone_vec = R @ (local_bone_dir * length)
+                bone_vec = R @ (self._bone_dir * length)
             else:
                 # Fallback: extend straight forward
-                bone_vec = local_bone_dir * length
+                bone_vec = self._bone_dir * length
 
             pos = pos + bone_vec
             self._joint_positions[seg["joint"]] = pos.copy()

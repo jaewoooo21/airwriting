@@ -60,6 +60,7 @@ class AirWritingIMUController:
         self._esp_port = ports.get("esp32_to_python", 12345)
         self._uni_port = ports.get("python_to_unity", 12346)
         self._dash_port = ports.get("python_to_dashboard", 12347)
+        self._action_port = ports.get("python_to_action", 12348)
         self._uni_ip = config.network.get("unity", {}).get("ip", "127.0.0.1")
         self._dash_ip = config.network.get("dashboard", {}).get("ip", "127.0.0.1")
 
@@ -146,17 +147,40 @@ class AirWritingIMUController:
         self._accel_w = np.empty(3, dtype=np.float64)
 
         self._cksum_err = 0
+        self._debug_count = 5  # print first N packets for debugging
 
         # ── Pen state (v2.2: GPIO 15 button) ──
         self._pen_down = False
         self._pen_prev = False
         self._stroke_origin = np.zeros(3, dtype=np.float64)
         self._stroke_active = False
+        self._stroke_positions = []  # v2.5: collect FK positions during stroke
+
+        # ── Action Dispatch (v2.5: keyword→phone) ──
+        action_cfg = getattr(config, 'fusion', {}).get('action_dispatch', None)
+        # Also check top-level config (system.yaml)
+        self._action_enabled = False
+        self._action_threshold = 0.7
+        try:
+            import yaml
+            cfg_dir = getattr(config, '_config_dir', None)
+            if cfg_dir:
+                sys_path = Path(cfg_dir) / 'system.yaml'
+                if sys_path.exists():
+                    with open(sys_path, encoding='utf-8') as f:
+                        sys_data = yaml.safe_load(f)
+                    ad = sys_data.get('action_dispatch', {})
+                    self._action_enabled = ad.get('enabled', False)
+                    self._action_threshold = ad.get('confidence_threshold', 0.7)
+        except Exception:
+            pass
 
         # ── Per-sensor gyro cache (v2.2: for FK confidence) ──
         self._gyro_cache = {s: np.zeros(3) for s in config.imu_sensors}
 
         log.info("✅ IMU-Only Controller init OK")
+        if self._action_enabled:
+            log.info(f"📱 Action Dispatch enabled (threshold={self._action_threshold}, port={self._action_port})")
 
     # ════════════════════════════════════
     # Lifecycle
@@ -581,6 +605,7 @@ class AirWritingIMUController:
                 # Pen-down edge: start new stroke
                 self._stroke_origin[:] = self.fusion.pos
                 self._stroke_active = True
+                self._stroke_positions = []  # v2.5: reset stroke buffer
                 if self._lc_enabled:
                     self._loop_closure.start_stroke()
                 log.info(f"✏️ Pen DOWN — stroke start at "
@@ -597,7 +622,14 @@ class AirWritingIMUController:
                         self._loop_closure.end_stroke()
                     log.info(f"✏️ Pen UP — RTO applied, pos="
                              f"({pos[0]:.3f},{pos[1]:.3f},{pos[2]:.3f})")
+                    # v2.5: Send stroke for recognition → action dispatch
+                    if self._action_enabled and len(self._stroke_positions) > 5:
+                        self._recognize_and_dispatch()
             self._pen_prev = self._pen_down
+
+            # v2.5: Collect stroke positions during pen-down
+            if self._pen_down and pos is not None:
+                self._stroke_positions.append(pos.copy())
 
             # v2.3: Stroke-level loop closure detection
             if self._lc_enabled and self._stroke_active:
@@ -708,6 +740,47 @@ class AirWritingIMUController:
             self._tx_sock.sendto(raw, (self._dash_ip, self._dash_port))
         except Exception:
             pass
+
+    def _recognize_and_dispatch(self):
+        """v2.5: Run ML recognition on completed stroke and send to Action Dispatcher.
+
+        Called on pen-up when action_dispatch is enabled and stroke has enough points.
+        Sends recognition result via UDP to the Action Dispatcher (port 12348).
+        """
+
+        try:
+            # Lazy-load ML engine (avoid import overhead at startup)
+            if not hasattr(self, '_ml_engine'):
+                from tools.ml_engine import MLEngine
+                self._ml_engine = MLEngine()
+                log.info("🧠 ML Engine loaded for action dispatch")
+
+            stroke_data = np.array(self._stroke_positions)
+            predictions = self._ml_engine.predict(stroke_data, top_n=1)
+
+            if predictions:
+                label = predictions[0].get("label", "")
+                confidence = predictions[0].get("confidence", 0.0)
+                log.info(
+                    f"🤖 Recognition: '{label}' ({confidence:.1%})"
+                )
+
+                # Send to Action Dispatcher via UDP
+                obj = {
+                    "type": "recognition",
+                    "label": label,
+                    "confidence": confidence,
+                    "stroke_length": len(self._stroke_positions),
+                }
+                try:
+                    raw = json.dumps(obj, default=_json_default).encode()
+                    self._tx_sock.sendto(raw, ("127.0.0.1", self._action_port))
+                except Exception as e:
+                    log.debug(f"Action dispatch tx: {e}")
+            else:
+                log.debug("🤖 No prediction (model not ready or insufficient data)")
+        except Exception as e:
+            log.warning(f"Recognition error: {e}")
 
     def _stats(self, now):
         self._t_stats = now

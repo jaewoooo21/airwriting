@@ -51,15 +51,23 @@ timeout /t 1 /nobreak >nul
 start "Flask Web App" cmd /k "cd /d %~dp0 && .venv\Scripts\activate && python web_app\app.py"
 echo   Started: Flask ML API (app.py)
 
+:: Wait briefly
+timeout /t 1 /nobreak >nul
+
+:: Start Action Dispatcher
+start "Action Dispatcher" cmd /k "cd /d %~dp0 && .venv\Scripts\activate && python tools\action_dispatcher.py"
+echo   Started: Action Dispatcher (action_dispatcher.py)
+
 :: ── Step 4: Done ──
 echo.
 echo ============================================
-echo [4/4] All 3 services launched successfully!
+echo [4/4] All 4 services launched successfully!
 echo ============================================
 echo.
 echo   IMU Engine:       UDP :12345 (from ESP32)
 echo   WebSocket Relay:  UDP :12346 / WS :18765
 echo   Flask ML API:     HTTP :5000
+echo   Action Dispatch:  UDP :12348 / WS :18800 (to Phone)
 echo.
 echo [5/5] Opening browser in 3 seconds...
 timeout /t 3 /nobreak >nul

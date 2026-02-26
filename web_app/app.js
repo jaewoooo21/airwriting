@@ -503,6 +503,7 @@ const labelModal = document.getElementById('labelModal');
 const labelInput = document.getElementById('labelInput');
 const btnModalCancel = document.getElementById('btnModalCancel');
 const btnModalStart = document.getElementById('btnModalStart');
+const btnMlTrain = document.getElementById('btnMlTrain');
 
 let isAutoRecording = false;
 let autoRecordInterval = null;
@@ -643,6 +644,16 @@ if (btnMlRec) {
         });
     }
 
+    const gridBtns = document.querySelectorAll('.grid-key-btn');
+    gridBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            if(labelInput) {
+                labelInput.value = btn.getAttribute('data-key');
+                labelInput.focus();
+            }
+        });
+    });
+
     if (btnModalStart) {
         btnModalStart.addEventListener('click', () => {
             let label = labelInput.value.trim().toUpperCase();
@@ -679,6 +690,33 @@ if (btnMlRec) {
             updateScoreBoard([]);
         }
     });
+
+    if (btnMlTrain) {
+        btnMlTrain.addEventListener('click', async () => {
+            let originalText = btnMlTrain.innerText;
+            btnMlTrain.innerText = "⏳ 학습 중... (Training)";
+            btnMlTrain.disabled = true;
+            try {
+                const res = await fetch('/api/ml/train', { method: 'POST' });
+                if (res.ok) {
+                    setTimeout(() => {
+                        btnMlTrain.innerText = "✅ 백그라운드 학습 시작 (10초 소요)";
+                        setTimeout(() => {
+                            btnMlTrain.innerText = originalText;
+                            btnMlTrain.disabled = false;
+                        }, 3000);
+                    }, 500);
+                }
+            } catch(e) { 
+                console.error(e); 
+                btnMlTrain.innerText = "❌ 확인 필요"; 
+                setTimeout(() => {
+                    btnMlTrain.innerText = originalText;
+                    btnMlTrain.disabled = false;
+                }, 2000);
+            }
+        });
+    }
 }
 
 let recognizedSequence = "";
@@ -1208,3 +1246,81 @@ function escapeHtml(unsafe) {
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
 }
+
+// ══════════════════════════════════════════
+// ACTION DISPATCHER & CONFIG
+// ══════════════════════════════════════════
+const actionMappingList = document.getElementById('actionMappingList');
+const actionConnBadge = document.getElementById('actionConnBadge');
+const actionConnDot = document.getElementById('actionConnDot');
+const actionConnText = document.getElementById('actionConnText');
+const actionHistory = document.getElementById('actionHistory');
+
+let actionWs = null;
+
+async function initActionControl() {
+    try {
+        const res = await fetch('/api/config/actions');
+        if (res.ok) {
+            const config = await res.json();
+            if (actionMappingList && config.keywords) {
+                actionMappingList.innerHTML = '';
+                for (const [key, mapping] of Object.entries(config.keywords)) {
+                    const li = document.createElement('li');
+                    li.innerHTML = `<span class="check-icon" style="color:#38BDF8">⚡</span> <strong>${key}</strong> <span style="color:#64748b">→</span> ${mapping.name} <span style="font-size:11px;color:#64748b">(${mapping.intent})</span>`;
+                    actionMappingList.appendChild(li);
+                }
+            }
+            
+            // Connect WS (Use configured port or default 18800)
+            const wsPort = config.ports ? config.ports.websocket : 18800;
+            const actionWsUrl = `ws://${window.location.hostname}:${wsPort}`;
+            connectActionWs(actionWsUrl, wsPort);
+        }
+    } catch (e) { console.error("Action config error", e); }
+}
+
+function connectActionWs(url, port) {
+    actionWs = new WebSocket(url);
+    actionWs.onopen = () => {
+        if (actionConnText) actionConnText.innerText = `CONNECTED (Port ${port})`;
+        if (actionConnBadge) { actionConnBadge.style.borderColor = '#10B981'; actionConnBadge.style.color = '#10B981'; }
+        if (actionConnDot) actionConnDot.style.background = '#10B981';
+    };
+    actionWs.onclose = () => {
+        if (actionConnText) actionConnText.innerText = `DISCONNECTED (Port ${port})`;
+        if (actionConnBadge) { actionConnBadge.style.borderColor = '#f59e0b'; actionConnBadge.style.color = '#f59e0b'; }
+        if (actionConnDot) actionConnDot.style.background = '#f59e0b';
+        setTimeout(() => connectActionWs(url, port), 3000);
+    };
+    actionWs.onerror = (e) => console.error("Action WS error", e);
+    
+    actionWs.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            if (data.type === 'action' && actionHistory) {
+                const time = new Date().toLocaleTimeString();
+                
+                // Remove empty placeholder
+                if (actionHistory.innerHTML.includes('No actions triggered')) {
+                    actionHistory.innerHTML = '';
+                }
+                
+                const div = document.createElement('div');
+                div.style.marginBottom = '8px';
+                div.style.borderBottom = '1px solid rgba(255, 255, 255, 0.05)';
+                div.style.paddingBottom = '8px';
+                
+                div.innerHTML = `<div style="color:#4ADE80; font-weight:bold;">[${time}] 🚀 ACTION DISPATCH: ${data.label}</div>
+                                 <div style="color:#94a3b8; font-size:13px; margin-top:4px;">Keyword: <span style="color:#38bdf8; font-weight:bold;">${data.keyword}</span></div>
+                                 <div style="color:#64748b; font-size:12px; margin-top:2px;">Intent: ${data.intent} | Confidence: ${(data.confidence*100).toFixed(1)}%</div>`;
+                
+                actionHistory.prepend(div);
+                
+                // Play a brief sound or visual pulse here if desired
+            }
+        } catch(e) { console.error(e); }
+    };
+}
+
+initActionControl();

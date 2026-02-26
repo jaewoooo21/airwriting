@@ -2,6 +2,7 @@ import os
 import sqlite3
 import threading
 import numpy as np
+import yaml
 from datetime import datetime
 from flask import Flask, request, jsonify, send_from_directory
 
@@ -126,11 +127,33 @@ def ml_predict():
         "predictions": predictions
     })
 
+@app.route('/api/ml/train', methods=['POST'])
+def ml_train():
+    # Trigger background training manually
+    threading.Thread(target=ml_engine.train_background, daemon=True).start()
+    return jsonify({"status": "success", "message": "Manual training started"})
+
 @app.route('/api/ml/stats', methods=['GET'])
 def ml_stats():
     return jsonify(ml_engine.get_stats())
 
+# ════════════════════════════════════════════════════════════════
+# Configuration API
+# ════════════════════════════════════════════════════════════════
+@app.route('/api/config/actions', methods=['GET'])
+def get_action_config():
+    """Retrieve action_dispatch config from system.yaml"""
+    config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'system.yaml')
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+            action_config = config.get('action_dispatch', {})
+            return jsonify(action_config)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == '__main__':
-    # Run the Flask app on port 5000 (accessible locally by default)
-    # Host='0.0.0.0' allows external connections if deployed
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    # Run the Flask app on the port specified by the environment (required for Render/Heroku)
+    # Fallback to 5000 for local development
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)

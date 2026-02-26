@@ -30,24 +30,24 @@ class TestFKInitialization:
 
 class TestFKCompute:
     def test_identity_orientation(self, fk):
-        """All identity rotations → pen tip at (0.51, 0, 0)."""
+        """All identity rotations → pen tip at (0, 0.51, 0) (Y-axis forward)."""
         R_id = np.eye(3)
         orientations = {"S1": R_id, "S2": R_id, "S3": R_id}
 
         pen_tip = fk.compute(orientations)
 
-        expected = np.array([0.51, 0., 0.])
+        expected = np.array([0., 0.51, 0.])
         np.testing.assert_allclose(pen_tip, expected, atol=1e-6)
 
     def test_90deg_forearm_rotation(self, fk):
-        """S1 rotated 90° around Z → pen tip at (0, 0.51, 0)."""
+        """All rotated 90° around Z → pen tip at (-0.51, 0, 0)."""
         R_90z = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]], dtype=np.float64)
-        R_id = np.eye(3)
 
         orientations = {"S1": R_90z, "S2": R_90z, "S3": R_90z}
         pen_tip = fk.compute(orientations)
 
-        expected = np.array([0., 0.51, 0.])
+        # Y-axis bone rotated 90° around Z → each bone points in -X direction
+        expected = np.array([-0.51, 0., 0.])
         np.testing.assert_allclose(pen_tip, expected, atol=1e-6)
 
     def test_mixed_rotations(self, fk):
@@ -58,11 +58,11 @@ class TestFKCompute:
         orientations = {"S1": R_id, "S2": R_90z, "S3": R_id}
         pen_tip = fk.compute(orientations)
 
-        # S1: (0.25, 0, 0), S2 rotates 90°: adds (0, 0.18, 0),
-        # S3 identity: adds (0.08, 0, 0) (but in S2's frame... actually FK applies
-        # each R independently, so S3 at identity means +X by 0.08)
-        # pen_tip = (0.25 + 0.08, 0.18, 0) = (0.33, 0.18, 0)
-        expected = np.array([0.33, 0.18, 0.])
+        # S1 identity Y-axis: (0, 0.25, 0)
+        # S2 90° Z rotation on Y-axis: adds (-0.18, 0, 0)
+        # S3 identity Y-axis: adds (0, 0.08, 0)
+        # Total: (-0.18, 0.33, 0)
+        expected = np.array([-0.18, 0.33, 0.])
         np.testing.assert_allclose(pen_tip, expected, atol=1e-6)
 
     def test_pen_within_reach(self, fk):
@@ -95,7 +95,7 @@ class TestFKCompute:
         assert "finger" in joints
 
     def test_missing_sensor_fallback(self, fk):
-        """Missing orientation should use fallback (straight forward)."""
+        """Missing orientation should use fallback (straight forward in Y)."""
         R_id = np.eye(3)
         orientations = {"S1": R_id}  # S2, S3 missing
 
@@ -103,8 +103,8 @@ class TestFKCompute:
 
         # Should still produce a valid position
         assert np.all(np.isfinite(pen_tip))
-        # And extend straight in X
-        expected = np.array([0.51, 0., 0.])
+        # And extend straight in Y (bone direction)
+        expected = np.array([0., 0.51, 0.])
         np.testing.assert_allclose(pen_tip, expected, atol=1e-6)
 
 

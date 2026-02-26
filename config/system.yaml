@@ -5,6 +5,7 @@ network:
     esp32_to_python: 12345
     python_to_unity: 12346
     python_to_dashboard: 12347
+    python_to_action: 12348
 
   unity:
     ip: "127.0.0.1"
@@ -89,3 +90,18 @@ madgwick:
 unity_send:
   rate_hz: 60
   format: "flat_json"
+
+action_dispatch:
+  enabled: true
+  confidence_threshold: 0.7
+  ws_port: 18800
+  udp_port: 12348
+  action_map:
+    C: {keyword: CALL,    intent: "tel:"}
+    M: {keyword: MESSAGE, intent: "sms:"}
+    S: {keyword: SEARCH,  intent: "websearch:"}
+    N: {keyword: NOTE,    intent: "note:"}
+    P: {keyword: PHOTO,   intent: "camera:"}
+    T: {keyword: TIMER,   intent: "timer:"}
+    W: {keyword: WEATHER, intent: "weather:"}
+    H: {keyword: HOME,    intent: "home:"}

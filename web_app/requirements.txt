@@ -10,3 +10,5 @@ pandas
 # Machine Learning & IMU Data (프로젝트에 필요한 경우 추가)
 scikit-learn
 scipy
+joblib
+PyYAML
