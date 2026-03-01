@@ -627,10 +627,6 @@ class AirWritingIMUController:
                         self._recognize_and_dispatch()
             self._pen_prev = self._pen_down
 
-            # v2.5: Collect stroke positions during pen-down
-            if self._pen_down and pos is not None:
-                self._stroke_positions.append(pos.copy())
-
             # v2.3: Stroke-level loop closure detection
             if self._lc_enabled and self._stroke_active:
                 self._loop_closure.track(pos)
@@ -673,6 +669,14 @@ class AirWritingIMUController:
             # Save FK position if we have it
             if fk_pos is not None:
                 self._current_fk_pos = fk_pos.copy()
+
+            # v2.5: Collect stroke positions during pen-down
+            # Use FK pos to perfectly match JavaScript training data representation
+            if self._pen_down:
+                if fk_pos is not None:
+                    self._stroke_positions.append(fk_pos.copy())
+                elif pos is not None:
+                    self._stroke_positions.append(pos.copy())
 
         # Update buffer
         self._ubuf[sid] = {

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg_primary">#FAFAFA</color>
+    <color name="bg_card">#FFFFFF</color>
+    <color name="bg_card_light">#F5F5F5</color>
+    <color name="accent">#1A1A1A</color>
+    <color name="accent_light">#333333</color>
+    <color name="text_primary">#111111</color>
+    <color name="text_secondary">#777777</color>
+    <color name="text_muted">#AAAAAA</color>
+    <color name="status_connected">#2E7D32</color>
+    <color name="status_disconnected">#C62828</color>
+    <color name="divider">#E0E0E0</color>
+    <color name="log_bg">#F0F0F0</color>
+</resources>

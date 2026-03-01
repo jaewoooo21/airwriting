@@ -93,15 +93,28 @@ unity_send:
 
 action_dispatch:
   enabled: true
-  confidence_threshold: 0.7
+  confidence_threshold: 1
   ws_port: 18800
   udp_port: 12348
   action_map:
-    C: {keyword: CALL,    intent: "tel:"}
-    M: {keyword: MESSAGE, intent: "sms:"}
-    S: {keyword: SEARCH,  intent: "websearch:"}
-    N: {keyword: NOTE,    intent: "note:"}
-    P: {keyword: PHOTO,   intent: "camera:"}
-    T: {keyword: TIMER,   intent: "timer:"}
-    W: {keyword: WEATHER, intent: "weather:"}
-    H: {keyword: HOME,    intent: "home:"}
+    # [연락처/메시지]
+    C: {keyword: CALL,    intent: "tel:"} # 다이얼러 호출
+    M: {keyword: MESSAGE, intent: "sms:"} # 메시지 앱
+
+    # [AI 및 검색] - 제미나이(Google)와 빅스비 연동
+    G: {keyword: GEMINI,  intent: "intent://#Intent;action=android.intent.action.ASSIST;end"} # 갤럭시 기본 비서(제미나이) 즉시 호출
+    S: {keyword: SEARCH,  intent: "intent://#Intent;action=android.intent.action.WEB_SEARCH;S.query=;end"} # 구글 통합 검색
+    W: {keyword: WEATHER, intent: "intent://#Intent;action=android.intent.action.VIEW;component=com.sec.android.app.desktoplauncher/.WeatherActivity;end"} # 갤럭시 순정 날씨 앱 (또는 URL 방식)
+
+    # [미디어/카메라] - 갤럭시 순정 앱 패키지 지정
+    P: {keyword: PHOTO,   intent: "intent://#Intent;action=android.media.action.STILL_IMAGE_CAMERA;package=com.sec.android.app.camera;end"} # 카메라 촬영 모드
+    V: {keyword: GALLERY, intent: "intent://#Intent;action=android.intent.action.VIEW;type=image/*;end"} # 갤러리 앱
+
+    # [유틸리티/시스템]
+    T: {keyword: TIMER,   intent: "intent://#Intent;action=android.intent.action.SET_TIMER;end"} # 시계 앱 타이머
+    A: {keyword: ALARM,   intent: "intent://#Intent;action=android.intent.action.SET_ALARM;end"} # 알람 설정
+    N: {keyword: NOTE,    intent: "intent://#Intent;action=android.intent.action.SEND;type=text/plain;package=com.samsung.android.app.notes;end"} # 삼성 노트 전용
+    H: {keyword: HOME,    intent: "intent://#Intent;action=android.intent.action.MAIN;category=android.intent.category.HOME;end"} # 홈 화면 이동
+
+    # [갤럭시 전용 제어]
+    B: {keyword: BIXBY,   intent: "intent://#Intent;action=android.intent.action.VOICE_COMMAND;package=com.samsung.android.bixby.agent;end"} # 빅스비 전용 호출
