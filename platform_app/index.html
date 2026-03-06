@@ -15,14 +15,23 @@
 </head>
 
 <body>
-    <!-- CINEMATIC INTRO -->
-    <div id="intro-overlay" class="intro-overlay">
-        <div class="intro-content">
-            <div class="intro-logo">✦</div>
-            <h1 class="intro-text">AirWriting</h1>
-            <p class="intro-subtext">The Future of Interaction</p>
-        </div>
+    <!-- CINEMATIC SF INTRO -->
+    <div id="intro-overlay" class="sf-intro">
+        <svg class="airwriting-svg" viewBox="0 0 800 200">
+            <text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" class="sf-text">AirWriting</text>
+        </svg>
+        <div class="sf-subtext">Sensing the Future...</div>
     </div>
+    <script>
+        // Force hide intro safely after animation ends without waiting for heavy CDNs
+        setTimeout(() => {
+            const intro = document.getElementById('intro-overlay');
+            if(intro) {
+                intro.classList.add('hidden');
+                setTimeout(() => intro.style.display = 'none', 1000);
+            }
+        }, 3500);
+    </script>
 
     <!-- TOP NAVIGATION BAR -->
     <nav class="top-nav glass-panel">

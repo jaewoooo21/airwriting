@@ -490,16 +490,8 @@ function updateFrame(data) {
 }
 
 // ══════════════════════════════════════════
-// Cinematic Intro Logic
+// NO INTRO LOGIC HERE (Moved to inline script in HTML)
 // ══════════════════════════════════════════
-window.addEventListener('load', () => {
-    const intro = document.getElementById('intro-overlay');
-    if (intro) {
-        setTimeout(() => {
-            intro.classList.add('hidden');
-        }, 2500);
-    }
-});
 
 // ══════════════════════════════════════════
 // GLOBAL VARIABLES & STATE
