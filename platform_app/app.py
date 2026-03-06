@@ -3,6 +3,7 @@ import sqlite3
 import threading
 import numpy as np
 import yaml
+import socket
 from datetime import datetime
 from flask import Flask, request, jsonify, send_from_directory
 
@@ -151,6 +152,20 @@ def get_action_config():
             return jsonify(action_config)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route('/api/config/ip', methods=['GET'])
+def get_local_ip():
+    """Retrieve the local network IP address"""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # doesn't even have to be reachable
+        s.connect(('10.255.255.255', 1))
+        IP = s.getsockname()[0]
+    except Exception:
+        IP = '127.0.0.1'
+    finally:
+        s.close()
+    return jsonify({"ip": IP})
 
 if __name__ == '__main__':
     # Run the Flask app on the port specified by the environment (required for Render/Heroku)

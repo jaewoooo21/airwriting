@@ -655,6 +655,56 @@ if (btnMlRec) {
         }
     });
 
+// ══════════════════════════════════════════
+// QR Connect Modal Logic
+// ══════════════════════════════════════════
+const btnConnectPhone = document.getElementById('btnConnectPhone');
+const qrModal = document.getElementById('qrModal');
+const btnQrCancel = document.getElementById('btnQrCancel');
+const ipInput = document.getElementById('ipInput');
+const qrCodeContainer = document.getElementById('qrCodeContainer');
+let currentQR = null;
+
+if (btnConnectPhone) {
+    btnConnectPhone.addEventListener('click', () => {
+        if(qrModal) qrModal.style.display = 'flex';
+        setTimeout(() => { if(ipInput) ipInput.focus(); }, 100);
+    });
+}
+
+if (btnQrCancel) {
+    btnQrCancel.addEventListener('click', () => {
+        if(qrModal) qrModal.style.display = 'none';
+        if(ipInput) ipInput.value = '';
+        if(qrCodeContainer) qrCodeContainer.innerHTML = '<div style="color:#94a3b8; line-height:170px; font-size:13px;">Enter IP to load QR</div>';
+        currentQR = null;
+    });
+}
+
+if (ipInput) {
+    ipInput.addEventListener('input', (e) => {
+        const ip = e.target.value.trim();
+        if(qrCodeContainer) qrCodeContainer.innerHTML = ''; 
+        currentQR = null;
+        
+        if (ip.length > 0) {
+            try {
+                currentQR = new QRCode(qrCodeContainer, {
+                    text: ip,
+                    width: 170,
+                    height: 170,
+                    colorDark : "#0F172A", 
+                    colorLight : "#ffffff",
+                    correctLevel : QRCode.CorrectLevel.H
+                });
+            } catch (err) {
+                console.error("QR JS not loaded:", err);
+            }
+        } else {
+            if(qrCodeContainer) qrCodeContainer.innerHTML = '<div style="color:#94a3b8; line-height:170px; font-size:13px;">Enter IP to load QR</div>';
+        }
+    });
+}
     if (btnModalCancel) {
         btnModalCancel.addEventListener('click', () => {
             labelModal.classList.remove('active');
@@ -1326,3 +1376,78 @@ function connectActionWs(url, port) {
 }
 
 initActionControl();
+
+// ══════════════════════════════════════════
+// QR Connect Modal Logic
+// ══════════════════════════════════════════
+const btnConnectPhone = document.getElementById('btnConnectPhone');
+const qrModal = document.getElementById('qrModal');
+const btnQrCancel = document.getElementById('btnQrCancel');
+const ipInput = document.getElementById('ipInput');
+const qrCodeContainer = document.getElementById('qrCodeContainer');
+let currentQR = null;
+
+if (btnConnectPhone) {
+    btnConnectPhone.addEventListener('click', () => {
+        if(qrModal) qrModal.style.display = 'flex';
+        setTimeout(() => { if(ipInput) ipInput.focus(); }, 100);
+    });
+}
+
+if (btnQrCancel) {
+    btnQrCancel.addEventListener('click', () => {
+        if(qrModal) qrModal.style.display = 'none';
+        if(ipInput) ipInput.value = '';
+        if(qrCodeContainer) qrCodeContainer.innerHTML = '<div style="color:#94a3b8; line-height:170px; font-size:13px;">Enter IP to load QR</div>';
+        currentQR = null;
+    });
+}
+
+if (ipInput) {
+    ipInput.addEventListener('input', (e) => {
+        const ip = e.target.value.trim();
+        if(qrCodeContainer) qrCodeContainer.innerHTML = ''; 
+        currentQR = null;
+        
+        if (ip.length > 0) {
+            try {
+                currentQR = new QRCode(qrCodeContainer, {
+                    text: ip,
+                    width: 170,
+                    height: 170,
+                    colorDark : "#0F172A", 
+                    colorLight : "#ffffff",
+                    correctLevel : QRCode.CorrectLevel.H
+                });
+            } catch (err) {
+                console.error("QR JS not loaded:", err);
+            }
+        } else {
+            if(qrCodeContainer) qrCodeContainer.innerHTML = '<div style="color:#94a3b8; line-height:170px; font-size:13px;">Enter IP to load QR</div>';
+        }
+    });
+}
+
+// ══════════════════════════════════════════
+// Network IP Auto-fetch (Footer & QR Modal)
+// ══════════════════════════════════════════
+fetch('/api/config/ip')
+    .then(res => res.json())
+    .then(data => {
+        if(data && data.ip) {
+            // 1. Update global footer
+            const ipDisplay = document.getElementById('networkIpDisplay');
+            if(ipDisplay) ipDisplay.innerText = `Network IP: ${data.ip}`;
+            
+            // 2. Auto-fill the Android Connect QR Modal input
+            if(ipInput && !ipInput.value) {
+                ipInput.value = data.ip;
+                ipInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        }
+    })
+    .catch(err => {
+        console.error("Could not fetch local IP:", err);
+        const ipDisplay = document.getElementById('networkIpDisplay');
+        if(ipDisplay) ipDisplay.innerText = "Network IP: Unknown";
+    });

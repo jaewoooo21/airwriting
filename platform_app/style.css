@@ -1592,3 +1592,69 @@ code {
   background: var(--color-warning);
   margin-right: 8px;
 }
+
+/* =========================================
+   HOW TO USE GUIDE (Home Tab)
+   ========================================= */
+.how-to-use-section {
+  text-align: center;
+  padding: 60px 20px 80px 20px;
+}
+
+.steps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 30px;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.step-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 40px 30px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.step-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #38BDF8, #8B5CF6);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.step-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 15px 35px rgba(0,0,0,0.06);
+  border-color: var(--border-active);
+}
+
+.step-card:hover::before {
+  opacity: 1;
+}
+
+.step-icon {
+  font-size: 42px;
+  margin-bottom: 20px;
+}
+
+.step-card h3 {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 15px;
+}
+
+.step-card p {
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
