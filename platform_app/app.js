@@ -371,17 +371,17 @@ function drawCursor(cx, cy) {
 // WebSocket
 // ══════════════════════════════════════════
 function connectWebSocket() {
-    valConn.textContent = "🟡 CONNECTING...";
-    valConn.className = "data-value warning";
+    valConn.textContent = "CONNECTING...";
+    valConn.className = "data-value danger";
     ws = new WebSocket(WS_URL);
-    ws.onopen = () => { valConn.textContent = "🟢 CONNECTED (WS)"; valConn.className = "data-value success"; };
+    ws.onopen = () => { valConn.textContent = "CONNECTED (WS)"; valConn.className = "data-value success"; };
     ws.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
             if (data.t === "f") updateFrame(data);
         } catch (e) { console.error("JSON parse error:", e); }
     };
-    ws.onclose = () => { valConn.textContent = "🔴 DISCONNECTED"; valConn.className = "data-value warning"; setTimeout(connectWebSocket, 3000); };
+    ws.onclose = () => { valConn.textContent = "DISCONNECTED"; valConn.className = "data-value danger"; setTimeout(connectWebSocket, 3000); };
     ws.onerror = (err) => console.error("WS Error:", err);
 }
 // ── Auto-connect on page load ──
@@ -394,8 +394,8 @@ function updateFrame(data) {
     if (pen) overlay.classList.add('active');
     else overlay.classList.remove('active');
 
-    if (zupt) { valZupt.textContent = "🟢 ACTIVE"; valZupt.className = "data-value success"; }
-    else { valZupt.textContent = "⚪ INACTIVE"; valZupt.className = "data-value warning"; }
+    if (zupt) { valZupt.textContent = "ACTIVE"; valZupt.className = "data-value success"; }
+    else { valZupt.textContent = "INACTIVE"; valZupt.className = "data-value danger"; }
 
     if (data.S3e) updateLiveChart(data.S3e);
 
@@ -490,10 +490,47 @@ function updateFrame(data) {
 }
 
 // ══════════════════════════════════════════
+// Cinematic Intro Logic
+// ══════════════════════════════════════════
+window.addEventListener('load', () => {
+    const intro = document.getElementById('intro-overlay');
+    if (intro) {
+        setTimeout(() => {
+            intro.classList.add('hidden');
+        }, 2500);
+    }
+});
+
+// ══════════════════════════════════════════
+// GLOBAL VARIABLES & STATE
+// ══════════════════════════════════════════
+let ws = null; // WebSocket instance
+let armPositions = null; // Array of [x,y,z] for each joint
+let currentCursorPos = null; // [x,y,z] of the pen tip
+let lastPenState = false; // True if pen is currently down
+let strokeHistory = []; // Array of strokes, each stroke is an array of [x,y,z] points
+let currentStroke = []; // The stroke currently being drawn
+
+// ML related global state
+let mlAutoPredict = false; // Whether ML auto-prediction is active
+let mlCurrentPos = []; // Current stroke for ML prediction (local coordinates)
+let mlLearningLabel = null; // Label for current ML recording session
+let mlCurrentFull = []; // Current stroke for ML recording (full data)
+
+// DOM Elements
+const valConn = document.getElementById('valConn');
+const valZupt = document.getElementById('valZupt');
+const valPos = document.getElementById('valPos');
+const overlay = document.getElementById('overlay');
+const liveCursor = document.getElementById('liveCursor');
+const recordingOverlay = document.getElementById('recordingOverlay');
+
+// ══════════════════════════════════════════
 // ML API Calls & UI
 // ══════════════════════════════════════════
 const btnMlRec = document.getElementById('btnMlRec');
 const btnMlPredict = document.getElementById('btnMlPredict');
+const btnDemoSimulator = document.getElementById('btnDemoSimulator');
 const mlStatusText = document.getElementById('mlStatusText');
 const aiResultWord = document.getElementById('aiResultWord');
 const aiResultScore = document.getElementById('aiResultScore');

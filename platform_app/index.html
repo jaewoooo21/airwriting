@@ -15,6 +15,15 @@
 </head>
 
 <body>
+    <!-- CINEMATIC INTRO -->
+    <div id="intro-overlay" class="intro-overlay">
+        <div class="intro-content">
+            <div class="intro-logo">✦</div>
+            <h1 class="intro-text">AirWriting</h1>
+            <p class="intro-subtext">The Future of Interaction</p>
+        </div>
+    </div>
+
     <!-- TOP NAVIGATION BAR -->
     <nav class="top-nav glass-panel">
         <div class="nav-brand">
@@ -132,6 +141,7 @@
                 <div class="ml-controls">
                     <button id="btnMlRec" class="ml-btn ml-btn-rec">🎯 [가이드] 단어 학습</button>
                     <button id="btnMlPredict" class="ml-btn ml-btn-predict">⚡ [자동보정] 켜기</button>
+                    <button id="btnDemoSimulator" class="ml-btn ml-btn-predict" style="background:#0EA5E9; color:white; margin-top:8px;">▶️ Run Demo Simulator</button>
                     <div class="ml-status" id="mlStatusText">Status: Idle</div>
                 </div>
             </aside>
@@ -1306,7 +1316,23 @@
             </div>
         </div>
     </div>
+    
+    <!-- GLOBAL FOOTER -->
+    <footer class="global-footer">
+        <div class="footer-content">
+            <div class="footer-brand">
+                <span class="logo-icon" style="color:#0EA5E9;">✦</span> AirWriting
+            </div>
+            <div class="footer-copy">
+                &copy; 2026 AirWriting Team. All rights reserved. Built with Python, WebGL, and IMU Fusion.
+            </div>
+        </div>
+    </footer>
+
+    <script src="test_script_0.js"></script>
+    <script src="test_script_1.js"></script>
     <script src="dictionary.js"></script>
+    <script src="hand-widget.js"></script>
     <script src="app.js"></script>
 </body>
 
