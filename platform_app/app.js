@@ -496,26 +496,14 @@ function updateFrame(data) {
 // ══════════════════════════════════════════
 // GLOBAL VARIABLES & STATE
 // ══════════════════════════════════════════
-let ws = null; // WebSocket instance
-let armPositions = null; // Array of [x,y,z] for each joint
-let currentCursorPos = null; // [x,y,z] of the pen tip
-let lastPenState = false; // True if pen is currently down
-let strokeHistory = []; // Array of strokes, each stroke is an array of [x,y,z] points
-let currentStroke = []; // The stroke currently being drawn
+// Variables are declared at the top of the file
 
 // ML related global state
-let mlAutoPredict = false; // Whether ML auto-prediction is active
-let mlCurrentPos = []; // Current stroke for ML prediction (local coordinates)
-let mlLearningLabel = null; // Label for current ML recording session
-let mlCurrentFull = []; // Current stroke for ML recording (full data)
+// Variables are declared at the top of the file
 
 // DOM Elements
-const valConn = document.getElementById('valConn');
-const valZupt = document.getElementById('valZupt');
-const valPos = document.getElementById('valPos');
-const overlay = document.getElementById('overlay');
-const liveCursor = document.getElementById('liveCursor');
-const recordingOverlay = document.getElementById('recordingOverlay');
+// valConn, valZupt, valPos are declared at the top of the file
+// liveCursor, recordingOverlay are declared at the top of the file
 
 // ══════════════════════════════════════════
 // ML API Calls & UI
