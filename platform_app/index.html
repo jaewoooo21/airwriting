@@ -12,7 +12,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
-    <script>mermaid.initialize({ startOnLoad: true, theme: 'dark', themeVariables: { primaryColor: '#1e293b', primaryTextColor: '#f8fafc', primaryBorderColor: '#334155', lineColor: '#64748b', secondaryColor: '#0f172a', tertiaryColor: '#1e293b' } });</script>
+    <script>mermaid.initialize({ startOnLoad: true, theme: 'default', themeVariables: { primaryColor: '#E0F2FE', primaryTextColor: '#0F172A', primaryBorderColor: '#0EA5E9', lineColor: '#64748B', secondaryColor: '#F1F5F9', tertiaryColor: '#FAFBFC', background: '#FFFFFF', mainBkg: '#E0F2FE', nodeBorder: '#0EA5E9' } });</script>
 </head>
 
 <body>
@@ -33,6 +33,37 @@
             }
         }, 3500);
     </script>
+
+    <!-- MODE SELECTION MODAL -->
+    <div id="modeSelectModal" class="mode-select-overlay" style="display:none;">
+        <div class="mode-select-card">
+            <div style="text-align:center; margin-bottom:32px;">
+                <div style="font-size:28px; margin-bottom:8px;">✦</div>
+                <h2 style="margin:0 0 6px 0; font-size:22px; font-weight:700; color:var(--text-main);">AirWriting Platform</h2>
+                <p style="margin:0; font-size:13px; color:var(--text-muted);">접속 모드를 선택하세요</p>
+            </div>
+            <div class="mode-buttons">
+                <button id="btnUserMode" class="mode-card" onclick="enterUserMode()">
+                    <div class="mode-icon">👤</div>
+                    <div class="mode-label">사용자 모드</div>
+                    <div class="mode-desc">체험 · 데모 · 기술 소개</div>
+                </button>
+                <button id="btnDevMode" class="mode-card dev" onclick="showDevLogin()">
+                    <div class="mode-icon">🔧</div>
+                    <div class="mode-label">개발자 모드</div>
+                    <div class="mode-desc">전체 기능 · ML · 엔지니어링</div>
+                </button>
+            </div>
+            <!-- Dev login form (hidden initially) -->
+            <div id="devLoginForm" style="display:none; margin-top:24px;">
+                <div style="font-size:13px; color:var(--text-muted); margin-bottom:12px; text-align:center;">🔒 개발자 인증</div>
+                <input type="text" id="devIdInput" placeholder="ID" style="width:100%; padding:10px 14px; margin-bottom:8px; border:1px solid var(--border-color); border-radius:8px; font-size:14px; box-sizing:border-box; background:var(--bg-surface); color:var(--text-main);">
+                <input type="password" id="devPwInput" placeholder="Password" style="width:100%; padding:10px 14px; margin-bottom:12px; border:1px solid var(--border-color); border-radius:8px; font-size:14px; box-sizing:border-box; background:var(--bg-surface); color:var(--text-main);">
+                <div id="devLoginError" style="color:var(--accent-red); font-size:12px; text-align:center; margin-bottom:8px; display:none;">ID 또는 비밀번호가 올바르지 않습니다.</div>
+                <button onclick="devLogin()" class="cta-btn cta-primary" style="width:100%; font-size:14px;">로그인</button>
+            </div>
+        </div>
+    </div>
 
     <!-- TOP NAVIGATION BAR -->
     <nav class="top-nav glass-panel">

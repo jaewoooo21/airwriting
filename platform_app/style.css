@@ -868,3 +868,34 @@ code {
 .qr-modal-content p { color: var(--text-muted); font-size: 13px; margin-bottom: 16px; }
 .qr-steps { text-align: left; font-size: 13px; color: var(--text-muted); margin-top: 16px; }
 .qr-steps li { margin-bottom: 8px; }
+
+/* =========================================
+   MODE SELECTION MODAL
+   ========================================= */
+.mode-select-overlay {
+  position: fixed; inset: 0; background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center;
+  z-index: 100000; animation: fadeIn 0.3s;
+}
+
+.mode-select-card {
+  background: var(--bg-panel); border: 1px solid var(--border-color);
+  border-radius: 20px; padding: 40px; max-width: 420px; width: 90%;
+  box-shadow: var(--shadow-lg);
+}
+
+.mode-buttons { display: flex; gap: 12px; }
+
+.mode-card {
+  flex: 1; background: var(--bg-surface); border: 2px solid var(--border-color);
+  border-radius: 14px; padding: 24px 16px; cursor: pointer;
+  transition: all 0.25s; text-align: center; font-family: 'Inter', sans-serif;
+}
+.mode-card:hover { border-color: var(--accent-primary); transform: translateY(-3px); box-shadow: var(--shadow-md); }
+.mode-card.dev:hover { border-color: var(--accent-purple); }
+
+.mode-icon { font-size: 32px; margin-bottom: 12px; }
+.mode-label { font-size: 15px; font-weight: 700; color: var(--text-main); margin-bottom: 4px; }
+.mode-desc { font-size: 12px; color: var(--text-muted); }
+
+.grid-key-btn.selected { background: var(--accent-light); border-color: var(--accent-primary); color: var(--accent-primary); }
