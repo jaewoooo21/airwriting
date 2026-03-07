@@ -1,28 +1,22 @@
-# AirWriting IMU-Only System Configuration
-
 network:
   ports:
     esp32_to_python: 12345
     python_to_unity: 12346
     python_to_dashboard: 12347
     python_to_action: 12348
-
   unity:
-    ip: "127.0.0.1"
+    ip: 127.0.0.1
     rate_hz: 60
-
   dashboard:
-    ip: "127.0.0.1"
+    ip: 127.0.0.1
     rate_hz: 10
-
 fusion:
-  strategy: "eskf_imu_only"
+  strategy: eskf_imu_only
   initial_covariance: 1.0
   accel_noise_std: 0.5
   gyro_noise_std: 0.01
   accel_bias_std: 0.0001
-  gyro_bias_std: 0.00001
-
+  gyro_bias_std: 1.0e-05
   zupt:
     enabled: true
     gyro_threshold: 0.05
@@ -30,91 +24,93 @@ fusion:
     noise: 0.001
     window_size: 20
     adaptive: true
-
   zaru:
     enabled: true
     noise: 0.0001
-
   constraints:
-    max_velocity: 3.0        # m/s, hand movement physical limit
-    max_acceleration: 30.0   # m/s², max observed during writing
-    velocity_decay: 0.98     # per-step exponential decay when no accel
-    max_reach: 0.51          # m, total skeleton chain length (0.25+0.18+0.08)
-
+    max_velocity: 3.0
+    max_acceleration: 30.0
+    velocity_decay: 0.98
+    max_reach: 0.51
   forward_kinematics:
     enabled: true
-    fk_weight: 0.3           # weight of FK position in fusion
-    origin_fixed: true       # assume forearm origin is fixed
-
+    fk_weight: 0.3
+    origin_fixed: true
   writing_plane:
     enabled: true
-    buffer_size: 100         # PCA window (samples)
-    min_spread: 0.005        # min position spread (m) before plane detection
-    suppress_ratio: 1.0      # normal-axis accel suppression (0=none, 1=full)
-    absolute_lock: true      # force Z-axis (depth) to be completely flat
-
+    buffer_size: 100
+    min_spread: 0.005
+    suppress_ratio: 1.0
+    absolute_lock: true
   drift_observer:
     enabled: true
-    window: 30               # ZUPT positions to buffer
-    threshold: 0.001         # max allowed position variance (m²) during ZUPT
-    correction_factor: 0.5   # bias scaling on drift detection
-
+    window: 30
+    threshold: 0.001
+    correction_factor: 0.5
   loop_closure:
     enabled: true
-    min_loop_length: 15      # minimum samples for valid loop
-    proximity_m: 0.008       # distance threshold (m)
-    cooldown: 20             # frames between detections
-    noise_std: 0.02          # EKF correction noise
-
+    min_loop_length: 15
+    proximity_m: 0.008
+    cooldown: 20
+    noise_std: 0.02
   vrn:
-    enabled: false           # requires PyTorch + trained model
-    window_size: 20          # input window (samples)
-    noise_std: 0.1           # velocity measurement noise
-
+    enabled: false
+    window_size: 20
+    noise_std: 0.1
   multi_rate:
-    enabled: false           # experimental
-    fast_multiplier: 2       # gyro at 2× base rate
-    slow_divisor: 10         # FK/PCA at 1/10 base rate
-
-
+    enabled: false
+    fast_multiplier: 2
+    slow_divisor: 10
 calibration:
   num_samples: 300
   timeout_sec: 10
   gravity: 9.81
-
 madgwick:
   beta: 0.1
   sample_rate: 100
   warmup_samples: 200
-
 unity_send:
   rate_hz: 60
-  format: "flat_json"
-
+  format: flat_json
 action_dispatch:
   enabled: true
   confidence_threshold: 1
   ws_port: 18800
   udp_port: 12348
   action_map:
-    # [연락처/메시지]
-    C: {keyword: CALL,    intent: "tel:"} # 다이얼러 호출
-    M: {keyword: MESSAGE, intent: "sms:"} # 메시지 앱
-
-    # [AI 및 검색] - 제미나이(Google)와 빅스비 연동
-    G: {keyword: GEMINI,  intent: "intent://#Intent;action=android.intent.action.ASSIST;end"} # 갤럭시 기본 비서(제미나이) 즉시 호출
-    S: {keyword: SEARCH,  intent: "intent://#Intent;action=android.intent.action.WEB_SEARCH;S.query=;end"} # 구글 통합 검색
-    W: {keyword: WEATHER, intent: "intent://#Intent;action=android.intent.action.VIEW;component=com.sec.android.app.desktoplauncher/.WeatherActivity;end"} # 갤럭시 순정 날씨 앱 (또는 URL 방식)
-
-    # [미디어/카메라] - 갤럭시 순정 앱 패키지 지정
-    P: {keyword: PHOTO,   intent: "intent://#Intent;action=android.media.action.STILL_IMAGE_CAMERA;package=com.sec.android.app.camera;end"} # 카메라 촬영 모드
-    V: {keyword: GALLERY, intent: "intent://#Intent;action=android.intent.action.VIEW;type=image/*;end"} # 갤러리 앱
-
-    # [유틸리티/시스템]
-    T: {keyword: TIMER,   intent: "intent://#Intent;action=android.intent.action.SET_TIMER;end"} # 시계 앱 타이머
-    A: {keyword: ALARM,   intent: "intent://#Intent;action=android.intent.action.SET_ALARM;end"} # 알람 설정
-    N: {keyword: NOTE,    intent: "intent://#Intent;action=android.intent.action.SEND;type=text/plain;package=com.samsung.android.app.notes;end"} # 삼성 노트 전용
-    H: {keyword: HOME,    intent: "intent://#Intent;action=android.intent.action.MAIN;category=android.intent.category.HOME;end"} # 홈 화면 이동
-
-    # [갤럭시 전용 제어]
-    B: {keyword: BIXBY,   intent: "intent://#Intent;action=android.intent.action.VOICE_COMMAND;package=com.samsung.android.bixby.agent;end"} # 빅스비 전용 호출
+    C:
+      keyword: CALL
+      intent: 'tel:'
+    M:
+      keyword: MESSAGE
+      intent: 'sms:'
+    G:
+      keyword: GEMINI
+      intent: intent://#Intent;action=android.intent.action.ASSIST;end
+    S:
+      keyword: SEARCH
+      intent: intent://#Intent;action=android.intent.action.WEB_SEARCH;S.query=;end
+    W:
+      keyword: WEATHER
+      intent: intent://#Intent;action=android.intent.action.VIEW;component=com.sec.android.app.desktoplauncher/.WeatherActivity;end
+    P:
+      keyword: PHOTO
+      intent: intent://#Intent;action=android.media.action.STILL_IMAGE_CAMERA;package=com.sec.android.app.camera;end
+    V:
+      keyword: GALLERY
+      intent: intent://#Intent;action=android.intent.action.VIEW;type=image/*;end
+    T:
+      keyword: TIMER
+      intent: intent://#Intent;action=android.intent.action.SET_TIMER;end
+    A:
+      keyword: ALARM
+      intent: intent://#Intent;action=android.intent.action.SET_ALARM;end
+    N:
+      keyword: NOTE
+      intent: intent://#Intent;action=android.intent.action.SEND;type=text/plain;package=com.samsung.android.app.notes;end
+    H:
+      keyword: HOME
+      intent: intent://#Intent;action=android.intent.action.MAIN;category=android.intent.category.HOME;end
+    B:
+      keyword: BIXBY
+      intent: intent://#Intent;action=android.intent.action.VOICE_COMMAND;package=com.samsung.android.bixby.agent;end

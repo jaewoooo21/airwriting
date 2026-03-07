@@ -89,8 +89,8 @@
                 <h1 class="hero-title">Write in the Air,<br><span class="hero-accent">Shape the Future.</span></h1>
                 <p class="hero-subtitle">3개의 IMU 센서와 Forward Kinematics 기반 공중 필기 인식 플랫폼.<br>카메라 없이, 어디서든, 손끝으로 세상에 글을 씁니다.</p>
                 <div class="hero-cta">
-                    <button class="cta-btn cta-primary" onclick="document.querySelector('[data-target=tab-studio]').click()">Try Studio →</button>
-                    <button class="cta-btn cta-secondary" onclick="document.querySelector('[data-target=tab-technology]').click()">Explore Tech</button>
+                    <button class="cta-btn cta-primary" onclick="selectTab('tab-studio')">Try Studio →</button>
+                    <button class="cta-btn cta-secondary" onclick="selectTab('tab-technology')">Explore Tech</button>
                 </div>
             </div>
 
@@ -171,7 +171,7 @@
             <div class="section-block cta-bottom-section">
                 <h2 class="section-title">Ready to Experience?</h2>
                 <p class="section-desc">Studio 탭에서 실시간 공중 필기를 체험하거나,<br>Technology 탭에서 기술 아키텍처를 살펴보세요.</p>
-                <button class="cta-btn cta-primary" onclick="document.querySelector('[data-target=tab-studio]').click()">Launch Studio →</button>
+                <button class="cta-btn cta-primary" onclick="selectTab('tab-studio')">Launch Studio →</button>
             </div>
         </div>
     </section>

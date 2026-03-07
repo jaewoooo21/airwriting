@@ -153,6 +153,9 @@ function selectTab(tabId) {
   document.querySelectorAll('.tab-content').forEach(section => {
     section.classList.toggle('active', section.id === tabId);
   });
+  
+  // reset scroll on tab switch
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 /* =========================================
@@ -235,15 +238,7 @@ function initStudioButtons() {
     });
   }
 
-  // Hero CTA buttons
-  document.querySelectorAll('[onclick*="tab-studio"]').forEach(btn => {
-    btn.removeAttribute('onclick');
-    btn.addEventListener('click', () => selectTab('tab-studio'));
-  });
-  document.querySelectorAll('[onclick*="tab-technology"]').forEach(btn => {
-    btn.removeAttribute('onclick');
-    btn.addEventListener('click', () => selectTab('tab-technology'));
-  });
+  // HTML buttons now use window.selectTab directly.
 }
 
 /* =========================================
@@ -658,3 +653,27 @@ document.addEventListener('DOMContentLoaded', () => {
     loadSystemConfig();
   }
 });
+
+/* =========================================
+   13. EXPLICIT WINDOW BINDINGS FOR HTML 
+   ========================================= */
+window.saveSystemConfig = saveSystemConfig;
+window.selectTab = selectTab;
+window.enterMode = enterMode;
+window.enterUserMode = function() { enterMode('user'); };
+window.devLogin = window.devLogin || function() {
+  const id = document.getElementById('devIdInput').value.trim();
+  const pw = document.getElementById('devPwInput').value.trim();
+  const err = document.getElementById('devLoginError');
+  if (id === DEV_ID && pw === DEV_PW) {
+    err.style.display = 'none';
+    enterMode('developer');
+  } else {
+    err.style.display = 'block';
+    document.getElementById('devPwInput').value = '';
+  }
+};
+window.showDevLogin = function() {
+  const form = document.getElementById('devLoginForm');
+  if (form) form.style.display = 'block';
+};
