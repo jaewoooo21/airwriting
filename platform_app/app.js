@@ -1,1453 +1,633 @@
-const canvas = document.getElementById('drawingCanvas');
-const ctx = canvas.getContext('2d');
-const overlay = document.getElementById('recordingOverlay');
 
-// DOM Elements
-const valConn = document.getElementById('valConn');
-const valPos = document.getElementById('valPos');
-const valZupt = document.getElementById('valZupt');
+const translations = {
+    ko: {
+        introKicker: 'AIRWRITING PLATFORM',
+        introTitle: '공중의 움직임을 읽히는 문자 경험으로 바꿉니다',
+        introSubtitle: '3개의 IMU 센서, 실시간 추정, 브라우저 시각화를 한 화면에 정리한 AirWriting 공개 데모입니다.',
+        introSkip: '바로 들어가기',
+        brandTitle: '배포형 AirWriting 플랫폼',
+        navHome: '홈',
+        navStudio: '스튜디오',
+        navAndroid: '안드로이드 연결',
+        navTechnology: '기술 개요',
+        navTeam: '팀',
+        navContact: '문의',
+        heroEyebrow: 'Public Demo / Product Surface',
+        heroTitle: '손짓을 데이터로 끝내지 않고, 실제로 읽히는 글씨 경험까지 연결합니다.',
+        heroBody: 'AirWriting은 IMU 센서 기반 공중 필기를 안정화하고, 브라우저에서 데모·라이브·설치 가이드를 함께 제공하는 공개용 플랫폼입니다. 배포 사이트에서도 바로 이해되고, 로컬 환경에서는 실제 기기와 연결할 수 있게 설계했습니다.',
+        heroCtaDemo: '데모 스튜디오 열기',
+        heroCtaLive: '라이브 스튜디오 열기',
+        heroCtaAndroid: '안드로이드 설치/연결',
+        heroDemoLabel: 'DEPLOY MODE',
+        heroDemoTitle: '하드웨어 없이 바로 보는 데모',
+        heroDemoBody: '배포 환경에서는 기본적으로 시연용 획 데이터를 재생해 실제 글자처럼 읽히는 흐름을 보여줍니다.',
+        heroLiveLabel: 'LOCAL MODE',
+        heroLiveTitle: '센서 연결 시 라이브 전환',
+        heroLiveBody: '로컬 PC와 Android 앱을 같은 네트워크에 두면 WebSocket 기반 실시간 연결을 시도할 수 있습니다.',
+        heroSurfaceLabel: 'Readable Demo Strokes',
+        heroSurfaceBody: '획이 흩어지지 않도록 평면 보드 위에 선명한 문자 경로로 투영합니다.',
+        metricAccuracy: '최고 인식 정확도',
+        metricRealtime: '실시간 샘플 처리율',
+        metricSensors: '사용 센서 수',
+        proofEyebrow: 'Why This Feels Like A Product',
+        proofTitle: '공개 배포에서도 가치가 바로 보이도록 구성했습니다',
+        proof1Label: '01',
+        proof1Title: '읽히는 데모 필기',
+        proof1Body: '아무렇게나 흔들리는 궤적이 아니라 문자 형태가 보이는 시연 경로를 기본 제공해 첫인상을 개선했습니다.',
+        proof2Label: '02',
+        proof2Title: '라이브 연결 분리',
+        proof2Body: '공개 배포와 로컬 실험 환경을 구분해, 연결이 없어도 화면이 비어 보이지 않도록 구성했습니다.',
+        proof3Label: '03',
+        proof3Title: '설치부터 연결까지',
+        proof3Body: 'Android 앱 설치, 개발자 옵션, QR/IP pairing, 문제 해결 흐름을 한 페이지에서 안내합니다.',
+        flowEyebrow: 'How It Works',
+        flowTitle: '사용자는 3단계만 이해하면 됩니다',
+        flow1Title: '센서와 필기 궤적 수집',
+        flow1Body: '3개의 IMU 센서가 팔과 손의 움직임을 샘플링하고, 필기 구간을 분리합니다.',
+        flow2Title: '보정 및 자세 추정',
+        flow2Body: '드리프트 억제와 자세 추정으로 공중 움직임을 평면 보드 위 문자 궤적으로 재정렬합니다.',
+        flow3Title: '시각화와 액션 연결',
+        flow3Body: '브라우저는 인식 결과와 파형을 보여주고, Android 앱은 액션 실행 엔드포인트가 됩니다.',
+        pathsEyebrow: 'Choose Your Path',
+        pathsTitle: '목적에 따라 바로 들어갈 수 있도록 진입점을 분리했습니다',
+        pathsDemoTitle: '배포 데모',
+        pathsDemoBody: '하드웨어가 없어도 작동하는 문자 데모와 UI 흐름을 확인합니다.',
+        pathsDemoButton: '데모 보기',
+        pathsLiveTitle: '로컬 라이브',
+        pathsLiveBody: 'PC에서 relay/action dispatcher를 실행한 뒤 실제 센서 스트림을 연결합니다.',
+        pathsLiveButton: '라이브 모드 시도',
+        studioEyebrow: 'Studio Surface',
+        studioTitle: '실시간/데모 공중 필기 스튜디오',
+        modeDemo: '데모 모드',
+        modeLive: '라이브 모드',
+        recognitionLabel: 'Recognition',
+        sessionLabel: 'Session Control',
+        sessionSafe: '배포 기본값은 데모',
+        sessionRunDemo: '데모 다시 재생',
+        sessionTryLive: '라이브 연결 시도',
+        sessionBackDemo: '데모로 복귀',
+        guideLabel: 'Quick Guide',
+        guideWhenLive: '라이브 연결 전 체크',
+        guideStep1: 'PC와 Android 기기를 같은 Wi-Fi에 연결합니다.',
+        guideStep2: 'PC에서 relay/action dispatcher가 실행 중인지 확인합니다.',
+        guideStep3: '연결이 실패하면 데모 모드로 돌아가 UI와 인식 흐름을 먼저 확인합니다.',
+        boardCaption: '평면 보드에 투영한 읽기 쉬운 데모 스트로크',
+        writingState: 'WRITING',
+        statusConnection: '연결',
+        statusPointer: '포인터',
+        statusZupt: '상태',
+        statusWord: '현재 단어',
+        waveLabel: 'Waveform',
+        waveTitle: 'Pitch / Roll / Yaw',
+        deployLabel: 'Public Deployment',
+        deployTitle: '배포 환경 동작 정책',
+        deployBody: 'Render 공개 배포에서는 데모 모드가 기본값입니다. 라이브 모드는 로컬 장비와 relay가 준비된 경우에만 사용하세요.',
+        androidEyebrow: 'Android Companion',
+        androidTitle: '안드로이드 앱 설치와 Pairing 가이드',
+        androidBody: '웹은 시각화와 설정을 담당하고, Android 앱은 실제 액션 실행기 역할을 합니다. 공개 배포에서는 구조를 설명하고, 로컬 환경에서는 실제 IP/QR 연결을 안내합니다.',
+        androidCard1Label: 'APP ROLE',
+        androidCard1Title: '액션 실행 엔드포인트',
+        androidCard1Body: '웹에서 설정한 동작을 Android 인텐트 또는 앱 실행으로 연결하는 companion 앱입니다.',
+        androidCard2Label: 'PAIRING',
+        androidCard2Title: 'QR 또는 IP 입력 연결',
+        androidCard2Body: '같은 Wi-Fi 환경에서 PC 주소를 스캔하거나 직접 입력해 WebSocket으로 연결합니다.',
+        androidCard3Label: 'SERVICE',
+        androidCard3Title: '서비스형 온보딩',
+        androidCard3Body: '설치, 개발자 옵션, 디버깅 허용, 네트워크 체크를 한 페이지에서 정리해 실제 사용자 흐름처럼 구성했습니다.',
+        pairLabel: 'Pairing',
+        pairUrlLabel: '연결 대상',
+        pairStateLabel: '호스트 상태',
+        pairRefresh: '주소 새로고침',
+        pairOpenStudio: '스튜디오 열기',
+        installGuideLabel: 'Install Guide',
+        installGuideTitle: '실제 사용자를 위한 설치 순서',
+        install1Title: 'Android 앱 열기 또는 설치 준비',
+        install1Body: 'Android Studio에서 `android_app` 모듈을 실행하거나, 향후 배포될 APK를 준비합니다.',
+        install2Title: '개발자 옵션 켜기',
+        install2Body: '휴대폰 설정에서 빌드 번호를 여러 번 눌러 개발자 옵션을 활성화합니다.',
+        install3Title: 'USB 디버깅 허용',
+        install3Body: 'Android Studio로 직접 설치할 경우 USB 디버깅을 켜고 PC를 신뢰하도록 허용합니다.',
+        install4Title: '알 수 없는 앱 설치 허용',
+        install4Body: 'APK 파일로 설치할 경우 브라우저 또는 파일 관리자에 대해 설치 권한을 허용합니다.',
+        install5Title: '같은 Wi-Fi에 연결',
+        install5Body: 'PC와 휴대폰이 동일한 로컬 네트워크에 있어야 `ws://<PC_IP>:18800` 연결이 가능합니다.',
+        install6Title: 'QR 스캔 또는 IP 입력',
+        install6Body: '앱의 Pairing 화면에서 QR을 스캔하거나 표시된 IP를 직접 입력해 연결합니다.',
+        trouble1Title: 'QR은 보이는데 연결이 안 될 때',
+        trouble1Body: '휴대폰과 PC가 같은 공유기에 붙어 있는지, PC 방화벽이 18800 포트를 막고 있지 않은지 먼저 확인하세요.',
+        trouble2Title: '공개 배포 주소와 PC 주소는 다릅니다',
+        trouble2Body: 'Render 주소는 클라우드 서버입니다. 실제 폰은 로컬에서 실행 중인 PC relay 주소에 연결되어야 합니다.',
+        trouble3Title: 'Android Studio 설치 경로',
+        trouble3Body: 'USB 디버깅을 켠 뒤 Android Studio에서 Run을 누르면 companion 앱을 바로 설치할 수 있습니다.',
+        trouble4Title: '인텐트 액션 테스트',
+        trouble4Body: '앱이 연결된 뒤 웹에서 액션을 전송하면, Android 쪽 서비스가 인텐트를 받아 실제 앱 실행 또는 액션 수행을 시도합니다.',
+        techEyebrow: 'Technology Overview',
+        techTitle: '기술 개요와 처리 파이프라인',
+        techBody: '연구성 설명은 유지하되, 처음 보는 사람도 빠르게 이해할 수 있도록 핵심만 앞에 배치했습니다.',
+        tech1Label: 'FUSION',
+        tech1Title: '멀티 IMU 융합',
+        tech1Body: '팔과 손목의 자세 변화를 함께 추적해 단일 센서 대비 더 안정적인 필기 경로를 확보합니다.',
+        tech2Label: 'DRIFT',
+        tech2Title: '드리프트 억제',
+        tech2Body: '정지 구간과 보정 로직을 이용해 누적 오차를 줄이고, 문자가 무너지지 않도록 관리합니다.',
+        tech3Label: 'PRODUCT',
+        tech3Title: '공개 배포 친화적 UI',
+        tech3Body: '실험 코드가 아니라 서비스형 진입 화면처럼 보이도록 데모/가이드/연결을 한 앱으로 묶었습니다.',
+        pipelineTitle: 'End-to-end Pipeline',
+        pipeline1: 'IMU Sampling',
+        pipeline2: 'Sensor Fusion',
+        pipeline3: 'Trajectory Projection',
+        pipeline4: 'Recognition',
+        pipeline5: 'Web + Android Action',
+        detail1Title: '입력 구간 분리',
+        detail1Body: '정지와 움직임 구간을 나눠 필기 시작/종료를 추정하고 의미 있는 스트로크만 남깁니다.',
+        detail2Title: '평면 투영',
+        detail2Body: '브라우저 데모에서는 획이 읽히게 보이는 것이 중요하므로, 시연용 평면 보드 투영을 사용합니다.',
+        detail3Title: '후보 표시',
+        detail3Body: '최상위 인식 결과만이 아니라 후보 리스트와 점수를 같이 보여 사용자가 결과를 해석할 수 있게 합니다.',
+        detail4Title: '클라우드/로컬 분리',
+        detail4Body: '공개 배포는 설명과 데모를 담당하고, 실제 센서 연결은 로컬 네트워크 환경에서 시도하도록 경계를 나눕니다.',
+        teamEyebrow: 'Project Owner',
+        teamTitle: '공개 가능한 실제 프로젝트 정보만 표시합니다',
+        teamBody: '가짜 팀 카드 대신, 현재 공개 저장소 기준으로 확인 가능한 프로젝트 소유자와 저장소 링크만 유지했습니다.',
+        teamRole: '프로젝트 오너 / 메인 개발자',
+        teamBio: 'AirWriting 저장소를 유지하며 웹, Android companion, 실험 파이프라인을 함께 다루는 공개 프로젝트 소유자입니다.',
+        teamGithub: 'GitHub 프로필',
+        teamRepo: '저장소 보기',
+        contactEyebrow: 'Contact / Feedback',
+        contactTitle: '질문과 피드백을 남길 수 있는 공간',
+        contactBody: '공개 배포에서도 댓글 API가 살아 있으면 피드백을 받을 수 있고, 실패하더라도 이유를 화면에 명시합니다.',
+        contactFormLabel: 'Write Feedback',
+        contactFormTitle: '간단한 문의 남기기',
+        contactNameLabel: '이름',
+        contactMessageLabel: '메시지',
+        contactNamePlaceholder: '이름 또는 닉네임',
+        contactMessagePlaceholder: '질문, 개선 요청, 사용 시나리오를 남겨주세요.',
+        contactSubmit: '보내기',
+        contactRecentLabel: 'Recent Messages',
+        footerBody: '센서 기반 공중 필기를 제품형 경험으로 정리한 공개 플랫폼 데모',
+        footerSource: '소스 코드',
+        commentsLoading: '댓글을 불러오는 중입니다.',
+        commentsEmpty: '아직 등록된 메시지가 없습니다. 첫 피드백을 남겨보세요.',
+        commentsLoaded: '최근 피드백',
+        commentsFailed: '댓글 API에 연결하지 못했습니다.',
+        commentPosting: '메시지를 전송하는 중입니다.',
+        commentPosted: '메시지를 남겼습니다.',
+        commentPostFailed: '메시지를 전송하지 못했습니다.',
+        commentValidation: '이름과 메시지를 모두 입력해주세요.',
+        demoModeBadge: 'DEMO',
+        liveModeBadge: 'LIVE',
+        demoSummary: '데모 모드는 배포 환경 기본값입니다. 미리 준비된 문자 궤적과 파형을 재생해 화면이 비지 않도록 구성했습니다.',
+        liveSummaryReady: '라이브 모드는 로컬 WebSocket relay가 준비된 경우에만 권장됩니다. 연결에 실패하면 언제든 데모로 돌아갈 수 있습니다.',
+        liveSummaryConnecting: '로컬 relay에 연결을 시도하는 중입니다. 준비되지 않았다면 몇 초 뒤 자동으로 데모 복귀 안내가 뜹니다.',
+        liveSummaryFailed: '라이브 relay를 찾지 못했습니다. 공개 배포에서는 정상이며, 로컬 실험 환경에서 다시 시도하세요.',
+        bannerDemoTitle: '배포 기본 화면',
+        bannerDemoText: '문자 형태가 보이도록 정리된 시연용 스트로크를 재생 중입니다.',
+        bannerDemoAction: '라이브 모드',
+        bannerLiveTitle: '로컬 장비 연결 대기',
+        bannerLiveText: 'WebSocket 연결을 시도합니다. relay가 없으면 데모 모드로 돌아갈 수 있습니다.',
+        bannerLiveAction: '데모로 복귀',
+        bannerLiveFailedTitle: '라이브 연결 실패',
+        bannerLiveFailedText: '클라우드 배포에서는 정상입니다. 로컬 PC와 Android 앱을 같은 네트워크에서 다시 연결하세요.',
+        bannerLiveFailedAction: '데모 재개',
+        pairingPublicMode: 'PUBLIC HOST',
+        pairingLocalMode: 'LOCAL HOST',
+        pairingPublicState: '공개 배포 주소',
+        pairingLocalState: '로컬 연결 가능',
+        pairingPublicHelp: '현재 페이지는 공개 서버에서 열려 있습니다. 휴대폰 앱은 Render 주소가 아니라 로컬 PC에서 실행 중인 relay 주소에 연결되어야 합니다.',
+        pairingLocalHelp: '같은 Wi-Fi의 Android 앱에서 아래 주소를 스캔하거나 직접 입력하세요.',
+        pairingRefreshing: '연결 주소를 확인하는 중입니다.',
+        pairingUnavailable: '호스트 주소를 확인하지 못했습니다.',
+        liveConnecting: 'CONNECTING',
+        liveConnected: 'CONNECTED',
+        liveDisconnected: 'DISCONNECTED',
+        zuptWriting: 'WRITING',
+        zuptStable: 'STABLE',
+        demoRecognized: '인식됨'
+    },
+    en: {
+        introKicker: 'AIRWRITING PLATFORM',
+        introTitle: 'Turning motion in the air into readable writing.',
+        introSubtitle: 'A public AirWriting demo that brings three IMUs, real-time estimation, and browser visualization into one deployable surface.',
+        introSkip: 'Skip intro',
+        brandTitle: 'Deployable AirWriting Platform',
+        navHome: 'Home',
+        navStudio: 'Studio',
+        navAndroid: 'Connect Android',
+        navTechnology: 'Technology',
+        navTeam: 'Team',
+        navContact: 'Contact',
+        heroEyebrow: 'Public Demo / Product Surface',
+        heroTitle: 'Not just motion data, but a writing experience that actually looks readable.',
+        heroBody: 'AirWriting stabilizes IMU-based writing in the air and presents demo, live, and installation guidance in one browser surface. It should make sense on a public deployment and still support real device pairing in local mode.',
+        heroCtaDemo: 'Open Demo Studio',
+        heroCtaLive: 'Open Live Studio',
+        heroCtaAndroid: 'Install / Pair Android',
+        heroDemoLabel: 'DEPLOY MODE',
+        heroDemoTitle: 'Instant demo without hardware',
+        heroDemoBody: 'On the public deployment, prebuilt stroke samples replay by default so visitors immediately see legible writing.',
+        heroLiveLabel: 'LOCAL MODE',
+        heroLiveTitle: 'Switch to live when hardware is ready',
+        heroLiveBody: 'When your PC and Android phone share the same network, you can attempt a WebSocket-backed local live session.',
+        heroSurfaceLabel: 'Readable Demo Strokes',
+        heroSurfaceBody: 'The demo projects strokes onto a flat board so letters stay crisp instead of dissolving into scribbles.',
+        metricAccuracy: 'best recognition accuracy',
+        metricRealtime: 'real-time sample rate',
+        metricSensors: 'active sensors',
+        proofEyebrow: 'Why This Feels Like A Product',
+        proofTitle: 'Structured so the public deployment shows value immediately',
+        proof1Label: '01',
+        proof1Title: 'Legible demo writing',
+        proof1Body: 'The default playback uses deliberate letter paths rather than noisy wandering strokes.',
+        proof2Label: '02',
+        proof2Title: 'Live connection is separated',
+        proof2Body: 'Public deployment and local experimentation are split so the screen never feels empty when hardware is absent.',
+        proof3Label: '03',
+        proof3Title: 'Install-to-pair journey',
+        proof3Body: 'Android installation, developer mode, QR/IP pairing, and troubleshooting are collected into one guided surface.',
+        flowEyebrow: 'How It Works',
+        flowTitle: 'Visitors only need to understand three steps',
+        flow1Title: 'Capture sensors and writing segments',
+        flow1Body: 'Three IMUs sample arm and hand motion while the system isolates the writing window.',
+        flow2Title: 'Estimate pose and stabilize drift',
+        flow2Body: 'Drift suppression and pose estimation re-align the motion into a cleaner writing plane.',
+        flow3Title: 'Visualize and trigger actions',
+        flow3Body: 'The browser displays recognition and telemetry, while the Android app serves as the action endpoint.',
+        pathsEyebrow: 'Choose Your Path',
+        pathsTitle: 'Separate entry points based on user intent',
+        pathsDemoTitle: 'Public demo',
+        pathsDemoBody: 'See a working writing demo and product UI even without hardware.',
+        pathsDemoButton: 'See demo',
+        pathsLiveTitle: 'Local live mode',
+        pathsLiveBody: 'Run your relay/action dispatcher locally, then try the real sensor stream.',
+        pathsLiveButton: 'Try live mode',
+        studioEyebrow: 'Studio Surface',
+        studioTitle: 'Real-time / demo air-writing studio',
+        modeDemo: 'Demo Mode',
+        modeLive: 'Live Mode',
+        recognitionLabel: 'Recognition',
+        sessionLabel: 'Session Control',
+        sessionSafe: 'Demo is default on deploy',
+        sessionRunDemo: 'Replay demo',
+        sessionTryLive: 'Try live connection',
+        sessionBackDemo: 'Back to demo',
+        guideLabel: 'Quick Guide',
+        guideWhenLive: 'Before live mode',
+        guideStep1: 'Put the PC and Android device on the same Wi-Fi.',
+        guideStep2: 'Make sure the relay/action dispatcher is running on your PC.',
+        guideStep3: 'If the connection fails, return to demo mode and validate the UI first.',
+        boardCaption: 'Readable demo strokes projected onto a flat board',
+        writingState: 'WRITING',
+        statusConnection: 'Connection',
+        statusPointer: 'Pointer',
+        statusZupt: 'State',
+        statusWord: 'Current word',
+        waveLabel: 'Waveform',
+        waveTitle: 'Pitch / Roll / Yaw',
+        deployLabel: 'Public Deployment',
+        deployTitle: 'Deployment behavior',
+        deployBody: 'On public Render, demo mode is the default. Only use live mode when your local hardware and relay are actually ready.',
+        androidEyebrow: 'Android Companion',
+        androidTitle: 'Android installation and pairing guide',
+        androidBody: 'The web app handles visualization and configuration, while the Android app acts as the execution endpoint. Public deploy explains the structure; local mode enables real QR/IP pairing.',
+        androidCard1Label: 'APP ROLE',
+        androidCard1Title: 'Action execution endpoint',
+        androidCard1Body: 'The companion app receives actions from the web and maps them to Android intents or app launches.',
+        androidCard2Label: 'PAIRING',
+        androidCard2Title: 'QR or manual IP pairing',
+        androidCard2Body: 'On the same Wi-Fi, scan the PC address or type it directly to connect over WebSocket.',
+        androidCard3Label: 'SERVICE',
+        androidCard3Title: 'Onboarding for actual users',
+        androidCard3Body: 'Install flow, developer mode, debugging, and network checks are collected like a real product surface.',
+        pairLabel: 'Pairing',
+        pairUrlLabel: 'Target address',
+        pairStateLabel: 'Host state',
+        pairRefresh: 'Refresh address',
+        pairOpenStudio: 'Open studio',
+        installGuideLabel: 'Install Guide',
+        installGuideTitle: 'Practical setup order',
+        install1Title: 'Open or install the Android app',
+        install1Body: 'Run the `android_app` module from Android Studio or prepare a future APK build.',
+        install2Title: 'Enable developer options',
+        install2Body: 'Tap Build Number multiple times in Android settings to unlock developer options.',
+        install3Title: 'Allow USB debugging',
+        install3Body: 'If you install from Android Studio, enable USB debugging and trust the connected PC.',
+        install4Title: 'Allow installs from unknown sources',
+        install4Body: 'If you install from an APK file, grant install permission to your browser or file manager.',
+        install5Title: 'Join the same Wi-Fi',
+        install5Body: 'The phone and PC must share the same local network for `ws://<PC_IP>:18800` to work.',
+        install6Title: 'Scan QR or enter IP',
+        install6Body: 'In the app pairing screen, scan the QR code or type the shown IP directly.',
+        trouble1Title: 'QR exists but the phone will not connect',
+        trouble1Body: 'Check that both devices are on the same router and that the PC firewall is not blocking port 18800.',
+        trouble2Title: 'Public deploy address is not your PC address',
+        trouble2Body: 'The Render URL points to the cloud host. Your phone must connect to the relay running on your local PC.',
+        trouble3Title: 'Installing through Android Studio',
+        trouble3Body: 'With USB debugging enabled, pressing Run in Android Studio installs the companion app directly.',
+        trouble4Title: 'Testing intent actions',
+        trouble4Body: 'Once paired, web-triggered actions should be received by the Android service and translated into app launches or intents.',
+        techEyebrow: 'Technology Overview',
+        techTitle: 'Pipeline and technical framing',
+        techBody: 'The research explanation stays, but the first layer is condensed for people seeing the project for the first time.',
+        tech1Label: 'FUSION',
+        tech1Title: 'Multi-IMU fusion',
+        tech1Body: 'Tracking both arm and wrist motion improves stability over a single-sensor writing path.',
+        tech2Label: 'DRIFT',
+        tech2Title: 'Drift suppression',
+        tech2Body: 'Static windows and compensation logic help prevent the path from collapsing over time.',
+        tech3Label: 'PRODUCT',
+        tech3Title: 'Public-deploy friendly UI',
+        tech3Body: 'The experience is framed like a product surface instead of a raw experiment dashboard.',
+        pipelineTitle: 'End-to-end Pipeline',
+        pipeline1: 'IMU Sampling',
+        pipeline2: 'Sensor Fusion',
+        pipeline3: 'Trajectory Projection',
+        pipeline4: 'Recognition',
+        pipeline5: 'Web + Android Action',
+        detail1Title: 'Segment isolation',
+        detail1Body: 'Start and end of writing are estimated so only meaningful strokes are retained.',
+        detail2Title: 'Planar projection',
+        detail2Body: 'The browser demo prioritizes readability, so the public playback uses a flat presentation board.',
+        detail3Title: 'Candidate display',
+        detail3Body: 'Not just the top recognition result but a ranked list and score are shown to help interpret the system.',
+        detail4Title: 'Cloud/local separation',
+        detail4Body: 'The public deployment focuses on explanation and demo, while real sensor connectivity remains a local-network feature.',
+        teamEyebrow: 'Project Owner',
+        teamTitle: 'Only real public project information is shown',
+        teamBody: 'Instead of placeholders, the page now keeps only the owner and repository links visible in the public GitHub project.',
+        teamRole: 'Project owner / primary developer',
+        teamBio: 'Maintains the AirWriting repository across the web surface, Android companion, and experimental pipeline.',
+        teamGithub: 'GitHub profile',
+        teamRepo: 'View repository',
+        contactEyebrow: 'Contact / Feedback',
+        contactTitle: 'Space for questions and feedback',
+        contactBody: 'If the comment API is available, visitors can leave feedback. If not, the UI explains the failure clearly.',
+        contactFormLabel: 'Write Feedback',
+        contactFormTitle: 'Leave a short message',
+        contactNameLabel: 'Name',
+        contactMessageLabel: 'Message',
+        contactNamePlaceholder: 'Name or nickname',
+        contactMessagePlaceholder: 'Leave a question, improvement request, or usage idea.',
+        contactSubmit: 'Send',
+        contactRecentLabel: 'Recent Messages',
+        footerBody: 'A public platform demo that turns sensor-based air writing into a product-like experience',
+        footerSource: 'Source code',
+        commentsLoading: 'Loading messages.',
+        commentsEmpty: 'No messages yet. Leave the first one.',
+        commentsLoaded: 'Recent feedback',
+        commentsFailed: 'Unable to reach the comments API.',
+        commentPosting: 'Sending your message.',
+        commentPosted: 'Message sent.',
+        commentPostFailed: 'Unable to send your message.',
+        commentValidation: 'Please enter both a name and a message.',
+        demoModeBadge: 'DEMO',
+        liveModeBadge: 'LIVE',
+        demoSummary: 'Demo mode is the deployment default. Prepared stroke sequences and waveform data keep the page useful even without hardware.',
+        liveSummaryReady: 'Live mode is only recommended when your local WebSocket relay is ready. You can always fall back to demo mode.',
+        liveSummaryConnecting: 'Trying to connect to the local relay. If it is not running, a fallback prompt will appear shortly.',
+        liveSummaryFailed: 'Live relay was not found. This is normal on public deploy; retry from your local experiment environment.',
+        bannerDemoTitle: 'Public default surface',
+        bannerDemoText: 'Playing curated writing strokes that remain readable as actual letters.',
+        bannerDemoAction: 'Live mode',
+        bannerLiveTitle: 'Waiting for local device connection',
+        bannerLiveText: 'Attempting WebSocket connection. If the relay is unavailable, return to demo mode.',
+        bannerLiveAction: 'Back to demo',
+        bannerLiveFailedTitle: 'Live connection failed',
+        bannerLiveFailedText: 'This is expected on a cloud deployment. Reconnect from a local PC and Android device on the same network.',
+        bannerLiveFailedAction: 'Resume demo',
+        pairingPublicMode: 'PUBLIC HOST',
+        pairingLocalMode: 'LOCAL HOST',
+        pairingPublicState: 'public deployment address',
+        pairingLocalState: 'local pairing available',
+        pairingPublicHelp: 'This page is open on a public server. Your phone should connect to the relay running on your local PC, not directly to Render.',
+        pairingLocalHelp: 'On the same Wi-Fi, scan the address below from the Android app or type it manually.',
+        pairingRefreshing: 'Checking host address.',
+        pairingUnavailable: 'Unable to determine the host address.',
+        liveConnecting: 'CONNECTING',
+        liveConnected: 'CONNECTED',
+        liveDisconnected: 'DISCONNECTED',
+        zuptWriting: 'WRITING',
+        zuptStable: 'STABLE',
+        demoRecognized: 'Recognized'
+    }
+};
 
-// Configuration
-const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-const wsPort = window.location.hostname === 'localhost' ? ':18765' : '';
-const WS_URL = `${protocol}//${window.location.hostname}${wsPort}`;
-let ws = null;
-
-// ══════════════════════════════════════════
-// FK Config — EXACT copy from digital_twin.py
-// ══════════════════════════════════════════
-// Skeleton chain from imu.yaml:
-//   S1 (forearm) 0.25m → S2 (hand) 0.18m → S3 (finger) 0.08m
-const SEGMENTS = [
-    { sid: "S1", length: 0.25 },
-    { sid: "S2", length: 0.18 },
-    { sid: "S3", length: 0.08 },
+const demoWords = [
+    { label: 'AIR', score: 97.2, candidates: [{ label: 'AIR', score: 97.2 }, { label: 'AIM', score: 92.6 }, { label: 'AR', score: 86.9 }], path: [...letterA(-210, 0, 1.2), ...letterI(-30, 0, 1.2), ...letterR(110, 0, 1.2)] },
+    { label: 'IMU', score: 98.1, candidates: [{ label: 'IMU', score: 98.1 }, { label: 'LMU', score: 91.4 }, { label: 'INU', score: 87.7 }], path: [...letterI(-210, 0, 1.18), ...letterM(-30, 0, 1.18), ...letterU(150, 0, 1.18)] },
+    { label: 'DRIFT', score: 94.8, candidates: [{ label: 'DRIFT', score: 94.8 }, { label: 'DRIFTS', score: 88.3 }, { label: 'SHIFT', score: 82.1 }], path: [...letterD(-295, 0, 0.95), ...letterR(-155, 0, 0.95), ...letterI(-25, 0, 0.95), ...letterF(65, 0, 0.95), ...letterT(175, 0, 0.95)] }
 ];
-const BONE_DIR = [0.0, 1.0, 0.0]; // Y-forward (same as digital_twin.py)
-const ORIGIN = [0.0, 0.0, 0.0];
 
-// Quaternion to Rotation Matrix [w, x, y, z] — Hamilton convention
-// EXACT copy from digital_twin.py quat_to_rot()
-function quatToRot(q) {
-    let w = q[0], x = q[1], y = q[2], z = q[3];
-    let xx = x * x, yy = y * y, zz = z * z;
-    let xy = x * y, xz = x * z, yz = y * z;
-    let wx = w * x, wy = w * y, wz = w * z;
-    return [
-        [1 - 2 * (yy + zz), 2 * (xy - wz), 2 * (xz + wy)],
-        [2 * (xy + wz), 1 - 2 * (xx + zz), 2 * (yz - wx)],
-        [2 * (xz - wy), 2 * (yz + wx), 1 - 2 * (xx + yy)],
-    ];
-}
-
-// Matrix × Vector (3x3 × 3)
-function matMul(R, v) {
-    return [
-        R[0][0] * v[0] + R[0][1] * v[1] + R[0][2] * v[2],
-        R[1][0] * v[0] + R[1][1] * v[1] + R[1][2] * v[2],
-        R[2][0] * v[0] + R[2][1] * v[1] + R[2][2] * v[2],
-    ];
-}
-
-// EXACT copy of digital_twin.py compute_fk()
-function computeFK(data) {
-    let pos = [...ORIGIN];
-    let positions = [[...pos]];
-
-    for (let seg of SEGMENTS) {
-        let q = data[seg.sid + "q"] || [1, 0, 0, 0];
-        let R = quatToRot(q);
-        // bone_vec = R @ (BONE_DIR * length)
-        let scaledDir = [BONE_DIR[0] * seg.length, BONE_DIR[1] * seg.length, BONE_DIR[2] * seg.length];
-        let boneVec = matMul(R, scaledDir);
-        pos = [pos[0] + boneVec[0], pos[1] + boneVec[1], pos[2] + boneVec[2]];
-        positions.push([...pos]);
-    }
-    return positions; // [origin, elbow, wrist, pen-tip]
-}
-
-// ══════════════════════════════════════════
-// Camera System (matching digital_twin.py presets)
-// ══════════════════════════════════════════
-// digital_twin.py 1st person: distance=0.45, elevation=5, azimuth=90, center=(0, 0.5, 0.1)
-// digital_twin.py 3rd person: distance=1.5, elevation=20, azimuth=-40, center=(0, 0.25, 0)
-// We replicate this as orbital camera parameters
-let camDistance = 0.4;
-let camElevation = 10;     // degrees (level horizon)
-let camAzimuth = 0;        // 0 degrees looks down the +Y axis (arm direction)
-let camCenterX = 0.0;
-let camCenterY = 0.25;     // Shifted slightly forward
-let camCenterZ = 0.15;     // Shifted up to center the view vertically
-let isFPV = true;
-
-const CAM_1ST = { distance: 0.4, elevation: 10, azimuth: 0, cx: 0.0, cy: 0.25, cz: 0.15 };
-const CAM_3RD = { distance: 1.2, elevation: 30, azimuth: 45, cx: 0.0, cy: 0.4, cz: 0.0 };
-const FOCAL = 900;
-
-let isDragging = false;
-let lastMouseX = 0, lastMouseY = 0;
-
-// Stroke history (3D world coordinates)
-let strokeHistory = [];
-let currentStroke = null;
-let lastPenState = false;
-let currentCursorPos = null;
-let armPositions = null; // FK joint positions
-
-// ML State Machine
-let mlLearningLabel = null;
-let mlAutoPredict = false;
-let mlCurrentFull = [];
-let mlCurrentPos = [];
-
-// Cursor Element
-const canvasContainer = document.querySelector('.canvas-container');
-const liveCursor = document.createElement('div');
-liveCursor.className = 'live-cursor';
-if (canvasContainer) canvasContainer.appendChild(liveCursor);
-
-// Canvas Setup
-function resizeCanvas() {
-    const parent = canvas.parentElement;
-    canvas.width = parent.clientWidth;
-    canvas.height = parent.clientHeight;
-    requestAnimationFrame(renderScene);
-}
-window.addEventListener('resize', resizeCanvas);
-resizeCanvas();
-
-// ══════════════════════════════════════════
-// 3D → 2D Projection (Orbital Camera, like PyQtGraph)
-// ══════════════════════════════════════════
-function projectWorld(wx, wy, wz) {
-    // Translate to camera center
-    let dx = wx - camCenterX;
-    let dy = wy - camCenterY;
-    let dz = wz - camCenterZ;
-
-    // Azimuth rotation around Z axis
-    let azRad = camAzimuth * Math.PI / 180;
-    let cosA = Math.cos(azRad), sinA = Math.sin(azRad);
-    let x1 = dx * cosA + dy * sinA;
-    let y1 = -dx * sinA + dy * cosA;
-    let z1 = dz;
-
-    // Elevation rotation around X axis
-    let elRad = camElevation * Math.PI / 180;
-    let cosE = Math.cos(elRad), sinE = Math.sin(elRad);
-    let y2 = y1 * cosE + z1 * sinE;
-    let z2 = -y1 * sinE + z1 * cosE;
-
-    // y2 is now the depth (into the screen)
-    let depth = y2 + camDistance;
-    if (depth < 0.01) depth = 0.01;
-
-    let f = FOCAL;
-    let sx = f * (x1 / depth);
-    let sy = -f * (z2 / depth); // Canvas Y is down, World Z is up
-
-    return { sx, sy, depth, visible: (y2 + camDistance) > 0.01 };
-}
-
-// ══════════════════════════════════════════
-// Rendering
-// ══════════════════════════════════════════
-function renderScene() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const cx = canvas.width / 2;
-    const cy = canvas.height / 2;
-
-    drawGrid(cx, cy);
-    drawCanvasFrame(cx, cy);
-    drawWorkspaceBox(cx, cy); // New visually anchored box
-    drawAxisArrows(cx, cy);
-    drawArm(cx, cy);
-    drawStrokes(cx, cy);
-    drawCursor(cx, cy);
-}
-
-// Minimal floor reference (just 2 lines instead of dense grid)
-function drawGrid(cx, cy) {
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = 'rgba(40, 40, 70, 0.3)';
-    ctx.shadowBlur = 0;
-    const size = 0.6, gz = -0.15;
-    ctx.beginPath();
-    // X-axis line
-    let a = projectWorld(-size, 0, gz), b = projectWorld(size, 0, gz);
-    if (a.visible && b.visible) { ctx.moveTo(cx + a.sx, cy + a.sy); ctx.lineTo(cx + b.sx, cy + b.sy); }
-    // Y-axis line
-    a = projectWorld(0, -size, gz); b = projectWorld(0, size, gz);
-    if (a.visible && b.visible) { ctx.moveTo(cx + a.sx, cy + a.sy); ctx.lineTo(cx + b.sx, cy + b.sy); }
-    ctx.stroke();
-}
-
-// Virtual Canvas Frame (same as digital_twin.py: XZ plane at Y=0.51)
-function drawCanvasFrame(cx, cy) {
-    const framePts = [
-        [-0.3, 0.51, 0.3], [0.3, 0.51, 0.3],
-        [0.3, 0.51, -0.1], [-0.3, 0.51, -0.1], [-0.3, 0.51, 0.3]
-    ];
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = 'rgba(102, 102, 128, 0.6)';
-    ctx.beginPath();
-    let first = true;
-    for (let p of framePts) {
-        let pt = projectWorld(p[0], p[1], p[2]);
-        if (!pt.visible) continue;
-        if (first) { ctx.moveTo(cx + pt.sx, cy + pt.sy); first = false; }
-        else ctx.lineTo(cx + pt.sx, cy + pt.sy);
-    }
-    ctx.stroke();
-
-    // Semi-transparent fill for the board
-    ctx.fillStyle = 'rgba(20, 25, 40, 0.3)';
-    ctx.beginPath();
-    first = true;
-    for (let p of framePts) {
-        let pt = projectWorld(p[0], p[1], p[2]);
-        if (!pt.visible) continue;
-        if (first) { ctx.moveTo(cx + pt.sx, cy + pt.sy); first = false; }
-        else ctx.lineTo(cx + pt.sx, cy + pt.sy);
-    }
-    ctx.closePath();
-    ctx.fill();
-}
-
-// Draw the 3D Bounding Box representing the Anchored local workspace area
-function drawWorkspaceBox(cx, cy) {
-    if (!window.strokeAnchorPos || (!lastPenState && !isAutoRecording)) return;
-
-    // Define a 0.4m x 0.4m semi-transparent board centered at the anchor coordinate
-    // The ML engine learns coordinates relative to this center point.
-    const aw = 0.2; // half-width (X)
-    const ah = 0.2; // half-height (Z)
-    const ax = window.strokeAnchorPos[0];
-    const ay = window.strokeAnchorPos[1]; // Depth is locked (XZ plane)
-    const az = window.strokeAnchorPos[2];
-
-    const corners = [
-        [ax - aw, ay, az - ah], [ax + aw, ay, az - ah],
-        [ax + aw, ay, az + ah], [ax - aw, ay, az + ah],
-        [ax - aw, ay, az - ah]
-    ];
-
-    // Border (Dashed)
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = 'rgba(74, 222, 128, 0.8)'; // Bright green bounding box
-    ctx.setLineDash([5, 5]);
-    ctx.beginPath();
-    let first = true;
-    for (const p of corners) {
-        let pt = projectWorld(p[0], p[1], p[2]);
-        if (!pt.visible) continue;
-        if (first) { ctx.moveTo(cx + pt.sx, cy + pt.sy); first = false; }
-        else ctx.lineTo(cx + pt.sx, cy + pt.sy);
-    }
-    ctx.stroke();
-    ctx.setLineDash([]); // Reset dash
-
-    // Fill (Semi-transparent board)
-    ctx.fillStyle = 'rgba(74, 222, 128, 0.15)';
-    ctx.beginPath();
-    first = true;
-    for (const p of corners) {
-        let pt = projectWorld(p[0], p[1], p[2]);
-        if (!pt.visible) continue;
-        if (first) { ctx.moveTo(cx + pt.sx, cy + pt.sy); first = false; }
-        else ctx.lineTo(cx + pt.sx, cy + pt.sy);
-    }
-    ctx.closePath();
-    ctx.fill();
-
-    // Anchor Center Dot (0,0,0 coordinate for ML Mode)
-    let centerPt = projectWorld(ax, ay, az);
-    if (centerPt.visible) {
-        ctx.fillStyle = 'rgba(74, 222, 128, 0.9)';
-        ctx.beginPath();
-        ctx.arc(cx + centerPt.sx, cy + centerPt.sy, 5, 0, Math.PI * 2);
-        ctx.fill();
-    }
-}
-
-// Axis Arrows (RGB = XYZ)
-function drawAxisArrows(cx, cy) {
-    const L = 0.3;
-    let o = projectWorld(0, 0, 0);
-    if (!o.visible) return;
-    const axes = [
-        { v: [L, 0, 0], c: 'rgba(255, 0, 0, 0.7)' },
-        { v: [0, L, 0], c: 'rgba(0, 200, 0, 0.7)' },
-        { v: [0, 0, L], c: 'rgba(0, 0, 255, 0.7)' },
-    ];
-    ctx.lineWidth = 2;
-    ctx.shadowBlur = 0;
-    for (let a of axes) {
-        let e = projectWorld(a.v[0], a.v[1], a.v[2]);
-        if (!e.visible) continue;
-        ctx.strokeStyle = a.c;
-        ctx.beginPath();
-        ctx.moveTo(cx + o.sx, cy + o.sy);
-        ctx.lineTo(cx + e.sx, cy + e.sy);
-        ctx.stroke();
-    }
-}
-
-// Arm skeleton (last 2 segments: wrist→pen handle→pen tip)
-function drawArm(cx, cy) {
-    if (!armPositions || armPositions.length < 4) return;
-
-    // Draw pen segment (wrist to tip) like digital_twin.py
-    let col = lastPenState ? '#ff1a66' : '#0080ff';
-
-    ctx.lineWidth = 5;
-    ctx.strokeStyle = col;
-    ctx.shadowBlur = 0;
-    ctx.beginPath();
-    let pts = [armPositions[2], armPositions[3]]; // wrist, tip
-    let first = true;
-    for (let p of pts) {
-        let pt = projectWorld(p[0], p[1], p[2]);
-        if (!pt.visible) continue;
-        if (first) { ctx.moveTo(cx + pt.sx, cy + pt.sy); first = false; }
-        else ctx.lineTo(cx + pt.sx, cy + pt.sy);
-    }
-    ctx.stroke();
-
-    // Joint dots
-    for (let i = 2; i < 4; i++) {
-        let p = armPositions[i];
-        let pt = projectWorld(p[0], p[1], p[2]);
-        if (!pt.visible) continue;
-        let r = i === 3 ? 3 : 5; // tip is smaller
-        ctx.fillStyle = i === 3 ? '#ff1a66' : '#888888';
-        ctx.beginPath();
-        ctx.arc(cx + pt.sx, cy + pt.sy, r, 0, Math.PI * 2);
-        ctx.fill();
-    }
-}
-
-// Pen trail strokes
-function drawStrokes(cx, cy) {
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = '#38e67a'; // Neon green trail (COL_TRAIL from digital_twin.py)
-    ctx.shadowBlur = 8;
-    ctx.shadowColor = 'rgba(56, 230, 122, 0.6)';
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-
-    for (const stroke of strokeHistory) {
-        if (stroke.length < 2) continue;
-        ctx.beginPath();
-        let started = false;
-        for (const p of stroke) {
-            let pt = projectWorld(p[0], p[1], p[2]);
-            if (!pt.visible) continue;
-            if (!started) { ctx.moveTo(cx + pt.sx, cy + pt.sy); started = true; }
-            else ctx.lineTo(cx + pt.sx, cy + pt.sy);
-        }
-        ctx.stroke();
-    }
-    ctx.shadowBlur = 0;
-}
-
-// Live cursor
-function drawCursor(cx, cy) {
-    if (!currentCursorPos) return;
-    let pt = projectWorld(currentCursorPos[0], currentCursorPos[1], currentCursorPos[2]);
-    if (!pt.visible) return;
-    liveCursor.style.left = `${cx + pt.sx}px`;
-    liveCursor.style.top = `${cy + pt.sy}px`;
-    if (lastPenState) {
-        liveCursor.style.background = '#ffffff';
-        liveCursor.style.transform = 'translate(-50%, -50%) scale(1.5)';
-    } else {
-        liveCursor.style.background = 'transparent';
-        liveCursor.style.transform = 'translate(-50%, -50%) scale(1.0)';
-    }
-}
-
-// ══════════════════════════════════════════
-// WebSocket
-// ══════════════════════════════════════════
-function connectWebSocket() {
-    valConn.textContent = "CONNECTING...";
-    valConn.className = "data-value danger";
-    ws = new WebSocket(WS_URL);
-    ws.onopen = () => { valConn.textContent = "CONNECTED (WS)"; valConn.className = "data-value success"; };
-    ws.onmessage = (event) => {
-        try {
-            const data = JSON.parse(event.data);
-            if (data.t === "f") updateFrame(data);
-        } catch (e) { console.error("JSON parse error:", e); }
-    };
-    ws.onclose = () => { valConn.textContent = "DISCONNECTED"; valConn.className = "data-value danger"; setTimeout(connectWebSocket, 3000); };
-    ws.onerror = (err) => console.error("WS Error:", err);
-}
-// ── Auto-connect on page load ──
-connectWebSocket();
-
-function updateFrame(data) {
-    const pen = data.pen || false;
-    const zupt = data.S3z || false;
-
-    if (pen) overlay.classList.add('active');
-    else overlay.classList.remove('active');
-
-    if (zupt) { valZupt.textContent = "ACTIVE"; valZupt.className = "data-value success"; }
-    else { valZupt.textContent = "INACTIVE"; valZupt.className = "data-value danger"; }
-
-    if (data.S3e) updateLiveChart(data.S3e);
-
-    // ── EXACT SAME FK as digital_twin.py ──
-    let positions = computeFK(data);
-    armPositions = positions;
-    let penTip = positions[positions.length - 1]; // pen-tip = last FK joint
-    currentCursorPos = penTip;
-
-    valPos.innerHTML = `X: ${penTip[0].toFixed(3)}<br>Y: ${penTip[1].toFixed(3)}<br>Z: ${penTip[2].toFixed(3)}`;
-
-    // Store latest data globally (for quaternion access in auto-record)
-    window.latestData = data;
-
-    // ── ML Auto-Predict Logic (Manual Pen Control) ──
-    let localizedTip = [...penTip];
-
-    // Calculate localized position based on anchor
-    if (window.strokeAnchorPos) {
-        localizedTip = [
-            penTip[0] - window.strokeAnchorPos[0],
-            penTip[1] - window.strokeAnchorPos[1],
-            penTip[2] - window.strokeAnchorPos[2]
-        ];
-    }
-
-    if (pen && !lastPenState) {
-        // PEN DOWN EDGE -> Lock new anchor workspace!
-        window.strokeAnchorPos = [...penTip];
-        localizedTip = [0, 0, 0];
-
-        currentStroke = [];
-        strokeHistory.push(currentStroke);
-
-        if (mlAutoPredict) {
-            mlCurrentPos = [];
-            updateMlStatus(`Analyzing...`);
-            updateScoreBoard([]);
-        }
-
-        // ── Pen-Button Manual Collection Mode ──
-        if (isAutoRecording && mlLearningLabel) {
-            mlCurrentFull = [];
-            window.manualRecAnchor = [...penTip];
-            recordingOverlay.innerText = `🔴 REC (쓰는 중...)`;
-            recordingOverlay.style.color = "#EF4444";
-            recordingOverlay.style.fontSize = '20px';
-            updateMlStatus(`🔴 '${mlLearningLabel}' 녹화 중...`);
-        }
-    }
-
-    if (pen) {
-        // Draw the trace in the REAL 3D World (Global coordinates)
-        currentStroke.push([...penTip]);
-
-        // Feed the ML Engine the Anchored Local Space coordinates
-        if (mlAutoPredict) {
-            mlCurrentPos.push([...localizedTip]);
-        }
-
-        // ── Manual collection: accumulate data while pen is held ──
-        if (isAutoRecording && mlLearningLabel && window.manualRecAnchor) {
-            let lx = penTip[0] - window.manualRecAnchor[0];
-            let ly = penTip[1] - window.manualRecAnchor[1];
-            let lz = penTip[2] - window.manualRecAnchor[2];
-            let s3q = data.S3q || [1, 0, 0, 0];
-            mlCurrentFull.push([lx, ly, lz, s3q[0], s3q[1], s3q[2], s3q[3]]);
-        }
-    }
-
-    if (!pen && lastPenState) {
-        // PEN UP EDGE
-        if (mlAutoPredict && mlCurrentPos.length > 5) {
-            sendMlPredict(mlCurrentPos);
-        }
-
-        // ── Manual collection: save on pen-up ──
-        if (isAutoRecording && mlLearningLabel && mlCurrentFull.length > 5) {
-            autoRecordSampleCount++;
-            sendMlRecord(mlLearningLabel, mlCurrentFull);
-            recordingOverlay.innerText = `✅ SAVED #${autoRecordSampleCount} — 다시 펜을 누르세요`;
-            recordingOverlay.style.color = "#10B981";
-            recordingOverlay.style.fontSize = '18px';
-            updateMlStatus(`✅ '${mlLearningLabel}' #${autoRecordSampleCount} 저장!`);
-            mlCurrentFull = [];
-            window.manualRecAnchor = null;
-        }
-    }
-
-    lastPenState = pen;
-    requestAnimationFrame(renderScene);
-}
-
-// ══════════════════════════════════════════
-// NO INTRO LOGIC HERE (Moved to inline script in HTML)
-// ══════════════════════════════════════════
-
-// ══════════════════════════════════════════
-// GLOBAL VARIABLES & STATE
-// ══════════════════════════════════════════
-// Variables are declared at the top of the file
-
-// ML related global state
-// Variables are declared at the top of the file
-
-// DOM Elements
-// valConn, valZupt, valPos are declared at the top of the file
-// liveCursor, recordingOverlay are declared at the top of the file
-
-// ══════════════════════════════════════════
-// ML API Calls & UI
-// ══════════════════════════════════════════
-const btnMlRec = document.getElementById('btnMlRec');
-const btnMlPredict = document.getElementById('btnMlPredict');
-const btnDemoSimulator = document.getElementById('btnDemoSimulator');
-const mlStatusText = document.getElementById('mlStatusText');
-const aiResultWord = document.getElementById('aiResultWord');
-const aiResultScore = document.getElementById('aiResultScore');
-
-// Modal Elements
-const labelModal = document.getElementById('labelModal');
-const labelInput = document.getElementById('labelInput');
-const btnModalCancel = document.getElementById('btnModalCancel');
-const btnModalStart = document.getElementById('btnModalStart');
-const btnMlTrain = document.getElementById('btnMlTrain');
-
-let isAutoRecording = false;
-let autoRecordInterval = null;
-let autoRecordPhase = 'idle';
-let autoRecordTimer = 0;
-
-let autoRecordSampleCount = 0;
-
-function startAutoRecordingLoop() {
-    autoRecordPhase = 'idle';
-    autoRecordSampleCount = 0;
-
-    // Clear any existing interval
-    if (autoRecordInterval) clearInterval(autoRecordInterval);
-
-    autoRecordInterval = setInterval(() => {
-        if (!isAutoRecording || !mlLearningLabel) return;
-
-        let now = performance.now();
-
-        if (autoRecordPhase === 'idle') {
-            autoRecordPhase = 'countdown';
-            autoRecordTimer = now;
-            recordingOverlay.innerText = "⏳ READY...";
-            recordingOverlay.style.color = "#F59E0B";
-            recordingOverlay.style.display = 'block';
-            recordingOverlay.style.fontSize = '18px';
-            updateMlStatus(`'${mlLearningLabel}' 수집 준비 중...`);
-        }
-        else if (autoRecordPhase === 'countdown') {
-            let elapsed = (now - autoRecordTimer) / 1000;
-            let remaining = Math.max(0, 1.5 - elapsed).toFixed(1);
-            recordingOverlay.innerText = `⏳ ${remaining}s 후 시작...`;
-            recordingOverlay.style.color = "#F59E0B";
-
-            if (elapsed >= 1.5) {
-                // Start actual recording
-                autoRecordPhase = 'record';
-                autoRecordTimer = now;
-                mlCurrentFull = [];
-                window.autoRecAnchor = null;
-                recordingOverlay.innerText = "🔴 REC 3.0s (지금 쓰세요!)";
-                recordingOverlay.style.color = "#EF4444";
-                recordingOverlay.style.fontSize = '22px';
-                updateMlStatus(`🔴 녹화 중... '${mlLearningLabel}'`);
-            }
-        }
-        else if (autoRecordPhase === 'record') {
-            let elapsed = (now - autoRecordTimer) / 1000;
-            let remaining = Math.max(0, 3.0 - elapsed).toFixed(1);
-
-            // Live countdown on overlay
-            recordingOverlay.innerText = `🔴 REC ${remaining}s (지금 쓰세요!)`;
-
-            // Collect data every tick (pen state irrelevant during auto-record)
-            if (currentCursorPos) {
-                if (!window.autoRecAnchor) {
-                    window.autoRecAnchor = [...currentCursorPos];
-                }
-
-                let localX = currentCursorPos[0] - window.autoRecAnchor[0];
-                let localY = currentCursorPos[1] - window.autoRecAnchor[1];
-                let localZ = currentCursorPos[2] - window.autoRecAnchor[2];
-
-                let s3q = [1, 0, 0, 0];
-                if (window.latestData && window.latestData.S3q) s3q = window.latestData.S3q;
-
-                mlCurrentFull.push([
-                    localX, localY, localZ,
-                    s3q[0], s3q[1], s3q[2], s3q[3]
-                ]);
-            }
-
-            // 3 seconds elapsed → save and loop
-            if (elapsed >= 3.0) {
-                if (mlCurrentFull.length > 5) {
-                    autoRecordSampleCount++;
-                    sendMlRecord(mlLearningLabel, mlCurrentFull);
-
-                    // Flash "SAVED" briefly
-                    recordingOverlay.innerText = `✅ SAVED #${autoRecordSampleCount}`;
-                    recordingOverlay.style.color = "#10B981";
-                    recordingOverlay.style.fontSize = '20px';
-                    updateMlStatus(`✅ '${mlLearningLabel}' #${autoRecordSampleCount} 저장 완료!`);
-                } else {
-                    recordingOverlay.innerText = "⚠️ 데이터 부족 (다시)";
-                    recordingOverlay.style.color = "#F59E0B";
-                    updateMlStatus("⚠️ 데이터 부족, 다시 시도...");
-                }
-
-                // Reset for next cycle
-                mlCurrentFull = [];
-                autoRecordPhase = 'saved_flash';
-                autoRecordTimer = now;
-            }
-        }
-        else if (autoRecordPhase === 'saved_flash') {
-            // Brief 0.8s pause to show the SAVED message before restarting
-            let elapsed = (now - autoRecordTimer) / 1000;
-            if (elapsed >= 0.8) {
-                autoRecordPhase = 'countdown';
-                autoRecordTimer = now;
-            }
-        }
-    }, 50); // 50ms tick (~20Hz)
-}
-
-
-if (btnMlRec) {
-    btnMlRec.addEventListener('click', () => {
-        if (isAutoRecording) {
-            // Stop recording
-            isAutoRecording = false;
-            clearInterval(autoRecordInterval);
-            autoRecordInterval = null;
-            autoRecordPhase = 'idle';
-            autoRecordSampleCount = 0;
-            mlLearningLabel = null;
-            btnMlRec.innerHTML = `🎯 [가이드] 단어 수집`;
-            btnMlRec.style.background = '';
-            recordingOverlay.style.display = 'none';
-            recordingOverlay.style.fontSize = '';
-            updateMlStatus("Idle");
-            return;
-        }
-
-        // Show Modal
-        if (labelModal) {
-            labelModal.classList.add('active');
-            labelInput.value = '';
-            labelInput.focus();
-        }
-    });
-
-// ══════════════════════════════════════════
-// QR Connect Modal Logic
-// ══════════════════════════════════════════
-const btnConnectPhone = document.getElementById('btnConnectPhone');
-const qrModal = document.getElementById('qrModal');
-const btnQrCancel = document.getElementById('btnQrCancel');
-const ipInput = document.getElementById('ipInput');
-const qrCodeContainer = document.getElementById('qrCodeContainer');
-let currentQR = null;
-
-if (btnConnectPhone) {
-    btnConnectPhone.addEventListener('click', () => {
-        if(qrModal) qrModal.style.display = 'flex';
-        setTimeout(() => { if(ipInput) ipInput.focus(); }, 100);
-    });
-}
-
-if (btnQrCancel) {
-    btnQrCancel.addEventListener('click', () => {
-        if(qrModal) qrModal.style.display = 'none';
-        if(ipInput) ipInput.value = '';
-        if(qrCodeContainer) qrCodeContainer.innerHTML = '<div style="color:#94a3b8; line-height:170px; font-size:13px;">Enter IP to load QR</div>';
-        currentQR = null;
-    });
-}
-
-if (ipInput) {
-    ipInput.addEventListener('input', (e) => {
-        const ip = e.target.value.trim();
-        if(qrCodeContainer) qrCodeContainer.innerHTML = ''; 
-        currentQR = null;
-        
-        if (ip.length > 0) {
-            try {
-                currentQR = new QRCode(qrCodeContainer, {
-                    text: ip,
-                    width: 170,
-                    height: 170,
-                    colorDark : "#0F172A", 
-                    colorLight : "#ffffff",
-                    correctLevel : QRCode.CorrectLevel.H
-                });
-            } catch (err) {
-                console.error("QR JS not loaded:", err);
-            }
-        } else {
-            if(qrCodeContainer) qrCodeContainer.innerHTML = '<div style="color:#94a3b8; line-height:170px; font-size:13px;">Enter IP to load QR</div>';
-        }
-    });
-}
-    if (btnModalCancel) {
-        btnModalCancel.addEventListener('click', () => {
-            labelModal.classList.remove('active');
-        });
-    }
-
-    const gridBtns = document.querySelectorAll('.grid-key-btn');
-    gridBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            if (labelInput) {
-                labelInput.value = btn.getAttribute('data-key');
-                labelInput.focus();
-            }
-        });
-    });
-
-    if (btnModalStart) {
-        btnModalStart.addEventListener('click', () => {
-            let label = labelInput.value.trim().toUpperCase();
-            if (label !== '') {
-                mlLearningLabel = label;
-                isAutoRecording = true;
-                autoRecordSampleCount = 0;
-
-                labelModal.classList.remove('active');
-
-                btnMlRec.innerHTML = `⏹️ [중지] '${mlLearningLabel}' 수집 중...`;
-                btnMlRec.style.background = '#F87171';
-
-                // Show pen instruction
-                recordingOverlay.innerText = `🎯 '${mlLearningLabel}' — 펜을 눌러 글씨를 쓰세요!`;
-                recordingOverlay.style.color = '#38BDF8';
-                recordingOverlay.style.fontSize = '18px';
-                recordingOverlay.style.display = 'block';
-                updateMlStatus(`대기: 펜을 누르면 녹화 시작`);
-            }
-        });
-    }
-
-    btnMlPredict.addEventListener('click', () => {
-        mlAutoPredict = !mlAutoPredict;
-        if (mlAutoPredict) {
-            btnMlPredict.innerHTML = `⚡ [자동보정] 끄기`;
-            btnMlPredict.classList.add('active');
-            updateMlStatus("Waiting for gesture...");
-        } else {
-            btnMlPredict.innerHTML = `⚡ [자동보정] 켜기`;
-            btnMlPredict.classList.remove('active');
-            updateMlStatus("Idle");
-            updateScoreBoard([]);
-        }
-    });
-
-    if (btnMlTrain) {
-        btnMlTrain.addEventListener('click', async () => {
-            let originalText = btnMlTrain.innerText;
-            btnMlTrain.innerText = "⏳ 학습 중... (Training)";
-            btnMlTrain.disabled = true;
-            try {
-                const res = await fetch('/api/ml/train', { method: 'POST' });
-                if (res.ok) {
-                    setTimeout(() => {
-                        btnMlTrain.innerText = "✅ 백그라운드 학습 시작 (10초 소요)";
-                        setTimeout(() => {
-                            btnMlTrain.innerText = originalText;
-                            btnMlTrain.disabled = false;
-                        }, 3000);
-                    }, 500);
-                }
-            } catch (e) {
-                console.error(e);
-                btnMlTrain.innerText = "❌ 확인 필요";
-                setTimeout(() => {
-                    btnMlTrain.innerText = originalText;
-                    btnMlTrain.disabled = false;
-                }, 2000);
-            }
-        });
-    }
-}
-
-let recognizedSequence = "";
-let lastTop1 = null;
-let autocorrectSuggestion = null;
-const recognizedTextOverlay = document.getElementById('recognizedTextOverlay');
-
-function updateTextOverlay() {
-    if (!recognizedTextOverlay) return;
-    if (recognizedSequence === "" && !autocorrectSuggestion) {
-        recognizedTextOverlay.classList.remove('active');
-        return;
-    }
-    recognizedTextOverlay.classList.add('active');
-
-    if (autocorrectSuggestion && autocorrectSuggestion.distance > 0) {
-        recognizedTextOverlay.innerHTML = `
-            <span style="color:#F87171; text-decoration:line-through; opacity:0.6">${recognizedSequence}</span>
-            <span style="color:#4ADE80; margin-left:8px">→ ${autocorrectSuggestion.word}?</span>
-            <span style="font-size:12px; color:#888; margin-left:8px">[Enter=확정]</span>
-        `;
-    } else {
-        recognizedTextOverlay.innerText = recognizedSequence;
-    }
-}
-
-document.addEventListener('keydown', (e) => {
-    if (!mlAutoPredict) return;
-
-    if (e.code === 'Space') {
-        e.preventDefault();
-        if (lastTop1) {
-            recognizedSequence += lastTop1.label;
-            lastTop1 = null;
-
-            // Autocorrect check
-            if (typeof findClosestWords === 'function' && recognizedSequence.length >= 2) {
-                let matches = findClosestWords(recognizedSequence);
-                if (matches.length > 0 && matches[0].distance > 0) {
-                    autocorrectSuggestion = matches[0];
-                } else {
-                    autocorrectSuggestion = null;
-                }
-            }
-        }
-        updateTextOverlay();
-        strokeHistory = [];
-        updateScoreBoard([]);
-    } else if (e.code === 'Enter') {
-        // Accept autocorrect suggestion
-        if (autocorrectSuggestion && autocorrectSuggestion.distance > 0) {
-            recognizedSequence = autocorrectSuggestion.word;
-            autocorrectSuggestion = null;
-            updateTextOverlay();
-        }
-    } else if (e.code === 'Backspace') {
-        if (recognizedSequence.length > 0) {
-            recognizedSequence = recognizedSequence.slice(0, -1);
-            autocorrectSuggestion = null;
-            if (recognizedSequence === "") {
-                recognizedTextOverlay?.classList.remove('active');
-            }
-            updateTextOverlay();
-        }
-    }
+const studioState = { language: 'ko', mode: 'demo', ws: null, liveAttemptTimer: null, demoFrame: 0, demoWordIndex: 0, animationHandle: null, currentPath: demoWords[0].path, projectedPoints: [], currentWord: demoWords[0], isWriting: false, waveHistory: { pitch: [], roll: [], yaw: [] } };
+
+const elements = {
+    tabs: Array.from(document.querySelectorAll('.nav-link')),
+    pages: Array.from(document.querySelectorAll('.page')),
+    langToggle: document.getElementById('langToggle'),
+    introOverlay: document.getElementById('introOverlay'),
+    introSkip: document.getElementById('introSkip'),
+    modeDemoBtn: document.getElementById('modeDemoBtn'),
+    modeLiveBtn: document.getElementById('modeLiveBtn'),
+    btnRunDemo: document.getElementById('btnRunDemo'),
+    btnTryLive: document.getElementById('btnTryLive'),
+    btnFallbackDemo: document.getElementById('btnFallbackDemo'),
+    drawingCanvas: document.getElementById('drawingCanvas'),
+    waveformCanvas: document.getElementById('waveformCanvas'),
+    stageBannerTitle: document.getElementById('stageBannerTitle'),
+    stageBannerText: document.getElementById('stageBannerText'),
+    stageBannerAction: document.getElementById('stageBannerAction'),
+    recordingOverlay: document.getElementById('recordingOverlay'),
+    recognizedTextOverlay: document.getElementById('recognizedTextOverlay'),
+    aiResultWord: document.getElementById('aiResultWord'),
+    aiResultScore: document.getElementById('aiResultScore'),
+    aiCandidates: document.getElementById('aiCandidates'),
+    studioModeBadge: document.getElementById('studioModeBadge'),
+    modeSummary: document.getElementById('modeSummary'),
+    valConn: document.getElementById('valConn'),
+    valPos: document.getElementById('valPos'),
+    valZupt: document.getElementById('valZupt'),
+    studioWordLabel: document.getElementById('studioWordLabel'),
+    commentsList: document.getElementById('commentsList'),
+    commentsStatus: document.getElementById('commentsStatus'),
+    commentForm: document.getElementById('commentForm'),
+    commentFormStatus: document.getElementById('commentFormStatus'),
+    submitCommentBtn: document.getElementById('submitCommentBtn'),
+    commentAuthor: document.getElementById('commentAuthor'),
+    commentContent: document.getElementById('commentContent'),
+    pairingModeLabel: document.getElementById('pairingModeLabel'),
+    pairingUrl: document.getElementById('pairingUrl'),
+    pairingHostState: document.getElementById('pairingHostState'),
+    pairingQr: document.getElementById('pairingQr'),
+    pairingHelpText: document.getElementById('pairingHelpText'),
+    refreshPairingBtn: document.getElementById('refreshPairingBtn')
+};
+
+const drawCtx = elements.drawingCanvas.getContext('2d');
+const waveformCtx = elements.waveformCanvas.getContext('2d');
+
+document.addEventListener('DOMContentLoaded', () => {
+    applyTranslations();
+    bindEvents();
+    resizeCanvases();
+    initializeIntro();
+    selectTab('tab-home');
+    switchMode('demo');
+    loadComments();
+    refreshPairingInfo();
+    window.addEventListener('resize', resizeCanvases);
 });
 
-function updateMlStatus(msg) {
-    if (mlStatusText) mlStatusText.innerText = `Status: ${msg}`;
+function bindEvents() {
+    elements.tabs.forEach((tab) => tab.addEventListener('click', () => selectTab(tab.dataset.target)));
+    document.querySelectorAll('[data-target-jump]').forEach((button) => button.addEventListener('click', () => selectTab(button.dataset.targetJump)));
+    document.querySelectorAll('[data-open-studio]').forEach((button) => button.addEventListener('click', () => { selectTab('tab-studio'); switchMode(button.dataset.openStudio === 'live' ? 'live' : 'demo'); }));
+    elements.langToggle.addEventListener('click', () => {
+        studioState.language = studioState.language === 'ko' ? 'en' : 'ko';
+        applyTranslations();
+        renderRecognition(studioState.currentWord);
+        updateStageBanner();
+        updateModeSummary();
+        updateConnectionStatus(studioState.mode === 'live' && studioState.ws && studioState.ws.readyState === WebSocket.OPEN ? t('liveConnected') : studioState.mode === 'live' ? t('liveConnecting') : t('liveDisconnected'));
+        refreshPairingInfo();
+        loadComments();
+    });
+    elements.introSkip.addEventListener('click', closeIntro);
+    elements.modeDemoBtn.addEventListener('click', () => switchMode('demo'));
+    elements.modeLiveBtn.addEventListener('click', () => switchMode('live'));
+    elements.btnRunDemo.addEventListener('click', () => { switchMode('demo'); restartDemo(true); });
+    elements.btnTryLive.addEventListener('click', () => switchMode('live'));
+    elements.btnFallbackDemo.addEventListener('click', () => switchMode('demo'));
+    elements.stageBannerAction.addEventListener('click', () => switchMode(studioState.mode === 'demo' ? 'live' : 'demo'));
+    elements.refreshPairingBtn.addEventListener('click', refreshPairingInfo);
+    elements.commentForm.addEventListener('submit', handleCommentSubmit);
 }
 
-function updateScoreBoard(predictions) {
-    if (!predictions || predictions.length === 0) {
-        if (aiResultWord) aiResultWord.innerText = "??";
-        if (aiResultScore) aiResultScore.innerText = "(0.0%)";
-        const aiCandidates = document.getElementById('aiCandidates');
-        if (aiCandidates) aiCandidates.innerHTML = '';
-        return;
-    }
-
-    // Top 1
-    const top1 = predictions[0];
-    lastTop1 = top1;
-    if (aiResultWord) aiResultWord.innerText = top1.label;
-    if (aiResultScore) aiResultScore.innerText = `(${(top1.confidence * 100).toFixed(1)}%)`;
-
-    // Top N loop
-    const aiCandidates = document.getElementById('aiCandidates');
-    if (aiCandidates) {
-        aiCandidates.innerHTML = ''; // clear
-        // We show up to top 3
-        for (let i = 0; i < Math.min(3, predictions.length); i++) {
-            let p = predictions[i];
-            let percent = (p.confidence * 100).toFixed(1);
-            let bar = document.createElement('div');
-            bar.className = 'candidate-bar';
-
-            // Highlight the first one with a different border or color
-            if (i === 0) bar.style.borderLeftColor = '#4ADE80';
-
-            bar.innerHTML = `
-                <div class="c-name">${i + 1}. ${p.label}</div>
-                <div class="c-val">${percent}%</div>
-            `;
-            aiCandidates.appendChild(bar);
-        }
-    }
-
-    // Pulse animation
-    const box = document.getElementById('aiScoreBox');
-    if (box) {
-        box.style.transform = 'scale(1.05)';
-        box.style.borderColor = '#4ADE80';
-        setTimeout(() => {
-            box.style.transform = 'scale(1)';
-            box.style.borderColor = 'var(--border-color)';
-        }, 200);
-    }
+function t(key) { return translations[studioState.language][key] ?? translations.ko[key] ?? key; }
+function applyTranslations() {
+    document.documentElement.lang = studioState.language;
+    document.querySelectorAll('[data-i18n]').forEach((node) => { node.textContent = t(node.dataset.i18n); });
+    document.querySelectorAll('[data-i18n-placeholder]').forEach((node) => node.setAttribute('placeholder', t(node.dataset.i18nPlaceholder)));
+    elements.langToggle.textContent = studioState.language === 'ko' ? 'EN' : 'KO';
+    document.title = studioState.language === 'ko' ? 'AirWriting | 공중 필기 플랫폼' : 'AirWriting | Air-writing platform';
 }
-
-// ML Training Lab Charts
-let sampleDistChart = null;
-let accuracyChart = null;
-
-function initLabCharts() {
-    const ctxDist = document.getElementById('sampleDistChart')?.getContext('2d');
-    if (ctxDist) {
-        sampleDistChart = new Chart(ctxDist, {
-            type: 'bar',
-            data: {
-                labels: [],
-                datasets: [{
-                    label: 'Samples Collected',
-                    data: [],
-                    backgroundColor: 'rgba(56, 189, 248, 0.5)',
-                    borderColor: 'rgba(56, 189, 248, 1)',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                indexAxis: 'y',
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    x: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' } },
-                    y: { grid: { display: false }, ticks: { color: '#ccc' } }
-                },
-                plugins: { legend: { display: false } }
-            }
-        });
-    }
-
-    const ctxAcc = document.getElementById('accuracyChart')?.getContext('2d');
-    if (ctxAcc) {
-        accuracyChart = new Chart(ctxAcc, {
-            type: 'line',
-            data: {
-                labels: ['V1 (Base)', 'V2 (MARG)', 'V3 (FK)', 'V4 (Directional/Live)'],
-                datasets: [{
-                    label: 'Accuracy %',
-                    data: [85, 93, 95, 0], // Live accuracy will be updated
-                    borderColor: '#10B981',
-                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                    fill: true,
-                    tension: 0.4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: { min: 70, max: 100, grid: { color: '#222' }, ticks: { color: '#aaa' } },
-                    x: { grid: { display: false }, ticks: { color: '#aaa' } }
-                }
-            }
-        });
-    }
+function initializeIntro() { if (sessionStorage.getItem('airwriting_intro_seen') === '1') { elements.introOverlay.classList.add('hidden'); return; } window.setTimeout(closeIntro, 2600); }
+function closeIntro() { elements.introOverlay.classList.add('hidden'); sessionStorage.setItem('airwriting_intro_seen', '1'); }
+function selectTab(tabId) { elements.tabs.forEach((tab) => tab.classList.toggle('active', tab.dataset.target === tabId)); elements.pages.forEach((page) => page.classList.toggle('active', page.id === tabId)); if (tabId === 'tab-studio') { resizeCanvases(); renderStudioFrame(); } }
+function switchMode(mode) {
+    clearLiveAttempt(); closeSocket(); studioState.mode = mode;
+    elements.modeDemoBtn.classList.toggle('active', mode === 'demo'); elements.modeLiveBtn.classList.toggle('active', mode === 'live');
+    if (mode === 'demo') { elements.studioModeBadge.textContent = t('demoModeBadge'); updateConnectionStatus(t('liveDisconnected')); updateModeSummary(); updateStageBanner(); restartDemo(true); return; }
+    elements.studioModeBadge.textContent = t('liveModeBadge'); updateConnectionStatus(t('liveConnecting')); updateModeSummary('connecting'); updateStageBanner('connecting'); beginLiveAttempt();
 }
-initLabCharts();
-
-async function refreshMlStats() {
+function updateModeSummary(state = '') { elements.modeSummary.textContent = studioState.mode === 'demo' ? t('demoSummary') : state === 'failed' ? t('liveSummaryFailed') : state === 'connecting' ? t('liveSummaryConnecting') : t('liveSummaryReady'); }
+function updateStageBanner(state = '') {
+    if (studioState.mode === 'demo') { elements.stageBannerTitle.textContent = t('bannerDemoTitle'); elements.stageBannerText.textContent = t('bannerDemoText'); elements.stageBannerAction.textContent = t('bannerDemoAction'); return; }
+    if (state === 'failed') { elements.stageBannerTitle.textContent = t('bannerLiveFailedTitle'); elements.stageBannerText.textContent = t('bannerLiveFailedText'); elements.stageBannerAction.textContent = t('bannerLiveFailedAction'); return; }
+    elements.stageBannerTitle.textContent = t('bannerLiveTitle'); elements.stageBannerText.textContent = t('bannerLiveText'); elements.stageBannerAction.textContent = t('bannerLiveAction');
+}
+function restartDemo(advanceWord) {
+    if (advanceWord) studioState.demoWordIndex = (studioState.demoWordIndex + 1) % demoWords.length;
+    studioState.currentWord = demoWords[studioState.demoWordIndex]; studioState.currentPath = studioState.currentWord.path; studioState.demoFrame = 0; studioState.projectedPoints = []; renderRecognition(studioState.currentWord); startAnimationLoop();
+}
+function startAnimationLoop() {
+    if (studioState.animationHandle) cancelAnimationFrame(studioState.animationHandle);
+    const loop = () => { renderStudioFrame(); studioState.animationHandle = requestAnimationFrame(loop); };
+    loop();
+}
+function renderStudioFrame() { if (studioState.mode === 'demo') advanceDemo(); else if (!studioState.ws || studioState.ws.readyState !== WebSocket.OPEN) pulseIdleFrame(); drawBoard(); drawWaveform(); }
+function advanceDemo() {
+    const totalFrames = studioState.currentPath.length + 110; studioState.demoFrame = (studioState.demoFrame + 1) % totalFrames;
+    const visibleCount = Math.min(studioState.demoFrame, studioState.currentPath.length); studioState.projectedPoints = studioState.currentPath.slice(0, visibleCount); studioState.isWriting = visibleCount > 0 && visibleCount < studioState.currentPath.length;
+    if (visibleCount === studioState.currentPath.length && studioState.demoFrame === studioState.currentPath.length + 24) showRecognizedToast(studioState.currentWord.label);
+    if (studioState.demoFrame === totalFrames - 1) { studioState.demoWordIndex = (studioState.demoWordIndex + 1) % demoWords.length; studioState.currentWord = demoWords[studioState.demoWordIndex]; studioState.currentPath = studioState.currentWord.path; studioState.projectedPoints = []; renderRecognition(studioState.currentWord); }
+    driveTelemetry(visibleCount / Math.max(studioState.currentPath.length, 1));
+}
+function pulseIdleFrame() { const time = Date.now() * 0.0012; studioState.projectedPoints = Array.from({ length: 18 }, (_, index) => ({ x: -180 + index * 22, y: Math.sin(time + index * 0.24) * 8 })); studioState.isWriting = false; driveTelemetry(0.18 + Math.abs(Math.sin(time)) * 0.08); }
+function driveTelemetry(progress) {
+    const point = studioState.projectedPoints[studioState.projectedPoints.length - 1] || { x: 0, y: 0 };
+    elements.valPos.textContent = `${Math.round(point.x)}, ${Math.round(point.y)}`; elements.valZupt.textContent = studioState.isWriting ? t('zuptWriting') : t('zuptStable'); elements.studioWordLabel.textContent = studioState.currentWord.label; elements.recordingOverlay.style.opacity = studioState.isWriting ? '1' : '0.35'; elements.recordingOverlay.textContent = t('writingState');
+    const phase = progress * Math.PI * 2; pushWave('pitch', 18 + Math.sin(phase * 1.2) * 12 + Math.sin(phase * 3.2) * 4); pushWave('roll', Math.cos(phase * 1.4) * 16 + Math.sin(phase * 2.1) * 5); pushWave('yaw', Math.sin(phase * 0.8 + 0.7) * 20);
+}
+function pushWave(key, value) { const series = studioState.waveHistory[key]; series.push(value); if (series.length > 120) series.shift(); }
+function renderRecognition(word) { elements.aiResultWord.textContent = word.label; elements.aiResultScore.textContent = `${word.score.toFixed(1)}%`; elements.aiCandidates.innerHTML = ''; word.candidates.forEach((candidate, index) => { const item = document.createElement('li'); item.className = 'candidate-item'; item.innerHTML = `<span>${index + 1}. ${candidate.label}</span><strong>${candidate.score.toFixed(1)}%</strong>`; elements.aiCandidates.appendChild(item); }); }
+function showRecognizedToast(word) { elements.recognizedTextOverlay.textContent = `${t('demoRecognized')}: ${word}`; elements.recognizedTextOverlay.classList.add('show'); window.setTimeout(() => elements.recognizedTextOverlay.classList.remove('show'), 1200); }
+function drawBoard() {
+    const width = elements.drawingCanvas.width; const height = elements.drawingCanvas.height; drawCtx.clearRect(0, 0, width, height);
+    const gradient = drawCtx.createLinearGradient(0, 0, width, height); gradient.addColorStop(0, 'rgba(9, 18, 33, 0.94)'); gradient.addColorStop(1, 'rgba(20, 44, 76, 0.9)'); drawCtx.fillStyle = gradient; drawCtx.fillRect(0, 0, width, height); drawBoardGrid(width, height);
+    drawCtx.save(); drawCtx.translate(width / 2, height / 2 + 18); drawCtx.strokeStyle = 'rgba(129, 210, 255, 0.18)'; drawCtx.lineWidth = 2; drawCtx.strokeRect(-width * 0.32, -height * 0.2, width * 0.64, height * 0.42);
+    if (studioState.projectedPoints.length > 1) { drawStroke('rgba(120, 234, 255, 0.25)', 26, 0); drawStroke('rgba(197, 245, 255, 0.94)', 10, 18); const tip = studioState.projectedPoints[studioState.projectedPoints.length - 1]; drawCtx.shadowBlur = 28; drawCtx.fillStyle = '#ffffff'; drawCtx.beginPath(); drawCtx.arc(tip.x, tip.y, 8, 0, Math.PI * 2); drawCtx.fill(); }
+    drawCtx.restore();
+}
+function drawStroke(color, width, blur) { drawCtx.beginPath(); studioState.projectedPoints.forEach((point, index) => { if (index === 0) drawCtx.moveTo(point.x, point.y); else drawCtx.lineTo(point.x, point.y); }); drawCtx.strokeStyle = color; drawCtx.lineWidth = width; drawCtx.lineCap = 'round'; drawCtx.lineJoin = 'round'; drawCtx.shadowColor = 'rgba(127, 224, 255, 0.45)'; drawCtx.shadowBlur = blur; drawCtx.stroke(); }
+function drawBoardGrid(width, height) { drawCtx.save(); drawCtx.strokeStyle = 'rgba(142, 201, 255, 0.08)'; drawCtx.lineWidth = 1; for (let x = 0; x <= width; x += 48) { drawCtx.beginPath(); drawCtx.moveTo(x, 0); drawCtx.lineTo(x, height); drawCtx.stroke(); } for (let y = 0; y <= height; y += 48) { drawCtx.beginPath(); drawCtx.moveTo(0, y); drawCtx.lineTo(width, y); drawCtx.stroke(); } drawCtx.restore(); }
+function drawWaveform() {
+    const width = elements.waveformCanvas.width; const height = elements.waveformCanvas.height; waveformCtx.clearRect(0, 0, width, height);
+    const gradient = waveformCtx.createLinearGradient(0, 0, 0, height); gradient.addColorStop(0, 'rgba(11, 26, 44, 0.95)'); gradient.addColorStop(1, 'rgba(4, 14, 24, 0.95)'); waveformCtx.fillStyle = gradient; waveformCtx.fillRect(0, 0, width, height);
+    [40, 80, 120].forEach((y) => { waveformCtx.strokeStyle = 'rgba(128, 176, 219, 0.12)'; waveformCtx.beginPath(); waveformCtx.moveTo(0, y); waveformCtx.lineTo(width, y); waveformCtx.stroke(); });
+    drawSeries(studioState.waveHistory.pitch, '#84d8ff'); drawSeries(studioState.waveHistory.roll, '#66ffc7'); drawSeries(studioState.waveHistory.yaw, '#ffc36f');
+}
+function drawSeries(series, color) { if (!series.length) return; waveformCtx.beginPath(); series.forEach((value, index) => { const x = (index / Math.max(series.length - 1, 1)) * elements.waveformCanvas.width; const y = elements.waveformCanvas.height / 2 - value; if (index === 0) waveformCtx.moveTo(x, y); else waveformCtx.lineTo(x, y); }); waveformCtx.strokeStyle = color; waveformCtx.lineWidth = 2; waveformCtx.stroke(); }
+function resizeCanvases() { resizeCanvas(elements.drawingCanvas, drawCtx); resizeCanvas(elements.waveformCanvas, waveformCtx); renderStudioFrame(); }
+function resizeCanvas(canvas, ctx) { const rect = canvas.getBoundingClientRect(); const dpr = window.devicePixelRatio || 1; const width = Math.max(Math.floor(rect.width * dpr), 1); const height = Math.max(Math.floor(rect.height * dpr), 1); if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); } }
+function beginLiveAttempt() {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'; const defaultPort = isLocalHost(window.location.hostname) ? ':18765' : ''; const wsUrl = `${protocol}//${window.location.hostname}${defaultPort}/ws`;
+    try { studioState.ws = new WebSocket(wsUrl); } catch (error) { handleLiveFailure(); return; }
+    studioState.ws.addEventListener('open', () => { updateConnectionStatus(t('liveConnected')); updateModeSummary(); updateStageBanner(); });
+    studioState.ws.addEventListener('message', (event) => { try { ingestLivePayload(JSON.parse(event.data)); } catch (error) {} });
+    studioState.ws.addEventListener('close', () => { if (studioState.mode === 'live') handleLiveFailure(); });
+    studioState.ws.addEventListener('error', () => { if (studioState.mode === 'live') handleLiveFailure(); });
+    studioState.liveAttemptTimer = window.setTimeout(() => { if (!studioState.ws || studioState.ws.readyState !== WebSocket.OPEN) handleLiveFailure(); }, 2600);
+}
+function ingestLivePayload(payload) {
+    if (Array.isArray(payload.points) && payload.points.length) studioState.projectedPoints = payload.points.slice(-200).map((point) => ({ x: clamp(Number(point.x ?? point[0] ?? 0), -260, 260), y: clamp(Number(point.y ?? point[1] ?? 0), -140, 140) }));
+    if (typeof payload.word === 'string' && payload.word.trim()) { studioState.currentWord = { label: payload.word.trim(), score: Number(payload.score ?? 94.3), candidates: Array.isArray(payload.candidates) && payload.candidates.length ? payload.candidates.map((candidate) => ({ label: String(candidate.label ?? candidate.word ?? candidate[0] ?? '').trim() || payload.word.trim(), score: Number(candidate.score ?? candidate[1] ?? 0) })) : [{ label: payload.word.trim(), score: Number(payload.score ?? 94.3) }] }; renderRecognition(studioState.currentWord); }
+    studioState.isWriting = Boolean(payload.isWriting ?? payload.writing ?? (studioState.projectedPoints.length > 3));
+    if (payload.telemetry) { pushWave('pitch', Number(payload.telemetry.pitch ?? 0)); pushWave('roll', Number(payload.telemetry.roll ?? 0)); pushWave('yaw', Number(payload.telemetry.yaw ?? 0)); } else { driveTelemetry(0.45); }
+    const tip = studioState.projectedPoints[studioState.projectedPoints.length - 1] || { x: 0, y: 0 }; elements.valPos.textContent = `${Math.round(tip.x)}, ${Math.round(tip.y)}`; elements.valZupt.textContent = studioState.isWriting ? t('zuptWriting') : t('zuptStable'); elements.studioWordLabel.textContent = studioState.currentWord.label;
+}
+function handleLiveFailure() { clearLiveAttempt(); closeSocket(); if (studioState.mode !== 'live') return; updateConnectionStatus(t('liveDisconnected')); updateModeSummary('failed'); updateStageBanner('failed'); pulseIdleFrame(); drawBoard(); drawWaveform(); }
+function clearLiveAttempt() { if (studioState.liveAttemptTimer) { clearTimeout(studioState.liveAttemptTimer); studioState.liveAttemptTimer = null; } }
+function closeSocket() { if (!studioState.ws) return; try { studioState.ws.close(); } catch (error) {} studioState.ws = null; }
+function updateConnectionStatus(text) { elements.valConn.textContent = text; }
+async function refreshPairingInfo() {
+    elements.pairingHelpText.textContent = t('pairingRefreshing'); elements.pairingUrl.textContent = 'ws://loading...:18800'; elements.pairingQr.innerHTML = '';
+    if (!isLocalHost(window.location.hostname)) { elements.pairingModeLabel.textContent = t('pairingPublicMode'); elements.pairingHostState.textContent = t('pairingPublicState'); elements.pairingUrl.textContent = 'ws://<your-local-pc>:18800'; elements.pairingHelpText.textContent = t('pairingPublicHelp'); return; }
     try {
-        const res = await fetch('/api/ml/stats');
-        if (!res.ok) return;
-        const text = await res.text();
-        if (text.trim().startsWith('<')) {
-            console.warn("Stats API returned HTML. Assuming static hosting.");
-            return;
-        }
-        const stats = JSON.parse(text);
-
-        // Update DOM
-        const labAccuracy = document.getElementById('lab-accuracy');
-        const labTotal = document.getElementById('lab-total-samples');
-        const labTime = document.getElementById('lab-last-trained');
-        const labMonitor = document.getElementById('lab-monitor');
-
-        if (labAccuracy) labAccuracy.innerText = (stats.accuracy * 100).toFixed(1) + '%';
-
-        let total = 0;
-        const labels = Object.keys(stats.sample_counts).sort();
-        const data = labels.map(l => {
-            total += stats.sample_counts[l];
-            return stats.sample_counts[l];
-        });
-
-        if (labTotal) labTotal.innerText = total;
-        if (labTime) labTime.innerText = stats.last_trained;
-
-        // Update Chart
-        if (sampleDistChart) {
-            sampleDistChart.data.labels = labels;
-            sampleDistChart.data.datasets[0].data = data;
-            sampleDistChart.update();
-        }
-
-        if (accuracyChart) {
-            // Update the 'Live' point in the accuracy chart
-            accuracyChart.data.datasets[0].data[3] = stats.accuracy * 100;
-            accuracyChart.update();
-        }
-
-        if (labMonitor && stats.last_trained !== 'Never') {
-            const time = new Date().toLocaleTimeString();
-            const logLine = `<div style="color:#10B981">[${time}] Model updated. Accuracy: ${(stats.accuracy * 100).toFixed(1)}%</div>`;
-            labMonitor.innerHTML = logLine + labMonitor.innerHTML;
-        }
-
-        // Update Health Checklist
-        const healthDiverse = document.getElementById('health-diverse');
-        if (healthDiverse) {
-            if (labels.length >= 2) {
-                healthDiverse.querySelector('.check-icon').innerText = '✓';
-                healthDiverse.querySelector('.check-icon').style.color = '#10B981';
-            } else {
-                healthDiverse.querySelector('.check-icon').innerText = '!';
-                healthDiverse.querySelector('.check-icon').style.color = '#f59e0b';
-            }
-        }
-
-    } catch (e) { console.error("Stats fetch error:", e); }
+        const response = await fetch('/api/config/ip'); const payload = await response.json(); const ip = payload.ip || window.location.hostname; const wsUrl = `ws://${ip}:18800`;
+        elements.pairingModeLabel.textContent = t('pairingLocalMode'); elements.pairingHostState.textContent = t('pairingLocalState'); elements.pairingUrl.textContent = wsUrl; elements.pairingHelpText.textContent = t('pairingLocalHelp');
+        if (window.QRCode) new QRCode(elements.pairingQr, { text: wsUrl, width: 148, height: 148, colorDark: '#d8f7ff', colorLight: '#0a1421', correctLevel: QRCode.CorrectLevel.M });
+    } catch (error) { elements.pairingModeLabel.textContent = t('pairingLocalMode'); elements.pairingHostState.textContent = t('pairingUnavailable'); elements.pairingUrl.textContent = 'ws://<local-ip>:18800'; elements.pairingHelpText.textContent = t('pairingUnavailable'); }
 }
-
-// Stats polling (every 10s)
-setInterval(refreshMlStats, 10000);
-refreshMlStats();
-
-async function sendMlRecord(label, strokeData) {
-    updateMlStatus("Saving...");
-    try {
-        const res = await fetch('/api/ml/record', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ label: label, stroke_full: strokeData })
-        });
-        const json = await res.json();
-        if (res.ok) {
-            updateMlStatus(`Saved '${label}'!`);
-            // Trigger stats refresh after a short delay for training to kick in
-            setTimeout(refreshMlStats, 2000);
-
-            // Aesthetic glow animation on the lab accuracy card if visible
-            const accCard = document.querySelector('.stat-card.gold-glow');
-            if (accCard) {
-                accCard.style.boxShadow = '0 0 30px rgba(245, 158, 11, 0.4)';
-                setTimeout(() => accCard.style.boxShadow = '', 1000);
-            }
-        } else {
-            updateMlStatus(`Error: ${json.error}`);
-        }
-    } catch (e) {
-        console.error(e);
-        updateMlStatus("Network Error");
-    }
-}
-
-async function sendMlPredict(strokePosData) {
-    try {
-        const res = await fetch('/api/ml/predict', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ stroke_pos: strokePosData })
-        });
-        const json = await res.json();
-
-        if (res.ok && json.predictions && json.predictions.length > 0) {
-            updateScoreBoard(json.predictions);
-            updateMlStatus(`Predicted: ${json.predictions[0].label}`);
-        } else {
-            updateScoreBoard([]);
-            updateMlStatus("Unrecognized");
-        }
-    } catch (e) {
-        console.error(e);
-    }
-}
-
-// ══════════════════════════════════════════
-// Camera Controls (matching digital_twin.py)
-// ══════════════════════════════════════════
-function applyPreset(preset) {
-    camDistance = preset.distance;
-    camElevation = preset.elevation;
-    camAzimuth = preset.azimuth;
-    camCenterX = preset.cx;
-    camCenterY = preset.cy;
-    camCenterZ = preset.cz;
-    requestAnimationFrame(renderScene);
-}
-
-window.addEventListener('keydown', (e) => {
-    if (e.code === 'KeyV') {
-        // V = Toggle view (same as digital_twin.py)
-        isFPV = !isFPV;
-        applyPreset(isFPV ? CAM_1ST : CAM_3RD);
-    }
-    if (e.code === 'KeyR' || e.code === 'Space') {
-        e.preventDefault();
-        // R = Reset trail (same as digital_twin.py)
-        strokeHistory = [];
-        requestAnimationFrame(renderScene);
-    }
-});
-
-if (canvasContainer) {
-    // Mouse drag = rotate camera (azimuth + elevation)
-    canvasContainer.addEventListener('mousedown', (e) => {
-        isDragging = true;
-        lastMouseX = e.clientX;
-        lastMouseY = e.clientY;
-        canvasContainer.style.cursor = 'grabbing';
-    });
-    window.addEventListener('mousemove', (e) => {
-        if (!isDragging) return;
-        let dx = e.clientX - lastMouseX;
-        let dy = e.clientY - lastMouseY;
-        camAzimuth += dx * 0.3; // degrees
-        camElevation += dy * 0.3;
-        camElevation = Math.max(-89, Math.min(89, camElevation));
-        lastMouseX = e.clientX;
-        lastMouseY = e.clientY;
-        requestAnimationFrame(renderScene);
-    });
-    window.addEventListener('mouseup', () => {
-        isDragging = false;
-        canvasContainer.style.cursor = 'crosshair';
-    });
-
-    // Scroll = zoom (distance)
-    canvasContainer.addEventListener('wheel', (e) => {
-        e.preventDefault();
-        camDistance *= (1 + e.deltaY * 0.001);
-        camDistance = Math.max(0.1, Math.min(5.0, camDistance));
-        requestAnimationFrame(renderScene);
-    });
-}
-
-// ══════════════════════════════════════════
-// Chart.js
-// ══════════════════════════════════════════
-Chart.defaults.color = '#666';
-Chart.defaults.font.family = "'JetBrains Mono', monospace";
-const ctxLive = document.getElementById('liveChart')?.getContext('2d');
-const MAX_DATAPOINTS = 100;
-let pitchData = [], rollData = [], yawData = [], labels = [];
-let liveChart = null;
-
-if (ctxLive) {
-    liveChart = new Chart(ctxLive, {
-        type: 'line',
-        data: {
-            labels, datasets: [
-                { label: 'Pitch', borderColor: '#ffffff', data: pitchData, borderWidth: 1, pointRadius: 0, tension: 0.1 },
-                { label: 'Roll', borderColor: '#888888', data: rollData, borderWidth: 1, pointRadius: 0, tension: 0.1 },
-                { label: 'Yaw', borderColor: '#444444', data: yawData, borderWidth: 1, pointRadius: 0, tension: 0.1 }
-            ]
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false, animation: false,
-            plugins: { legend: { display: true, position: 'top', labels: { boxWidth: 10, color: '#aaa', font: { size: 10 } } } },
-            scales: { x: { display: false }, y: { min: -180, max: 180, grid: { color: '#222' }, ticks: { stepSize: 90, color: '#666' } } }
-        }
-    });
-}
-
-function updateLiveChart(euler) {
-    if (!liveChart) return;
-    if (labels.length > MAX_DATAPOINTS) { labels.shift(); pitchData.shift(); rollData.shift(); yawData.shift(); }
-    labels.push(''); pitchData.push(euler[0]); rollData.push(euler[1]); yawData.push(euler[2]);
-    liveChart.update();
-}
-
-
-connectWebSocket();
-
-// SPA Tabs
-const tabBtns = document.querySelectorAll('.tab-btn');
-const tabContents = document.querySelectorAll('.tab-content');
-tabBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-        tabBtns.forEach(b => b.classList.remove('active'));
-        tabContents.forEach(c => c.classList.remove('active'));
-        btn.classList.add('active');
-        const target = document.getElementById(btn.getAttribute('data-target'));
-        if (target) target.classList.add('active');
-
-        // Load comments logic if tab is contact
-        if (target && target.id === 'tab-contact') {
-            loadComments();
-        }
-    });
-});
-
-// Technology Sidebar Sub-navigation
-const techNavBtns = document.querySelectorAll('.tech-nav-btn');
-const techPanels = document.querySelectorAll('.tech-panel');
-techNavBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-        techNavBtns.forEach(b => b.classList.remove('active'));
-        techPanels.forEach(p => p.classList.remove('active'));
-        btn.classList.add('active');
-        const target = document.getElementById(btn.getAttribute('data-panel'));
-        if (target) target.classList.add('active');
-    });
-});
-
-// ══════════════════════════════════════════
-// Team Comments System
-// ══════════════════════════════════════════
-const commentForm = document.getElementById('commentForm');
-const commentsList = document.getElementById('commentsList');
-const submitBtn = document.getElementById('submitCommentBtn');
-
 async function loadComments() {
-    if (!commentsList) return;
+    elements.commentsStatus.textContent = t('commentsLoading'); elements.commentsList.innerHTML = '';
     try {
-        const res = await fetch('/api/comments');
-        if (!res.ok) throw new Error('API Error');
-        const comments = await res.json();
-        renderComments(comments);
-    } catch (e) {
-        console.error('Failed to load comments:', e);
-        commentsList.innerHTML = '<div class="loading-text" style="color:#ff3333">❌ 백엔드 서버가 로컬에서 실행중이 아닙니다 (정적 파일 모드). Flask앱을 실행해 주세요.</div>';
-    }
+        const response = await fetch('/api/comments'); if (!response.ok) throw new Error('failed'); const payload = await response.json(); const comments = Array.isArray(payload.comments) ? payload.comments : payload;
+        if (!comments || comments.length === 0) { elements.commentsStatus.textContent = t('commentsEmpty'); return; }
+        elements.commentsStatus.textContent = t('commentsLoaded'); comments.slice().reverse().slice(0, 6).forEach((comment) => elements.commentsList.appendChild(renderComment(comment)));
+    } catch (error) { elements.commentsStatus.textContent = t('commentsFailed'); }
 }
-
-function renderComments(comments) {
-    if (comments.length === 0) {
-        commentsList.innerHTML = '<div class="loading-text">아직 등록된 의견이 없습니다. 첫 의견을 남겨보세요!</div>';
-        return;
-    }
-
-    commentsList.innerHTML = '';
-    comments.forEach(c => {
-        const dateObj = new Date(c.timestamp + 'Z'); // Convert UTC to local
-        const dateStr = isNaN(dateObj) ? c.timestamp : dateObj.toLocaleString();
-
-        const card = document.createElement('div');
-        card.className = 'comment-card';
-        card.innerHTML = `
-            <div class="comment-meta">
-                <div class="comment-author">${escapeHtml(c.author)}</div>
-                <div class="comment-date">${escapeHtml(dateStr)}</div>
-            </div>
-            <div class="comment-body">${escapeHtml(c.content)}</div>
-        `;
-        commentsList.appendChild(card);
-    });
-}
-
-if (commentForm) {
-    commentForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const authorInput = document.getElementById('commentAuthor');
-        const contentInput = document.getElementById('commentContent');
-
-        const author = authorInput.value.trim();
-        const content = contentInput.value.trim();
-        if (!author || !content) return;
-
-        // Form styling during submit
-        submitBtn.disabled = true;
-        submitBtn.textContent = '등록 중...';
-
-        try {
-            const res = await fetch('/api/comments', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ author, content })
-            });
-            if (!res.ok) throw new Error('Failed to submit comment');
-
-            // Clear form and reload
-            authorInput.value = '';
-            contentInput.value = '';
-            await loadComments();
-        } catch (e) {
-            console.error('Submit error:', e);
-            alert('댓글 등록에 실패했습니다. (Flask 서버가 켜져있는지 확인하세요)');
-        } finally {
-            submitBtn.disabled = false;
-            submitBtn.textContent = '포스트 등록';
-        }
-    });
-}
-
-function escapeHtml(unsafe) {
-    return (unsafe || '').toString()
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-}
-
-// ══════════════════════════════════════════
-// ACTION DISPATCHER & CONFIG
-// ══════════════════════════════════════════
-const actionMappingList = document.getElementById('actionMappingList');
-const actionConnBadge = document.getElementById('actionConnBadge');
-const actionConnDot = document.getElementById('actionConnDot');
-const actionConnText = document.getElementById('actionConnText');
-const actionHistory = document.getElementById('actionHistory');
-
-let actionWs = null;
-
-async function initActionControl() {
+function renderComment(comment) { const item = document.createElement('article'); item.className = 'comment-item'; const author = escapeHtml(String(comment.author || comment.name || 'Anonymous')); const content = escapeHtml(String(comment.content || comment.message || '')); const createdAt = comment.created_at || comment.createdAt || comment.timestamp || ''; item.innerHTML = `<div class="comment-meta"><strong>${author}</strong><span>${escapeHtml(formatTimestamp(createdAt))}</span></div><p>${content}</p>`; return item; }
+async function handleCommentSubmit(event) {
+    event.preventDefault(); const author = elements.commentAuthor.value.trim(); const content = elements.commentContent.value.trim(); if (!author || !content) { elements.commentFormStatus.textContent = t('commentValidation'); return; }
+    elements.commentFormStatus.textContent = t('commentPosting'); elements.submitCommentBtn.disabled = true;
     try {
-        const res = await fetch('/api/config/actions');
-        if (res.ok) {
-            const config = await res.json();
-            if (actionMappingList && config.keywords) {
-                actionMappingList.innerHTML = '';
-                for (const [key, mapping] of Object.entries(config.keywords)) {
-                    const li = document.createElement('li');
-                    li.innerHTML = `<span class="check-icon" style="color:#38BDF8">⚡</span> <strong>${key}</strong> <span style="color:#64748b">→</span> ${mapping.name} <span style="font-size:11px;color:#64748b">(${mapping.intent})</span>`;
-                    actionMappingList.appendChild(li);
-                }
-            }
-
-            // Connect WS (Use configured port or default 18800)
-            const wsPort = config.ports ? config.ports.websocket : 18800;
-            const actionWsUrl = `ws://${window.location.hostname}:${wsPort}`;
-            connectActionWs(actionWsUrl, wsPort);
-        }
-    } catch (e) { console.error("Action config error", e); }
+        const response = await fetch('/api/comments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ author, content }) }); if (!response.ok) throw new Error('failed');
+        elements.commentAuthor.value = ''; elements.commentContent.value = ''; elements.commentFormStatus.textContent = t('commentPosted'); await loadComments();
+    } catch (error) { elements.commentFormStatus.textContent = t('commentPostFailed'); } finally { elements.submitCommentBtn.disabled = false; }
 }
-
-function connectActionWs(url, port) {
-    actionWs = new WebSocket(url);
-    actionWs.onopen = () => {
-        if (actionConnText) actionConnText.innerText = `CONNECTED (Port ${port})`;
-        if (actionConnBadge) { actionConnBadge.style.borderColor = '#10B981'; actionConnBadge.style.color = '#10B981'; }
-        if (actionConnDot) actionConnDot.style.background = '#10B981';
-    };
-    actionWs.onclose = () => {
-        if (actionConnText) actionConnText.innerText = `DISCONNECTED (Port ${port})`;
-        if (actionConnBadge) { actionConnBadge.style.borderColor = '#f59e0b'; actionConnBadge.style.color = '#f59e0b'; }
-        if (actionConnDot) actionConnDot.style.background = '#f59e0b';
-        setTimeout(() => connectActionWs(url, port), 3000);
-    };
-    actionWs.onerror = (e) => console.error("Action WS error", e);
-
-    actionWs.onmessage = (event) => {
-        try {
-            const data = JSON.parse(event.data);
-            if (data.type === 'action' && actionHistory) {
-                const time = new Date().toLocaleTimeString();
-
-                // Remove empty placeholder
-                if (actionHistory.innerHTML.includes('No actions triggered')) {
-                    actionHistory.innerHTML = '';
-                }
-
-                const div = document.createElement('div');
-                div.style.marginBottom = '8px';
-                div.style.borderBottom = '1px solid rgba(255, 255, 255, 0.05)';
-                div.style.paddingBottom = '8px';
-
-                div.innerHTML = `<div style="color:#4ADE80; font-weight:bold;">[${time}] 🚀 ACTION DISPATCH: ${data.label}</div>
-                                 <div style="color:#94a3b8; font-size:13px; margin-top:4px;">Keyword: <span style="color:#38bdf8; font-weight:bold;">${data.keyword}</span></div>
-                                 <div style="color:#64748b; font-size:12px; margin-top:2px;">Intent: ${data.intent} | Confidence: ${(data.confidence * 100).toFixed(1)}%</div>`;
-
-                actionHistory.prepend(div);
-
-                // Play a brief sound or visual pulse here if desired
-            }
-        } catch (e) { console.error(e); }
-    };
-}
-
-initActionControl();
-
-// ══════════════════════════════════════════
-// QR Connect Modal Logic
-// ══════════════════════════════════════════
-const btnConnectPhone = document.getElementById('btnConnectPhone');
-const qrModal = document.getElementById('qrModal');
-const btnQrCancel = document.getElementById('btnQrCancel');
-const ipInput = document.getElementById('ipInput');
-const qrCodeContainer = document.getElementById('qrCodeContainer');
-let currentQR = null;
-
-if (btnConnectPhone) {
-    btnConnectPhone.addEventListener('click', () => {
-        if(qrModal) qrModal.style.display = 'flex';
-        setTimeout(() => { if(ipInput) ipInput.focus(); }, 100);
-    });
-}
-
-if (btnQrCancel) {
-    btnQrCancel.addEventListener('click', () => {
-        if(qrModal) qrModal.style.display = 'none';
-        if(ipInput) ipInput.value = '';
-        if(qrCodeContainer) qrCodeContainer.innerHTML = '<div style="color:#94a3b8; line-height:170px; font-size:13px;">Enter IP to load QR</div>';
-        currentQR = null;
-    });
-}
-
-if (ipInput) {
-    ipInput.addEventListener('input', (e) => {
-        const ip = e.target.value.trim();
-        if(qrCodeContainer) qrCodeContainer.innerHTML = ''; 
-        currentQR = null;
-        
-        if (ip.length > 0) {
-            try {
-                currentQR = new QRCode(qrCodeContainer, {
-                    text: ip,
-                    width: 170,
-                    height: 170,
-                    colorDark : "#0F172A", 
-                    colorLight : "#ffffff",
-                    correctLevel : QRCode.CorrectLevel.H
-                });
-            } catch (err) {
-                console.error("QR JS not loaded:", err);
-            }
-        } else {
-            if(qrCodeContainer) qrCodeContainer.innerHTML = '<div style="color:#94a3b8; line-height:170px; font-size:13px;">Enter IP to load QR</div>';
-        }
-    });
-}
-
-// ══════════════════════════════════════════
-// Network IP Auto-fetch (Footer & QR Modal)
-// ══════════════════════════════════════════
-fetch('/api/config/ip')
-    .then(res => res.json())
-    .then(data => {
-        if(data && data.ip) {
-            // 1. Update global footer
-            const ipDisplay = document.getElementById('networkIpDisplay');
-            if(ipDisplay) ipDisplay.innerText = `Network IP: ${data.ip}`;
-            
-            // 2. Auto-fill the Android Connect QR Modal input
-            if(ipInput && !ipInput.value) {
-                ipInput.value = data.ip;
-                ipInput.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-        }
-    })
-    .catch(err => {
-        console.error("Could not fetch local IP:", err);
-        const ipDisplay = document.getElementById('networkIpDisplay');
-        if(ipDisplay) ipDisplay.innerText = "Network IP: Unknown";
-    });
+function formatTimestamp(value) { if (!value) return studioState.language === 'ko' ? '방금 전' : 'just now'; const date = new Date(value); if (Number.isNaN(date.getTime())) return String(value); return new Intl.DateTimeFormat(studioState.language === 'ko' ? 'ko-KR' : 'en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(date); }
+function isLocalHost(hostname) { return hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.startsWith('172.'); }
+function escapeHtml(value) { return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;'); }
+function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+function lineSegments(points, density = 10) { const path = []; for (let i = 0; i < points.length - 1; i += 1) { const [x1, y1] = points[i]; const [x2, y2] = points[i + 1]; for (let step = 0; step < density; step += 1) { const t = step / density; path.push({ x: x1 + (x2 - x1) * t, y: y1 + (y2 - y1) * t }); } } path.push({ x: points[points.length - 1][0], y: points[points.length - 1][1] }); return path; }
+function arcPoints(cx, cy, rx, ry, start, end, density = 28) { const path = []; for (let i = 0; i <= density; i += 1) { const t = i / density; const angle = start + (end - start) * t; path.push({ x: cx + Math.cos(angle) * rx, y: cy + Math.sin(angle) * ry }); } return path; }
+function joinStrokes(...strokes) { const joined = []; strokes.forEach((stroke, index) => { if (!stroke.length) return; if (index > 0 && joined.length) { const last = joined[joined.length - 1]; const first = stroke[0]; joined.push(...lineSegments([[last.x, last.y], [first.x, first.y]], 8)); } joined.push(...stroke); }); return joined; }
+function scalePoints(points, offsetX, offsetY, scale) { return points.map((point) => ({ x: point.x * scale + offsetX, y: point.y * scale + offsetY })); }
+function letterA(offsetX, offsetY, scale) { return scalePoints(joinStrokes(lineSegments([[-40, 70], [0, -70], [40, 70]], 10), lineSegments([[-22, 10], [22, 10]], 10)), offsetX, offsetY, scale); }
+function letterI(offsetX, offsetY, scale) { return scalePoints(joinStrokes(lineSegments([[-28, -70], [28, -70]], 9), lineSegments([[0, -70], [0, 70]], 14), lineSegments([[-28, 70], [28, 70]], 9)), offsetX, offsetY, scale); }
+function letterR(offsetX, offsetY, scale) { return scalePoints(joinStrokes(lineSegments([[-40, 70], [-40, -70]], 13), arcPoints(-10, -35, 38, 34, Math.PI, -Math.PI / 2, 24), lineSegments([[-10, 0], [42, 70]], 11)), offsetX, offsetY, scale); }
+function letterM(offsetX, offsetY, scale) { return scalePoints(joinStrokes(lineSegments([[-50, 70], [-50, -70], [0, 10], [50, -70], [50, 70]], 11)), offsetX, offsetY, scale); }
+function letterU(offsetX, offsetY, scale) { return scalePoints(joinStrokes(lineSegments([[-42, -70], [-42, 18]], 10), arcPoints(0, 18, 42, 50, Math.PI, 0, 24), lineSegments([[42, 18], [42, -70]], 10)), offsetX, offsetY, scale); }
+function letterD(offsetX, offsetY, scale) { return scalePoints(joinStrokes(lineSegments([[-44, 70], [-44, -70]], 12), arcPoints(-10, 0, 50, 70, -Math.PI / 2, Math.PI / 2, 32), lineSegments([[-10, 70], [-44, 70]], 10), lineSegments([[-10, -70], [-44, -70]], 10)), offsetX, offsetY, scale); }
+function letterF(offsetX, offsetY, scale) { return scalePoints(joinStrokes(lineSegments([[-35, -70], [-35, 70]], 14), lineSegments([[-35, -70], [38, -70]], 10), lineSegments([[-35, 2], [22, 2]], 10)), offsetX, offsetY, scale); }
+function letterT(offsetX, offsetY, scale) { return scalePoints(joinStrokes(lineSegments([[-45, -70], [45, -70]], 12), lineSegments([[0, -70], [0, 70]], 14)), offsetX, offsetY, scale); }
