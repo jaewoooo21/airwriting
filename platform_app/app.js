@@ -14,9 +14,10 @@ let demoSimInterval = null;
 /* ---- Constants ---- */
 const DEV_ID = 'wodn1100';
 const DEV_PW = '1234';
-const DEV_ONLY_TABS = ['tab-team'];  // tabs hidden for user mode
+const DEV_ONLY_TABS = ['tab-team', 'tab-settings'];  // tabs hidden for user mode
+const USER_ONLY_TABS = ['tab-technology', 'tab-contact']; // tabs hidden for dev mode
 const DEV_ONLY_ELEMENTS = [
-  'btnMlRec', 'btnMlPredict'  // ML control buttons
+  'btnMlRec', 'btnMlPredict', 'perfOverlay', 'liveTerminal'  // ML controls, overlay, terminal
 ];
 
 /* =========================================
@@ -89,14 +90,17 @@ function applyModeRestrictions() {
   document.querySelectorAll('.tab-btn').forEach(btn => {
     const target = btn.dataset.target;
     if (DEV_ONLY_TABS.includes(target)) {
-      btn.style.display = isUser ? 'none' : '';
+      btn.style.display = isUser ? 'none' : 'inline-block';
+    }
+    if (USER_ONLY_TABS.includes(target)) {
+      btn.style.display = isUser ? 'inline-block' : 'none';
     }
   });
 
-  // Hide/show developer-only elements
+  // Hide/show developer-only elements (ML, Terminal, Perf Overlay)
   DEV_ONLY_ELEMENTS.forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.style.display = isUser ? 'none' : '';
+    if (el) el.style.display = isUser ? 'none' : 'block';
   });
 
   // Engineering panel visibility (right sidebar in Studio)
@@ -291,8 +295,30 @@ function toggleDemoSimulator() {
       setTimeout(() => overlay.classList.remove('active'), 1500);
     }
 
+    // Update Performance Overlay
+    if (currentMode === 'developer') {
+      const fpsEl = document.getElementById('perfFps');
+      const latEl = document.getElementById('perfLatency');
+      const driftEl = document.getElementById('perfDrift');
+      const zuptEl = document.getElementById('perfZupt');
+      if (fpsEl) fpsEl.textContent = (58 + Math.random() * 4).toFixed(1);
+      if (latEl) latEl.textContent = (11 + Math.random() * 3).toFixed(1) + 'ms';
+      if (driftEl) driftEl.textContent = (Math.random() * 0.05).toFixed(3) + 'm';
+      if (zuptEl) zuptEl.textContent = Math.random() > 0.3 ? 'TRUE' : 'FALSE';
+      
+      // Update Live Terminal
+      const terminal = document.getElementById('terminalOutput');
+      if (terminal && Math.random() > 0.7) {
+        const msg = document.createElement('div');
+        msg.textContent = `[SIM] Replaying frame ${demoIdx}: ZUPT ${Math.random()>0.3?'Stabilized':'Moving'}, Score ${demo.score.toFixed(1)}`;
+        terminal.appendChild(msg);
+        if (terminal.childElementCount > 30) terminal.removeChild(terminal.firstChild);
+        terminal.parentNode.scrollTop = terminal.parentNode.scrollHeight;
+      }
+    }
+
     demoIdx++;
-  }, 3000);
+  }, 1000); // Changed to 1000ms for more active simulation
 }
 
 /* =========================================
@@ -530,3 +556,105 @@ function formatTimestamp(val) {
     month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
   }).format(d);
 }
+
+/* =========================================
+   12. SYSTEM SETTINGS (DEV ONLY)
+   ========================================= */
+async function loadSystemConfig() {
+  try {
+    const res = await fetch('/api/config/system');
+    if (!res.ok) throw new Error('failed loading config');
+    const config = await res.json();
+    
+    // Update YAML Preview
+    const preview = document.getElementById('yamlPreviewCode');
+    if (preview && typeof jsyaml !== 'undefined') {
+      preview.textContent = jsyaml.dump(config, { indent: 2 });
+    } else if (preview) {
+      preview.textContent = "jsyaml not loaded yet...";
+    }
+
+    // Populate Form Fields
+    if (config.action_dispatch) {
+      if (document.getElementById('confWsPort')) document.getElementById('confWsPort').value = config.action_dispatch.ws_port || 18800;
+      if (document.getElementById('confUdpPort')) document.getElementById('confUdpPort').value = config.action_dispatch.udp_port || 12348;
+    }
+    if (config.fusion) {
+      if (document.getElementById('confAccelNoise')) document.getElementById('confAccelNoise').value = config.fusion.accel_noise_std || 0.5;
+      if (config.fusion.zupt) {
+        if (document.getElementById('confGyroThresh')) document.getElementById('confGyroThresh').value = config.fusion.zupt.gyro_threshold || 0.05;
+      }
+      if (config.fusion.drift_observer) {
+        if (document.getElementById('confDriftObs')) document.getElementById('confDriftObs').checked = !!config.fusion.drift_observer.enabled;
+      }
+      if (config.fusion.writing_plane) {
+        if (document.getElementById('confPlaneLock')) document.getElementById('confPlaneLock').checked = !!config.fusion.writing_plane.absolute_lock;
+      }
+    }
+  } catch (err) {
+    if (document.getElementById('yamlPreviewCode')) {
+      document.getElementById('yamlPreviewCode').textContent = "Failed to load config. Server unreachable.";
+    }
+  }
+}
+
+async function saveSystemConfig() {
+  const btn = document.getElementById('btnSaveConfig');
+  const msg = document.getElementById('configSaveMsg');
+  if (btn) btn.disabled = true;
+  
+  // Construct update payload
+  const payload = {
+    action_dispatch: {
+      ws_port: parseInt(document.getElementById('confWsPort').value) || 18800,
+      udp_port: parseInt(document.getElementById('confUdpPort').value) || 12348
+    },
+    fusion: {
+      accel_noise_std: parseFloat(document.getElementById('confAccelNoise').value) || 0.5,
+      zupt: {
+        gyro_threshold: parseFloat(document.getElementById('confGyroThresh').value) || 0.05
+      },
+      drift_observer: {
+        enabled: document.getElementById('confDriftObs').checked
+      },
+      writing_plane: {
+        absolute_lock: document.getElementById('confPlaneLock').checked
+      }
+    }
+  };
+
+  try {
+    const res = await fetch('/api/config/system', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error('Failed to save');
+    
+    // Reload preview
+    await loadSystemConfig();
+    
+    // Show success message
+    if (msg) {
+      msg.style.display = 'block';
+      setTimeout(() => msg.style.display = 'none', 3000);
+    }
+  } catch (err) {
+    alert("설정 저장에 실패했습니다.");
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// Call load on init
+document.addEventListener('DOMContentLoaded', () => {
+  // ensure jsyaml is loaded
+  if (typeof jsyaml === 'undefined') {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js';
+    script.onload = () => loadSystemConfig();
+    document.head.appendChild(script);
+  } else {
+    loadSystemConfig();
+  }
+});

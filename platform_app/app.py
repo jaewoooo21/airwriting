@@ -141,12 +141,51 @@ def ml_stats():
 # ════════════════════════════════════════════════════════════════
 # Configuration API
 # ════════════════════════════════════════════════════════════════
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), '..', 'config', 'system.yaml')
+
+@app.route('/api/config/system', methods=['GET'])
+def get_system_config():
+    """Retrieve full system.yaml configuration."""
+    try:
+        with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+        return jsonify(config)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/config/system', methods=['PUT'])
+def update_system_config():
+    """Update system.yaml configuration."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+    try:
+        # Read current config to preserve comments structure
+        with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
+            current = yaml.safe_load(f)
+        
+        # Deep merge: only update provided keys
+        def deep_merge(base, updates):
+            for k, v in updates.items():
+                if isinstance(v, dict) and isinstance(base.get(k), dict):
+                    deep_merge(base[k], v)
+                else:
+                    base[k] = v
+        
+        deep_merge(current, data)
+        
+        with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
+            yaml.dump(current, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+        
+        return jsonify({"status": "success", "message": "Configuration updated"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/config/actions', methods=['GET'])
 def get_action_config():
     """Retrieve action_dispatch config from system.yaml"""
-    config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'system.yaml')
     try:
-        with open(config_path, 'r', encoding='utf-8') as f:
+        with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
             action_config = config.get('action_dispatch', {})
             return jsonify(action_config)
