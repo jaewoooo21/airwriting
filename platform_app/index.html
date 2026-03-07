@@ -1,84 +1,95 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AirWriting | IMU Airwriting Platform</title>
-    <meta name="description" content="AirWriting is a 3-sensor IMU platform for camera-free airwriting, live kinematics, and real-time recognition.">
+    <title>AirWriting | 공중 필기 플랫폼</title>
+    <meta name="description" content="AirWriting은 3개의 IMU 센서와 센서 융합 기반으로 공중 필기를 인식하는 브라우저 중심 플랫폼입니다.">
     <link rel="stylesheet" href="style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
+    <div id="introOverlay" class="intro-overlay">
+        <div class="intro-noise"></div>
+        <div class="intro-grid"></div>
+        <div class="intro-content">
+            <p class="intro-kicker" data-i18n="introKicker"></p>
+            <h1 class="intro-title" data-i18n="introTitle"></h1>
+            <p class="intro-subtitle" data-i18n="introSubtitle"></p>
+            <button id="introSkip" class="intro-skip" data-i18n="introSkip"></button>
+        </div>
+    </div>
+
     <div class="site-shell">
         <header class="topbar">
             <div class="brand-lockup">
                 <span class="brand-mark"></span>
                 <div>
                     <p class="brand-kicker">AirWriting</p>
-                    <h1 class="brand-title">Public Demo Platform</h1>
+                    <h1 class="brand-title" data-i18n="brandTitle"></h1>
                 </div>
             </div>
-            <nav class="topnav" aria-label="Primary">
-                <button class="nav-link active" data-target="tab-home">Home</button>
-                <button class="nav-link" data-target="tab-studio">Studio</button>
-                <button class="nav-link" data-target="tab-android">Connect Android</button>
-                <button class="nav-link" data-target="tab-technology">Technology</button>
-                <button class="nav-link" data-target="tab-team">Team</button>
-                <button class="nav-link" data-target="tab-contact">Contact</button>
-            </nav>
+
+            <div class="topbar-right">
+                <nav class="topnav" aria-label="Primary">
+                    <button class="nav-link active" data-target="tab-home" data-i18n="navHome"></button>
+                    <button class="nav-link" data-target="tab-studio" data-i18n="navStudio"></button>
+                    <button class="nav-link" data-target="tab-android" data-i18n="navAndroid"></button>
+                    <button class="nav-link" data-target="tab-technology" data-i18n="navTechnology"></button>
+                    <button class="nav-link" data-target="tab-team" data-i18n="navTeam"></button>
+                    <button class="nav-link" data-target="tab-contact" data-i18n="navContact"></button>
+                </nav>
+                <button id="langToggle" class="lang-toggle">EN</button>
+            </div>
         </header>
 
         <main class="page-stack">
             <section id="tab-home" class="page active">
                 <div class="hero-section">
-                    <div class="hero-copy">
-                        <p class="eyebrow">3 IMUs · Forward Kinematics · Browser Demo</p>
-                        <h2>Write in the air without a camera, then review it in a browser that still works on public deploys.</h2>
-                        <p class="hero-body">
-                            AirWriting combines 3 IMU nodes, sensor fusion, and kinematic reconstruction to estimate pen-tip motion,
-                            recognize strokes, and stream a live studio view. This public deployment includes a true browser demo mode
-                            and an optional live relay path for hardware sessions.
-                        </p>
+                    <div class="hero-copy panel">
+                        <p class="eyebrow" data-i18n="heroEyebrow"></p>
+                        <h2 data-i18n="heroTitle"></h2>
+                        <p class="hero-body" data-i18n="heroBody"></p>
                         <div class="hero-actions">
-                            <button class="button primary" data-open-studio="demo">Open Demo Studio</button>
-                            <button class="button secondary" data-open-studio="live">Open Live Studio</button>
-                            <button class="button ghost" data-target-jump="tab-android">Install and Pair Android</button>
+                            <button class="button primary" data-open-studio="demo" data-i18n="heroCtaDemo"></button>
+                            <button class="button secondary" data-open-studio="live" data-i18n="heroCtaLive"></button>
+                            <button class="button ghost" data-target-jump="tab-android" data-i18n="heroCtaAndroid"></button>
                         </div>
                         <div class="hero-note">
                             <div class="mini-card">
-                                <span class="mini-label">Demo mode</span>
-                                <strong>Works on Render</strong>
-                                <p>Preloaded playback drives the canvas, waveform, and recognition panel without hardware.</p>
+                                <span class="mini-label" data-i18n="heroDemoLabel"></span>
+                                <strong data-i18n="heroDemoTitle"></strong>
+                                <p data-i18n="heroDemoBody"></p>
                             </div>
                             <div class="mini-card">
-                                <span class="mini-label">Live mode</span>
-                                <strong>For local relay sessions</strong>
-                                <p>Connect the websocket relay when you have the sensors, Python pipeline, and phone app online.</p>
+                                <span class="mini-label" data-i18n="heroLiveLabel"></span>
+                                <strong data-i18n="heroLiveTitle"></strong>
+                                <p data-i18n="heroLiveBody"></p>
                             </div>
                         </div>
                     </div>
-                    <aside class="hero-panel">
+
+                    <aside class="hero-panel panel hero-display">
                         <div class="hero-surface">
-                            <div class="hero-grid"></div>
-                            <div class="hero-float">
-                                <p>Recognition snapshot</p>
-                                <h3>IMU</h3>
-                                <span>98.1% lab accuracy · 85 Hz streaming · 0 camera dependency</span>
+                            <div class="hero-surface-copy">
+                                <p data-i18n="heroSurfaceLabel"></p>
+                                <h3>AIR</h3>
+                                <span data-i18n="heroSurfaceBody"></span>
                             </div>
                             <div class="hero-stat-row">
                                 <article>
                                     <strong>98.1%</strong>
-                                    <span>Recognition accuracy</span>
+                                    <span data-i18n="metricAccuracy"></span>
                                 </article>
                                 <article>
                                     <strong>85 Hz</strong>
-                                    <span>Realtime telemetry</span>
+                                    <span data-i18n="metricRealtime"></span>
                                 </article>
                                 <article>
                                     <strong>3</strong>
-                                    <span>Sensor nodes</span>
+                                    <span data-i18n="metricSensors"></span>
                                 </article>
                             </div>
                         </div>
@@ -87,91 +98,67 @@
 
                 <div class="section-block">
                     <div class="section-heading">
-                        <p class="eyebrow">Proof points</p>
-                        <h3>What the public site should communicate in under a minute</h3>
+                        <p class="eyebrow" data-i18n="proofEyebrow"></p>
+                        <h3 data-i18n="proofTitle"></h3>
                     </div>
                     <div class="proof-grid">
                         <article class="proof-card">
-                            <span>Realtime studio</span>
-                            <h4>Live kinematics and stroke playback in one browser surface</h4>
-                            <p>The Studio now defaults to a real demo path and still exposes a manual live mode for hardware sessions.</p>
+                            <span data-i18n="proof1Label"></span>
+                            <h4 data-i18n="proof1Title"></h4>
+                            <p data-i18n="proof1Body"></p>
                         </article>
                         <article class="proof-card">
-                            <span>No camera stack</span>
-                            <h4>IMU-only capture with forward kinematics</h4>
-                            <p>Three wearable sensors estimate the pen tip without requiring computer vision, markers, or external cameras.</p>
+                            <span data-i18n="proof2Label"></span>
+                            <h4 data-i18n="proof2Title"></h4>
+                            <p data-i18n="proof2Body"></p>
                         </article>
                         <article class="proof-card">
-                            <span>Deployable story</span>
-                            <h4>Public Render deploy no longer depends on local-only infrastructure</h4>
-                            <p>Visitors can inspect the project, try the browser demo, and understand the live path without a broken first run.</p>
+                            <span data-i18n="proof3Label"></span>
+                            <h4 data-i18n="proof3Title"></h4>
+                            <p data-i18n="proof3Body"></p>
                         </article>
                     </div>
                 </div>
 
                 <div class="section-block">
                     <div class="section-heading">
-                        <p class="eyebrow">How it works</p>
-                        <h3>Three layers from sensing to recognition</h3>
+                        <p class="eyebrow" data-i18n="flowEyebrow"></p>
+                        <h3 data-i18n="flowTitle"></h3>
                     </div>
                     <div class="flow-grid">
                         <article class="flow-card">
                             <span>01</span>
-                            <h4>Sense</h4>
-                            <p>ESP32 streams forearm, hand, and pen IMU packets at roughly 85 Hz.</p>
+                            <h4 data-i18n="flow1Title"></h4>
+                            <p data-i18n="flow1Body"></p>
                         </article>
                         <article class="flow-card">
                             <span>02</span>
-                            <h4>Fuse</h4>
-                            <p>Madgwick, ESKF, and forward kinematics turn orientation into a stable pen-tip trajectory.</p>
+                            <h4 data-i18n="flow2Title"></h4>
+                            <p data-i18n="flow2Body"></p>
                         </article>
                         <article class="flow-card">
                             <span>03</span>
-                            <h4>Recognize</h4>
-                            <p>The browser overlays candidates and final labels while the Python backend keeps the ML routes available.</p>
+                            <h4 data-i18n="flow3Title"></h4>
+                            <p data-i18n="flow3Body"></p>
                         </article>
                     </div>
                 </div>
 
                 <div class="section-block split-section">
                     <div>
-                        <p class="eyebrow">Usage paths</p>
-                        <h3>Two entry points, one deployment</h3>
+                        <p class="eyebrow" data-i18n="pathsEyebrow"></p>
+                        <h3 data-i18n="pathsTitle"></h3>
                     </div>
                     <div class="path-grid">
                         <article class="path-card">
-                            <h4>Demo Studio</h4>
-                            <p>For reviewers, judges, and teammates who need a truthful product preview in the browser right now.</p>
-                            <button class="button secondary" data-open-studio="demo">Launch demo mode</button>
+                            <h4 data-i18n="pathsDemoTitle"></h4>
+                            <p data-i18n="pathsDemoBody"></p>
+                            <button class="button secondary" data-open-studio="demo" data-i18n="pathsDemoButton"></button>
                         </article>
                         <article class="path-card">
-                            <h4>Live Studio</h4>
-                            <p>For local hardware sessions with websocket relay, IMU stream, and action dispatch enabled.</p>
-                            <button class="button ghost" data-open-studio="live">Switch to live mode</button>
-                        </article>
-                    </div>
-                </div>
-
-                <div class="section-block">
-                    <div class="section-heading">
-                        <p class="eyebrow">Companion app</p>
-                        <h3>Install the Android app, enable developer features, then pair to the local PC session.</h3>
-                    </div>
-                    <div class="proof-grid">
-                        <article class="proof-card">
-                            <span>Install</span>
-                            <h4>Android Studio install or APK sideload</h4>
-                            <p>The Android client is intended as a companion app that receives gesture actions through WebSocket.</p>
-                        </article>
-                        <article class="proof-card">
-                            <span>Developer mode</span>
-                            <h4>Required for debugging and clean device setup</h4>
-                            <p>Enable Developer options, USB debugging, and app install permissions before pairing during testing.</p>
-                        </article>
-                        <article class="proof-card">
-                            <span>Pairing</span>
-                            <h4>Same Wi-Fi, QR scan, or direct IP entry</h4>
-                            <p>The phone connects to the PC service at port <code>18800</code>; the browser can expose the current local IP and QR code.</p>
+                            <h4 data-i18n="pathsLiveTitle"></h4>
+                            <p data-i18n="pathsLiveBody"></p>
+                            <button class="button ghost" data-open-studio="live" data-i18n="pathsLiveButton"></button>
                         </article>
                     </div>
                 </div>
@@ -180,12 +167,12 @@
             <section id="tab-studio" class="page">
                 <div class="studio-header">
                     <div>
-                        <p class="eyebrow">Interactive studio</p>
-                        <h2>Live relay when available, demo playback when it is not.</h2>
+                        <p class="eyebrow" data-i18n="studioEyebrow"></p>
+                        <h2 data-i18n="studioTitle"></h2>
                     </div>
                     <div class="mode-switch" role="tablist" aria-label="Studio mode">
-                        <button id="modeDemoBtn" class="mode-pill active" data-mode="demo">Demo mode</button>
-                        <button id="modeLiveBtn" class="mode-pill" data-mode="live">Live mode</button>
+                        <button id="modeDemoBtn" class="mode-pill active" data-mode="demo" data-i18n="modeDemo"></button>
+                        <button id="modeLiveBtn" class="mode-pill" data-mode="live" data-i18n="modeLive"></button>
                     </div>
                 </div>
 
@@ -193,40 +180,38 @@
                     <aside class="studio-column info-column">
                         <article class="panel recognition-panel">
                             <div class="panel-header">
-                                <span class="eyebrow">Recognition</span>
-                                <strong id="studioModeBadge">Demo playback</strong>
+                                <span class="eyebrow" data-i18n="recognitionLabel"></span>
+                                <strong id="studioModeBadge"></strong>
                             </div>
                             <div class="recognition-hero">
-                                <span id="aiResultWord">IMU</span>
-                                <small id="aiResultScore">98.1%</small>
+                                <span id="aiResultWord">AIR</span>
+                                <small id="aiResultScore">97.2%</small>
                             </div>
                             <ul id="aiCandidates" class="candidate-list"></ul>
                         </article>
 
                         <article class="panel">
                             <div class="panel-header">
-                                <span class="eyebrow">Session controls</span>
-                                <strong>Public deploy safe</strong>
+                                <span class="eyebrow" data-i18n="sessionLabel"></span>
+                                <strong data-i18n="sessionSafe"></strong>
                             </div>
                             <div class="action-stack">
-                                <button class="button primary wide" id="btnRunDemo">Run demo playback</button>
-                                <button class="button secondary wide" id="btnTryLive">Try live relay</button>
-                                <button class="button ghost wide" id="btnFallbackDemo">Return to demo</button>
+                                <button class="button primary wide" id="btnRunDemo" data-i18n="sessionRunDemo"></button>
+                                <button class="button secondary wide" id="btnTryLive" data-i18n="sessionTryLive"></button>
+                                <button class="button ghost wide" id="btnFallbackDemo" data-i18n="sessionBackDemo"></button>
                             </div>
-                            <p id="modeSummary" class="muted-copy">
-                                Demo mode ships with bundled playback. It updates the board, waveform, and label cards without any hardware.
-                            </p>
+                            <p id="modeSummary" class="muted-copy"></p>
                         </article>
 
                         <article class="panel">
                             <div class="panel-header">
-                                <span class="eyebrow">Setup path</span>
-                                <strong>When you want live data</strong>
+                                <span class="eyebrow" data-i18n="guideLabel"></span>
+                                <strong data-i18n="guideWhenLive"></strong>
                             </div>
                             <ol class="setup-list">
-                                <li>Run the IMU engine, websocket relay, and Flask app locally.</li>
-                                <li>Connect the Android app or ESP32 sender to the same relay pipeline.</li>
-                                <li>Open Live mode from this studio and verify the websocket status.</li>
+                                <li data-i18n="guideStep1"></li>
+                                <li data-i18n="guideStep2"></li>
+                                <li data-i18n="guideStep3"></li>
                             </ol>
                         </article>
                     </aside>
@@ -235,15 +220,18 @@
                         <div class="panel canvas-panel">
                             <div class="stage-banner" id="stageBanner">
                                 <div>
-                                    <strong id="stageBannerTitle">Demo mode is active</strong>
-                                    <p id="stageBannerText">This public deployment is rendering bundled sample strokes so the studio remains useful without sensors.</p>
+                                    <strong id="stageBannerTitle"></strong>
+                                    <p id="stageBannerText"></p>
                                 </div>
-                                <button class="button ghost compact" id="stageBannerAction">Try live mode</button>
+                                <button class="button ghost compact" id="stageBannerAction"></button>
                             </div>
                             <div class="canvas-shell">
                                 <canvas id="drawingCanvas"></canvas>
+                                <div class="board-caption">
+                                    <span data-i18n="boardCaption"></span>
+                                </div>
                                 <div class="recognized-text-overlay" id="recognizedTextOverlay"></div>
-                                <div class="status-overlay" id="recordingOverlay">WRITING</div>
+                                <div class="status-overlay" id="recordingOverlay" data-i18n="writingState"></div>
                             </div>
                         </div>
                     </div>
@@ -252,211 +240,141 @@
                         <article class="panel status-grid-panel">
                             <div class="status-grid">
                                 <div>
-                                    <span>Status</span>
-                                    <strong id="valConn">Demo running</strong>
+                                    <span data-i18n="statusConnection"></span>
+                                    <strong id="valConn"></strong>
                                 </div>
                                 <div>
-                                    <span>Pointer</span>
-                                    <strong id="valPos">X 0.000 · Y 0.000 · Z 0.000</strong>
+                                    <span data-i18n="statusPointer"></span>
+                                    <strong id="valPos"></strong>
                                 </div>
                                 <div>
-                                    <span>ZUPT</span>
-                                    <strong id="valZupt">ACTIVE</strong>
+                                    <span data-i18n="statusZupt"></span>
+                                    <strong id="valZupt"></strong>
                                 </div>
                                 <div>
-                                    <span>Word</span>
-                                    <strong id="studioWordLabel">IMU</strong>
+                                    <span data-i18n="statusWord"></span>
+                                    <strong id="studioWordLabel"></strong>
                                 </div>
                             </div>
                         </article>
 
                         <article class="panel">
                             <div class="panel-header">
-                                <span class="eyebrow">Waveform</span>
-                                <strong>Euler preview</strong>
+                                <span class="eyebrow" data-i18n="waveLabel"></span>
+                                <strong data-i18n="waveTitle"></strong>
                             </div>
                             <canvas id="waveformCanvas" class="waveform-canvas" width="320" height="160"></canvas>
                         </article>
 
                         <article class="panel">
                             <div class="panel-header">
-                                <span class="eyebrow">Deploy note</span>
-                                <strong>No dead controls</strong>
+                                <span class="eyebrow" data-i18n="deployLabel"></span>
+                                <strong data-i18n="deployTitle"></strong>
                             </div>
-                            <p class="muted-copy">
-                                Hardware-only behavior is explicitly labeled. If the websocket relay is absent, Live mode explains the failure and offers a one-click return to Demo mode.
-                            </p>
+                            <p class="muted-copy" data-i18n="deployBody"></p>
                         </article>
                     </aside>
-                </div>
-            </section>
-
-            <section id="tab-technology" class="page">
-                <div class="technology-shell">
-                    <div class="section-heading">
-                        <p class="eyebrow">Technology</p>
-                        <h2>Start with the product story, then inspect the stack.</h2>
-                        <p class="section-copy">
-                            The public deployment now summarizes the pipeline first instead of dropping visitors into raw documentation.
-                            The detailed architecture remains visible below for technical reviewers.
-                        </p>
-                    </div>
-
-                    <div class="tech-summary-grid">
-                        <article class="summary-card">
-                            <span>Signal path</span>
-                            <h3>3 IMU nodes → sensor fusion → pen tip → recognition</h3>
-                            <p>Forearm, hand, and pen orientation are fused into a stable trajectory that drives both the studio view and ML features.</p>
-                        </article>
-                        <article class="summary-card">
-                            <span>Core methods</span>
-                            <h3>Madgwick, 15-state ESKF, forward kinematics, and drift constraints</h3>
-                            <p>The pipeline favors wearable sensing and geometric reconstruction instead of camera calibration or external tracking.</p>
-                        </article>
-                        <article class="summary-card">
-                            <span>Deployment split</span>
-                            <h3>Browser demo by default, live relay when local services exist</h3>
-                            <p>Public visitors get a usable studio immediately; local operators can still inspect live websocket sessions from the same app.</p>
-                        </article>
-                    </div>
-
-                    <div class="architecture-block">
-                        <article class="architecture-card">
-                            <h3>System pipeline</h3>
-                            <div class="pipeline-strip">
-                                <span>ESP32 + 3 IMUs</span>
-                                <span>UDP packets</span>
-                                <span>Madgwick + ESKF</span>
-                                <span>Forward kinematics</span>
-                                <span>Browser studio + ML APIs</span>
-                            </div>
-                        </article>
-
-                        <article class="detail-grid">
-                            <div class="detail-card">
-                                <h4>Hardware</h4>
-                                <p>MPU-6050 sensors on forearm and hand, ICM-20948 on pen, ESP32 transport, and a button for pen-down state.</p>
-                            </div>
-                            <div class="detail-card">
-                                <h4>Fusion</h4>
-                                <p>Madgwick attitude estimation feeds a 15-state ESKF and biomechanical constraints to stabilize motion.</p>
-                            </div>
-                            <div class="detail-card">
-                                <h4>Recognition</h4>
-                                <p>Stroke features are extracted from localized trajectories and exposed through the existing `/api/ml/*` routes.</p>
-                            </div>
-                            <div class="detail-card">
-                                <h4>Interfaces</h4>
-                                <p>HTTP serves the public app and feedback APIs while the websocket relay remains optional for live sessions.</p>
-                            </div>
-                        </article>
-                    </div>
                 </div>
             </section>
 
             <section id="tab-android" class="page">
                 <div class="android-shell">
                     <div class="section-heading">
-                        <p class="eyebrow">Android companion</p>
-                        <h2>Install, prepare, and pair the Android client with the PC session.</h2>
-                        <p class="section-copy">
-                            The Android app receives gesture-driven actions over WebSocket. This tab explains how to install the app,
-                            enable the required Android settings, and pair the phone with the local AirWriting host.
-                        </p>
+                        <p class="eyebrow" data-i18n="androidEyebrow"></p>
+                        <h2 data-i18n="androidTitle"></h2>
+                        <p class="section-copy" data-i18n="androidBody"></p>
                     </div>
 
                     <div class="android-overview-grid">
                         <article class="summary-card">
-                            <span>What the app does</span>
-                            <h3>Acts as the gesture action receiver</h3>
-                            <p>Once paired, the Android client listens on WebSocket and launches mapped intents such as call, message, timer, weather, or custom actions.</p>
+                            <span data-i18n="androidCard1Label"></span>
+                            <h3 data-i18n="androidCard1Title"></h3>
+                            <p data-i18n="androidCard1Body"></p>
                         </article>
                         <article class="summary-card">
-                            <span>Pairing target</span>
-                            <h3>The phone connects to the local PC, not the public Render host</h3>
-                            <p>For real interaction, run the local Python services and connect the phone to the same Wi-Fi network as that PC.</p>
+                            <span data-i18n="androidCard2Label"></span>
+                            <h3 data-i18n="androidCard2Title"></h3>
+                            <p data-i18n="androidCard2Body"></p>
                         </article>
                         <article class="summary-card">
-                            <span>Connection paths</span>
-                            <h3>QR scan or direct IP input</h3>
-                            <p>The Android app already supports both methods. This page exposes the IP and QR target when local pairing is possible.</p>
+                            <span data-i18n="androidCard3Label"></span>
+                            <h3 data-i18n="androidCard3Title"></h3>
+                            <p data-i18n="androidCard3Body"></p>
                         </article>
                     </div>
 
                     <div class="android-layout">
                         <article class="panel pair-panel">
                             <div class="panel-header">
-                                <span class="eyebrow">Pairing</span>
-                                <strong id="pairingModeLabel">Checking host mode</strong>
+                                <span class="eyebrow" data-i18n="pairLabel"></span>
+                                <strong id="pairingModeLabel"></strong>
                             </div>
                             <div class="pair-status-card">
                                 <div>
-                                    <span class="pair-label">Current pairing URL</span>
+                                    <span class="pair-label" data-i18n="pairUrlLabel"></span>
                                     <strong id="pairingUrl">ws://loading...:18800</strong>
                                 </div>
                                 <div>
-                                    <span class="pair-label">Host state</span>
-                                    <strong id="pairingHostState">Detecting local IP</strong>
+                                    <span class="pair-label" data-i18n="pairStateLabel"></span>
+                                    <strong id="pairingHostState"></strong>
                                 </div>
                             </div>
                             <div class="pair-actions">
-                                <button class="button primary" id="refreshPairingBtn">Refresh pairing info</button>
-                                <button class="button ghost" data-target-jump="tab-studio">Open Studio</button>
+                                <button class="button primary" id="refreshPairingBtn" data-i18n="pairRefresh"></button>
+                                <button class="button ghost" data-target-jump="tab-studio" data-i18n="pairOpenStudio"></button>
                             </div>
                             <div id="pairingQrWrap" class="qr-panel">
                                 <div id="pairingQr" class="qr-box"></div>
                             </div>
-                            <p id="pairingHelpText" class="muted-copy">
-                                If this page is being served from your local PC, the QR code will encode the Android WebSocket target. On the public Render deployment, this tab explains the limitation and the local workflow.
-                            </p>
+                            <p id="pairingHelpText" class="muted-copy"></p>
                         </article>
 
                         <article class="panel guide-panel">
                             <div class="panel-header">
-                                <span class="eyebrow">Install guide</span>
-                                <strong>For actual users and testers</strong>
+                                <span class="eyebrow" data-i18n="installGuideLabel"></span>
+                                <strong data-i18n="installGuideTitle"></strong>
                             </div>
                             <div class="guide-steps">
                                 <article class="guide-step">
                                     <span>1</span>
                                     <div>
-                                        <h4>Install the Android app</h4>
-                                        <p>Preferred path: open the `android_app` project in Android Studio and run it on a device. Alternate path: build an APK and sideload it manually.</p>
+                                        <h4 data-i18n="install1Title"></h4>
+                                        <p data-i18n="install1Body"></p>
                                     </div>
                                 </article>
                                 <article class="guide-step">
                                     <span>2</span>
                                     <div>
-                                        <h4>Enable Developer options</h4>
-                                        <p>On Samsung or Android devices: Settings → About phone → Software information → tap Build number 7 times.</p>
+                                        <h4 data-i18n="install2Title"></h4>
+                                        <p data-i18n="install2Body"></p>
                                     </div>
                                 </article>
                                 <article class="guide-step">
                                     <span>3</span>
                                     <div>
-                                        <h4>Turn on USB debugging</h4>
-                                        <p>Settings → Developer options → enable USB debugging. This is required if you install or debug the app from Android Studio.</p>
+                                        <h4 data-i18n="install3Title"></h4>
+                                        <p data-i18n="install3Body"></p>
                                     </div>
                                 </article>
                                 <article class="guide-step">
                                     <span>4</span>
                                     <div>
-                                        <h4>Allow app installation</h4>
-                                        <p>If you use a built APK instead of Android Studio, allow installation from the file manager or browser that opens the APK.</p>
+                                        <h4 data-i18n="install4Title"></h4>
+                                        <p data-i18n="install4Body"></p>
                                     </div>
                                 </article>
                                 <article class="guide-step">
                                     <span>5</span>
                                     <div>
-                                        <h4>Join the same Wi-Fi</h4>
-                                        <p>The phone and the PC running `action_dispatcher.py` must be on the same local network for `ws://PC_IP:18800` to work reliably.</p>
+                                        <h4 data-i18n="install5Title"></h4>
+                                        <p data-i18n="install5Body"></p>
                                     </div>
                                 </article>
                                 <article class="guide-step">
                                     <span>6</span>
                                     <div>
-                                        <h4>Scan QR or enter IP manually</h4>
-                                        <p>The Android app already supports QR scanning and direct IP entry. Use the QR on this page or type the shown IP into the app.</p>
+                                        <h4 data-i18n="install6Title"></h4>
+                                        <p data-i18n="install6Body"></p>
                                     </div>
                                 </article>
                             </div>
@@ -465,20 +383,80 @@
 
                     <div class="android-help-grid">
                         <article class="detail-card">
-                            <h4>Android Studio path</h4>
-                            <p>Open the `android_app` project, connect a phone, confirm USB debugging authorization, and press Run. This is the best path while iterating on intents and mappings.</p>
+                            <h4 data-i18n="trouble1Title"></h4>
+                            <p data-i18n="trouble1Body"></p>
                         </article>
                         <article class="detail-card">
-                            <h4>APK path</h4>
-                            <p>Build a release or debug APK, transfer it to the device, then open it from Downloads or a file manager and allow the installation source if prompted.</p>
+                            <h4 data-i18n="trouble2Title"></h4>
+                            <p data-i18n="trouble2Body"></p>
                         </article>
                         <article class="detail-card">
-                            <h4>Why developer mode matters</h4>
-                            <p>The app launches Android intents and is easier to test, reinstall, and diagnose when Developer options and USB debugging are enabled during setup.</p>
+                            <h4 data-i18n="trouble3Title"></h4>
+                            <p data-i18n="trouble3Body"></p>
                         </article>
                         <article class="detail-card">
-                            <h4>Troubleshooting</h4>
-                            <p>If pairing fails, check same-network status, firewall rules, whether port <code>18800</code> is open on the PC, and whether `action_dispatcher.py` is currently running.</p>
+                            <h4 data-i18n="trouble4Title"></h4>
+                            <p data-i18n="trouble4Body"></p>
+                        </article>
+                    </div>
+                </div>
+            </section>
+
+            <section id="tab-technology" class="page">
+                <div class="technology-shell">
+                    <div class="section-heading">
+                        <p class="eyebrow" data-i18n="techEyebrow"></p>
+                        <h2 data-i18n="techTitle"></h2>
+                        <p class="section-copy" data-i18n="techBody"></p>
+                    </div>
+
+                    <div class="tech-summary-grid">
+                        <article class="summary-card">
+                            <span data-i18n="tech1Label"></span>
+                            <h3 data-i18n="tech1Title"></h3>
+                            <p data-i18n="tech1Body"></p>
+                        </article>
+                        <article class="summary-card">
+                            <span data-i18n="tech2Label"></span>
+                            <h3 data-i18n="tech2Title"></h3>
+                            <p data-i18n="tech2Body"></p>
+                        </article>
+                        <article class="summary-card">
+                            <span data-i18n="tech3Label"></span>
+                            <h3 data-i18n="tech3Title"></h3>
+                            <p data-i18n="tech3Body"></p>
+                        </article>
+                    </div>
+
+                    <div class="architecture-block">
+                        <article class="architecture-card">
+                            <h3 data-i18n="pipelineTitle"></h3>
+                            <div class="pipeline-strip">
+                                <span data-i18n="pipeline1"></span>
+                                <span data-i18n="pipeline2"></span>
+                                <span data-i18n="pipeline3"></span>
+                                <span data-i18n="pipeline4"></span>
+                                <span data-i18n="pipeline5"></span>
+                            </div>
+                        </article>
+
+                        <article class="detail-grid">
+                            <div class="detail-card">
+                                <h4 data-i18n="detail1Title"></h4>
+                                <p data-i18n="detail1Body"></p>
+                            </div>
+                            <div class="detail-card">
+                                <h4 data-i18n="detail2Title"></h4>
+                                <p data-i18n="detail2Body"></p>
+                            </div>
+                            <div class="detail-card">
+                                <h4 data-i18n="detail3Title"></h4>
+                                <p data-i18n="detail3Body"></p>
+                            </div>
+                            <div class="detail-card">
+                                <h4 data-i18n="detail4Title"></h4>
+                                <p data-i18n="detail4Body"></p>
+                            </div>
                         </article>
                     </div>
                 </div>
@@ -487,25 +465,21 @@
             <section id="tab-team" class="page">
                 <div class="team-shell">
                     <div class="section-heading">
-                        <p class="eyebrow">Team</p>
-                        <h2>Public contributor information only</h2>
-                        <p class="section-copy">
-                            The previous placeholder roster has been removed. This section now reflects the public repository metadata instead of inventing contributors.
-                        </p>
+                        <p class="eyebrow" data-i18n="teamEyebrow"></p>
+                        <h2 data-i18n="teamTitle"></h2>
+                        <p class="section-copy" data-i18n="teamBody"></p>
                     </div>
                     <div class="team-grid real-team-grid">
                         <article class="team-card real">
                             <div class="team-avatar github-avatar">w</div>
                             <div>
                                 <h3>wodn1100</h3>
-                                <p class="team-role">Public repository owner and contributor</p>
-                                <p class="team-bio">
-                                    Maintains the public AirWriting repository and the deployed Render experience. GitHub is currently the only discoverable public contributor source in this repo.
-                                </p>
+                                <p class="team-role" data-i18n="teamRole"></p>
+                                <p class="team-bio" data-i18n="teamBio"></p>
                             </div>
                             <div class="team-links">
-                                <a href="https://github.com/wodn1100" target="_blank" rel="noreferrer">GitHub profile</a>
-                                <a href="https://github.com/wodn1100/airwriting" target="_blank" rel="noreferrer">Repository</a>
+                                <a href="https://github.com/wodn1100" target="_blank" rel="noreferrer" data-i18n="teamGithub"></a>
+                                <a href="https://github.com/wodn1100/airwriting" target="_blank" rel="noreferrer" data-i18n="teamRepo"></a>
                             </div>
                         </article>
                     </div>
@@ -515,37 +489,35 @@
             <section id="tab-contact" class="page">
                 <div class="contact-shell">
                     <div class="section-heading">
-                        <p class="eyebrow">Contact</p>
-                        <h2>Feedback and deployment-ready inquiry flow</h2>
-                        <p class="section-copy">
-                            The comment API remains available when Flask is running. If the backend fails, the page now reports that state clearly instead of silently degrading.
-                        </p>
+                        <p class="eyebrow" data-i18n="contactEyebrow"></p>
+                        <h2 data-i18n="contactTitle"></h2>
+                        <p class="section-copy" data-i18n="contactBody"></p>
                     </div>
 
                     <div class="contact-layout">
                         <article class="panel contact-panel">
                             <div class="panel-header">
-                                <span class="eyebrow">Leave feedback</span>
-                                <strong>Stored through Flask + SQLite</strong>
+                                <span class="eyebrow" data-i18n="contactFormLabel"></span>
+                                <strong data-i18n="contactFormTitle"></strong>
                             </div>
                             <form id="commentForm" class="comment-form">
                                 <label>
-                                    <span>Name or role</span>
-                                    <input type="text" id="commentAuthor" placeholder="Researcher, teammate, or reviewer">
+                                    <span data-i18n="contactNameLabel"></span>
+                                    <input type="text" id="commentAuthor" data-i18n-placeholder="contactNamePlaceholder">
                                 </label>
                                 <label>
-                                    <span>Message</span>
-                                    <textarea id="commentContent" rows="5" placeholder="What is clear, unclear, or worth improving?"></textarea>
+                                    <span data-i18n="contactMessageLabel"></span>
+                                    <textarea id="commentContent" rows="5" data-i18n-placeholder="contactMessagePlaceholder"></textarea>
                                 </label>
-                                <button type="submit" class="button primary wide" id="submitCommentBtn">Post feedback</button>
+                                <button type="submit" class="button primary wide" id="submitCommentBtn" data-i18n="contactSubmit"></button>
                             </form>
                             <p id="commentFormStatus" class="muted-copy"></p>
                         </article>
 
                         <article class="panel comments-panel">
                             <div class="panel-header">
-                                <span class="eyebrow">Recent feedback</span>
-                                <strong id="commentsStatus">Loading comments</strong>
+                                <span class="eyebrow" data-i18n="contactRecentLabel"></span>
+                                <strong id="commentsStatus"></strong>
                             </div>
                             <div id="commentsList" class="comment-list"></div>
                         </article>
@@ -557,10 +529,10 @@
         <footer class="site-footer">
             <div>
                 <strong>AirWriting</strong>
-                <span>Built with Python, Flask, IMU fusion, and a browser-first studio.</span>
+                <span data-i18n="footerBody"></span>
             </div>
             <div class="footer-links">
-                <a href="https://github.com/wodn1100/airwriting" target="_blank" rel="noreferrer">Source</a>
+                <a href="https://github.com/wodn1100/airwriting" target="_blank" rel="noreferrer" data-i18n="footerSource"></a>
                 <a href="https://github.com/wodn1100" target="_blank" rel="noreferrer">GitHub</a>
             </div>
         </footer>
