@@ -16,9 +16,6 @@ const DEV_ID = 'wodn1100';
 const DEV_PW = '1234';
 const DEV_ONLY_TABS = ['tab-team', 'tab-settings'];  // tabs hidden for user mode
 const USER_ONLY_TABS = ['tab-technology', 'tab-contact']; // tabs hidden for dev mode
-const DEV_ONLY_ELEMENTS = [
-  'btnMlRec', 'btnMlPredict', 'perfOverlay', 'liveTerminal'  // ML controls, overlay, terminal
-];
 
 /* =========================================
    1. INITIALIZATION
@@ -97,10 +94,17 @@ function applyModeRestrictions() {
     }
   });
 
-  // Hide/show developer-only elements (ML, Terminal, Perf Overlay)
-  DEV_ONLY_ELEMENTS.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.style.display = isUser ? 'none' : 'block';
+  // Hide/show developer-only elements by class
+  document.querySelectorAll('.dev-feature').forEach(el => {
+    if (isUser) {
+      el.style.display = 'none';
+    } else {
+      if (el.id === 'actionDispatchBoard' || el.style.flexDirection) {
+        el.style.display = 'flex';
+      } else {
+        el.style.display = 'block';
+      }
+    }
   });
 
   // Engineering panel visibility (right sidebar in Studio)
@@ -677,3 +681,263 @@ window.showDevLogin = function() {
   const form = document.getElementById('devLoginForm');
   if (form) form.style.display = 'block';
 };
+
+/* =========================================
+   14. WEBSOCKET & 2D CANVAS DRAWING
+   ========================================= */
+let wsConnection = null;
+let isRecording = false;
+let recordedFrames = [];
+
+const drawingCanvas = document.getElementById('drawingCanvas');
+let ctx;
+if (drawingCanvas) {
+    const resizeCanvas = () => {
+        const rect = drawingCanvas.parentElement.getBoundingClientRect();
+        drawingCanvas.width = rect.width;
+        drawingCanvas.height = rect.height;
+    };
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    ctx = drawingCanvas.getContext('2d');
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#38bdf8';
+}
+
+let lastX = null, lastY = null;
+
+function initRealTimeSystem() {
+    const wsUrl = `ws://${window.location.hostname}:18800`;
+    wsConnection = new WebSocket(wsUrl);
+
+    wsConnection.onopen = () => {
+        logToTerminal('[NET] WebSocket connected: ' + wsUrl);
+        const connEl = document.getElementById('valConn');
+        if (connEl) { connEl.textContent = '🟢 CONNECTED'; connEl.classList.remove('warning'); connEl.style.color = '#10b981'; }
+    };
+
+    wsConnection.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            handleIncomingData(data);
+        } catch (err) {
+            console.error('WS parse error:', err);
+        }
+    };
+
+    wsConnection.onclose = () => {
+        logToTerminal('[NET] WebSocket disconnected. Reconneting in 3s...');
+        const connEl = document.getElementById('valConn');
+        if (connEl) { connEl.textContent = '🔴 DISCONNECTED'; connEl.classList.add('warning'); connEl.style.color = '#ef4444'; }
+        setTimeout(initRealTimeSystem, 3000);
+    };
+
+    wsConnection.onerror = (err) => {
+        // Ignored to avoid console spam
+    };
+}
+
+function handleIncomingData(data) {
+    if (demoSimRunning) return; // Ignore real data if demo is running
+
+    if (data.type === 'imu_stream' || data.S3q) {
+        // 1. Update 3D Hand Mesh
+        if (window.handWidgetUpdate) {
+            window.handWidgetUpdate(data);
+        }
+
+        // 2. Data Recording
+        if (isRecording) {
+            recordedFrames.push(data);
+        }
+
+        // 3. 2D Canvas Drawing (Simple orthogonal projection)
+        if (ctx && data.pos) {
+            const canvasW = drawingCanvas.width;
+            const canvasH = drawingCanvas.height;
+            const screenX = canvasW / 2 + (data.pos.x * 500);
+            const screenY = canvasH / 2 - (data.pos.z * 500);
+
+            if (data.pen) {
+                if (lastX !== null && lastY !== null) {
+                    ctx.beginPath();
+                    ctx.moveTo(lastX, lastY);
+                    ctx.lineTo(screenX, screenY);
+                    ctx.stroke();
+                }
+                lastX = screenX;
+                lastY = screenY;
+            } else {
+                lastX = null;
+                lastY = null;
+            }
+        }
+    } else if (data.type === 'ml_result' || data.word) {
+        // Handle Recognition Result
+        const resultWord = document.getElementById('aiResultWord');
+        const resultScore = document.getElementById('aiResultScore');
+        if (resultWord) resultWord.textContent = data.word || data.label;
+        if (resultScore) {
+            const conf = data.score || data.confidence || 0;
+            resultScore.textContent = `(${(conf * 100).toFixed(1)}%)`;
+        }
+
+        // Add Action Dispatch Toast
+        showActionToast(data.word || data.label, data.intent);
+    }
+}
+
+function logToTerminal(msg) {
+    const term = document.getElementById('terminalOutput');
+    if (!term) return;
+    const div = document.createElement('div');
+    div.textContent = msg;
+    term.appendChild(div);
+    term.parentElement.scrollTop = term.parentElement.scrollHeight;
+}
+
+/* =========================================
+   15. DATA PIPELINE & ACTION DISPATCH
+   ========================================= */
+function initDataPipeline() {
+    const btnRec = document.getElementById('btnRecData');
+    const btnPlay = document.getElementById('btnPlayData');
+    const filePlay = document.getElementById('filePlayData');
+    const status = document.getElementById('recordStatus');
+
+    if (btnRec) {
+        btnRec.addEventListener('click', () => {
+            if (!isRecording) {
+                // Start Recording
+                isRecording = true;
+                recordedFrames = [];
+                btnRec.textContent = '⏹ Stop Rec';
+                btnRec.style.background = '#fbbf24';
+                btnRec.style.color = '#1e293b';
+                if (status) status.textContent = 'Recording in progress...';
+                logToTerminal('[SYS] Data recording started.');
+            } else {
+                // Stop & Download
+                isRecording = false;
+                btnRec.textContent = '🔴 Record';
+                btnRec.style.background = '#1e293b';
+                btnRec.style.color = '#fbbf24';
+                if (status) status.textContent = `Recorded ${recordedFrames.length} frames.`;
+                logToTerminal(`[SYS] Recording stopped. Saved ${recordedFrames.length} frames.`);
+                
+                if (recordedFrames.length > 0) {
+                    const blob = new Blob([JSON.stringify(recordedFrames, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `airwriting_record_${Date.now()}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                }
+            }
+        });
+    }
+
+    if (btnPlay) {
+        btnPlay.addEventListener('click', () => {
+            filePlay.click();
+        });
+    }
+
+    if (filePlay) {
+        filePlay.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try {
+                    const frames = JSON.parse(ev.target.result);
+                    if (status) status.textContent = `Playing ${frames.length} frames...`;
+                    logToTerminal(`[SYS] Playing back JSON file: ${file.name}`);
+                    playRecordedFrames(frames);
+                } catch (err) {
+                    console.error('Failed to parse JSON', err);
+                    if (status) status.textContent = 'Error loading JSON.';
+                }
+            };
+            reader.readAsText(file);
+        });
+    }
+}
+
+function playRecordedFrames(frames) {
+    if (!frames || frames.length === 0) return;
+    
+    // Clear Canvas
+    if (ctx) ctx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
+    lastX = null;
+    lastY = null;
+    
+    // Stop Demo if running
+    if (demoSimRunning) toggleDemoSimulator();
+
+    let i = 0;
+    const interval = setInterval(() => {
+        if (i >= frames.length) {
+            clearInterval(interval);
+            const status = document.getElementById('recordStatus');
+            if (status) status.textContent = 'Playback finished.';
+            logToTerminal('[SYS] Playback finished.');
+            return;
+        }
+        handleIncomingData(frames[i]);
+        i++;
+    }, 1000 / 85); // approx 85Hz
+}
+
+function showActionToast(word, intent) {
+    const board = document.getElementById('actionDispatchBoard');
+    if (!board || currentMode !== 'developer') return;
+
+    if (!intent) {
+        if (word === 'CALL' || word === 'ㄱ') intent = 'Dialer / Phone App';
+        else if (word === 'MUSIC' || word === 'ㅁ') intent = 'Music Player Play/Pause';
+        else if (word === 'MAP' || word === 'ㄴ') intent = 'Navigation App';
+        else intent = `Generic Text Input: ${word}`;
+    }
+
+    const toast = document.createElement('div');
+    toast.style.background = 'rgba(16, 185, 129, 0.2)';
+    toast.style.border = '1px solid rgba(16, 185, 129, 0.5)';
+    toast.style.borderRadius = '8px';
+    toast.style.padding = '12px';
+    toast.style.backdropFilter = 'blur(4px)';
+    toast.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+    toast.style.fontFamily = "'Inter', sans-serif";
+    toast.style.transform = 'translateX(-20px)';
+    toast.style.opacity = '0';
+    toast.style.transition = 'all 0.3s ease';
+
+    toast.innerHTML = `
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+            <span style="font-size:16px;">🚀</span>
+            <span style="font-weight:700; color:#10b981; font-size:12px;">ACTION DISPATCHED</span>
+        </div>
+        <div style="color:#e2e8f0; font-size:14px; margin-bottom:2px;">[${word}] recognized.</div>
+        <div style="color:#94a3b8; font-size:11px; font-family:'JetBrains Mono',monospace;">Intent: ${intent}</div>
+    `;
+
+    board.prepend(toast);
+
+    setTimeout(() => {
+        toast.style.transform = 'translateX(0)';
+        toast.style.opacity = '1';
+    }, 50);
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(-20px)';
+        setTimeout(() => toast.remove(), 300);
+    }, 5000);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    initRealTimeSystem();
+    initDataPipeline();
+});

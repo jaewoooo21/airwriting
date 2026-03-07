@@ -11,6 +11,7 @@
         rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
     <script>mermaid.initialize({ startOnLoad: true, theme: 'default', themeVariables: { primaryColor: '#E0F2FE', primaryTextColor: '#0F172A', primaryBorderColor: '#0EA5E9', lineColor: '#64748B', secondaryColor: '#F1F5F9', tertiaryColor: '#FAFBFC', background: '#FFFFFF', mainBkg: '#E0F2FE', nodeBorder: '#0EA5E9' } });</script>
 </head>
@@ -211,6 +212,16 @@
                     <button id="btnDemoSimulator" class="ml-btn ml-btn-predict" style="background:#0EA5E9; color:white; margin-top:8px;">▶️ Run Demo Simulator</button>
                     <div class="ml-status" id="mlStatusText">Status: Idle</div>
                 </div>
+                <div class="spacer dev-feature" style="display:none;"></div>
+                <h2 class="panel-title dev-feature" style="display:none;">💾 DATA PIPELINE</h2>
+                <div class="data-group dev-feature" style="display:none;">
+                    <div style="display:flex; gap:8px;">
+                        <button id="btnRecData" class="ml-btn" style="flex:1; background:#1e293b; color:#fbbf24; border:1px solid #fbbf24;">🔴 Record</button>
+                        <button id="btnPlayData" class="ml-btn" style="flex:1; background:#1e293b; color:#34d399; border:1px solid #34d399;">▶️ Play</button>
+                    </div>
+                    <input type="file" id="filePlayData" accept=".json" style="display:none;">
+                    <div id="recordStatus" style="font-size:11px; margin-top:8px; color:#94a3b8; text-align:center;">No data recorded.</div>
+                </div>
             </aside>
 
             <main class="canvas-container">
@@ -238,6 +249,23 @@
                             <div>[SYS] AirWriting Platform v2.0 initialized.</div>
                             <div>[NET] WebSocket server ready on port 18800.</div>
                         </div>
+                    </div>
+
+                    <!-- ACTION DISPATCH BOARD (Dev Only) -->
+                    <div id="actionDispatchBoard" class="dev-feature" style="display:none; position:absolute; top:20px; left:20px; width:280px; z-index:20; pointer-events:none; display:flex; flex-direction:column; gap:8px;">
+                        <!-- Action event toasts inserted here via JS -->
+                    </div>
+
+                    <!-- HAND WIDGET (Dev Only) -->
+                    <div id="handWidgetContainer" class="dev-feature" style="display:none; position:absolute; bottom:150px; right:20px; z-index:20; background:rgba(15,23,42,0.8); backdrop-filter:blur(4px); border:1px solid rgba(14,165,233,0.3); border-radius:12px; overflow:hidden; box-shadow:0 8px 32px rgba(0,0,0,0.5);">
+                        <div class="hand-widget-header" style="background:rgba(14,165,233,0.15); padding:8px 12px; cursor:grab; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(14,165,233,0.3);">
+                            <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:#38bdf8; font-weight:700;">🤚 3D HAND MESH</span>
+                            <div>
+                                <span id="handWidgetStatus" style="font-size:10px; margin-right:8px; color:#f59e0b;">● IDLE</span>
+                                <button id="handWidgetToggle" style="background:none; border:none; color:#94a3b8; cursor:pointer; font-size:10px; padding:0;">▼</button>
+                            </div>
+                        </div>
+                        <canvas id="handWidgetCanvas" width="280" height="210"></canvas>
                     </div>
                 </div>
             </main>
@@ -1523,5 +1551,4 @@
     <script src="hand-widget.js"></script>
     <script src="app.js"></script>
 </body>
-
 </html>
