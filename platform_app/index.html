@@ -23,6 +23,7 @@
             <nav class="topnav" aria-label="Primary">
                 <button class="nav-link active" data-target="tab-home">Home</button>
                 <button class="nav-link" data-target="tab-studio">Studio</button>
+                <button class="nav-link" data-target="tab-android">Connect Android</button>
                 <button class="nav-link" data-target="tab-technology">Technology</button>
                 <button class="nav-link" data-target="tab-team">Team</button>
                 <button class="nav-link" data-target="tab-contact">Contact</button>
@@ -43,7 +44,7 @@
                         <div class="hero-actions">
                             <button class="button primary" data-open-studio="demo">Open Demo Studio</button>
                             <button class="button secondary" data-open-studio="live">Open Live Studio</button>
-                            <button class="button ghost" data-target-jump="tab-technology">View Technology</button>
+                            <button class="button ghost" data-target-jump="tab-android">Install and Pair Android</button>
                         </div>
                         <div class="hero-note">
                             <div class="mini-card">
@@ -147,6 +148,30 @@
                             <h4>Live Studio</h4>
                             <p>For local hardware sessions with websocket relay, IMU stream, and action dispatch enabled.</p>
                             <button class="button ghost" data-open-studio="live">Switch to live mode</button>
+                        </article>
+                    </div>
+                </div>
+
+                <div class="section-block">
+                    <div class="section-heading">
+                        <p class="eyebrow">Companion app</p>
+                        <h3>Install the Android app, enable developer features, then pair to the local PC session.</h3>
+                    </div>
+                    <div class="proof-grid">
+                        <article class="proof-card">
+                            <span>Install</span>
+                            <h4>Android Studio install or APK sideload</h4>
+                            <p>The Android client is intended as a companion app that receives gesture actions through WebSocket.</p>
+                        </article>
+                        <article class="proof-card">
+                            <span>Developer mode</span>
+                            <h4>Required for debugging and clean device setup</h4>
+                            <p>Enable Developer options, USB debugging, and app install permissions before pairing during testing.</p>
+                        </article>
+                        <article class="proof-card">
+                            <span>Pairing</span>
+                            <h4>Same Wi-Fi, QR scan, or direct IP entry</h4>
+                            <p>The phone connects to the PC service at port <code>18800</code>; the browser can expose the current local IP and QR code.</p>
                         </article>
                     </div>
                 </div>
@@ -329,6 +354,136 @@
                 </div>
             </section>
 
+            <section id="tab-android" class="page">
+                <div class="android-shell">
+                    <div class="section-heading">
+                        <p class="eyebrow">Android companion</p>
+                        <h2>Install, prepare, and pair the Android client with the PC session.</h2>
+                        <p class="section-copy">
+                            The Android app receives gesture-driven actions over WebSocket. This tab explains how to install the app,
+                            enable the required Android settings, and pair the phone with the local AirWriting host.
+                        </p>
+                    </div>
+
+                    <div class="android-overview-grid">
+                        <article class="summary-card">
+                            <span>What the app does</span>
+                            <h3>Acts as the gesture action receiver</h3>
+                            <p>Once paired, the Android client listens on WebSocket and launches mapped intents such as call, message, timer, weather, or custom actions.</p>
+                        </article>
+                        <article class="summary-card">
+                            <span>Pairing target</span>
+                            <h3>The phone connects to the local PC, not the public Render host</h3>
+                            <p>For real interaction, run the local Python services and connect the phone to the same Wi-Fi network as that PC.</p>
+                        </article>
+                        <article class="summary-card">
+                            <span>Connection paths</span>
+                            <h3>QR scan or direct IP input</h3>
+                            <p>The Android app already supports both methods. This page exposes the IP and QR target when local pairing is possible.</p>
+                        </article>
+                    </div>
+
+                    <div class="android-layout">
+                        <article class="panel pair-panel">
+                            <div class="panel-header">
+                                <span class="eyebrow">Pairing</span>
+                                <strong id="pairingModeLabel">Checking host mode</strong>
+                            </div>
+                            <div class="pair-status-card">
+                                <div>
+                                    <span class="pair-label">Current pairing URL</span>
+                                    <strong id="pairingUrl">ws://loading...:18800</strong>
+                                </div>
+                                <div>
+                                    <span class="pair-label">Host state</span>
+                                    <strong id="pairingHostState">Detecting local IP</strong>
+                                </div>
+                            </div>
+                            <div class="pair-actions">
+                                <button class="button primary" id="refreshPairingBtn">Refresh pairing info</button>
+                                <button class="button ghost" data-target-jump="tab-studio">Open Studio</button>
+                            </div>
+                            <div id="pairingQrWrap" class="qr-panel">
+                                <div id="pairingQr" class="qr-box"></div>
+                            </div>
+                            <p id="pairingHelpText" class="muted-copy">
+                                If this page is being served from your local PC, the QR code will encode the Android WebSocket target. On the public Render deployment, this tab explains the limitation and the local workflow.
+                            </p>
+                        </article>
+
+                        <article class="panel guide-panel">
+                            <div class="panel-header">
+                                <span class="eyebrow">Install guide</span>
+                                <strong>For actual users and testers</strong>
+                            </div>
+                            <div class="guide-steps">
+                                <article class="guide-step">
+                                    <span>1</span>
+                                    <div>
+                                        <h4>Install the Android app</h4>
+                                        <p>Preferred path: open the `android_app` project in Android Studio and run it on a device. Alternate path: build an APK and sideload it manually.</p>
+                                    </div>
+                                </article>
+                                <article class="guide-step">
+                                    <span>2</span>
+                                    <div>
+                                        <h4>Enable Developer options</h4>
+                                        <p>On Samsung or Android devices: Settings → About phone → Software information → tap Build number 7 times.</p>
+                                    </div>
+                                </article>
+                                <article class="guide-step">
+                                    <span>3</span>
+                                    <div>
+                                        <h4>Turn on USB debugging</h4>
+                                        <p>Settings → Developer options → enable USB debugging. This is required if you install or debug the app from Android Studio.</p>
+                                    </div>
+                                </article>
+                                <article class="guide-step">
+                                    <span>4</span>
+                                    <div>
+                                        <h4>Allow app installation</h4>
+                                        <p>If you use a built APK instead of Android Studio, allow installation from the file manager or browser that opens the APK.</p>
+                                    </div>
+                                </article>
+                                <article class="guide-step">
+                                    <span>5</span>
+                                    <div>
+                                        <h4>Join the same Wi-Fi</h4>
+                                        <p>The phone and the PC running `action_dispatcher.py` must be on the same local network for `ws://PC_IP:18800` to work reliably.</p>
+                                    </div>
+                                </article>
+                                <article class="guide-step">
+                                    <span>6</span>
+                                    <div>
+                                        <h4>Scan QR or enter IP manually</h4>
+                                        <p>The Android app already supports QR scanning and direct IP entry. Use the QR on this page or type the shown IP into the app.</p>
+                                    </div>
+                                </article>
+                            </div>
+                        </article>
+                    </div>
+
+                    <div class="android-help-grid">
+                        <article class="detail-card">
+                            <h4>Android Studio path</h4>
+                            <p>Open the `android_app` project, connect a phone, confirm USB debugging authorization, and press Run. This is the best path while iterating on intents and mappings.</p>
+                        </article>
+                        <article class="detail-card">
+                            <h4>APK path</h4>
+                            <p>Build a release or debug APK, transfer it to the device, then open it from Downloads or a file manager and allow the installation source if prompted.</p>
+                        </article>
+                        <article class="detail-card">
+                            <h4>Why developer mode matters</h4>
+                            <p>The app launches Android intents and is easier to test, reinstall, and diagnose when Developer options and USB debugging are enabled during setup.</p>
+                        </article>
+                        <article class="detail-card">
+                            <h4>Troubleshooting</h4>
+                            <p>If pairing fails, check same-network status, firewall rules, whether port <code>18800</code> is open on the PC, and whether `action_dispatcher.py` is currently running.</p>
+                        </article>
+                    </div>
+                </div>
+            </section>
+
             <section id="tab-team" class="page">
                 <div class="team-shell">
                     <div class="section-heading">
@@ -411,6 +566,7 @@
         </footer>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

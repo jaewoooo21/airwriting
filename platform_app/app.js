@@ -28,6 +28,12 @@ const commentFormStatus = document.getElementById('commentFormStatus');
 const submitCommentBtn = document.getElementById('submitCommentBtn');
 const commentAuthor = document.getElementById('commentAuthor');
 const commentContent = document.getElementById('commentContent');
+const pairingModeLabel = document.getElementById('pairingModeLabel');
+const pairingUrl = document.getElementById('pairingUrl');
+const pairingHostState = document.getElementById('pairingHostState');
+const pairingQr = document.getElementById('pairingQr');
+const pairingHelpText = document.getElementById('pairingHelpText');
+const refreshPairingBtn = document.getElementById('refreshPairingBtn');
 
 const drawCtx = drawingCanvas.getContext('2d');
 const waveformCtx = waveformCanvas.getContext('2d');
@@ -138,6 +144,8 @@ function setActiveTab(targetId) {
     pages.forEach((page) => page.classList.toggle('active', page.id === targetId));
     if (targetId === 'tab-contact') {
         loadComments();
+    } else if (targetId === 'tab-android') {
+        refreshPairingInfo();
     }
 }
 
@@ -701,6 +709,81 @@ function escapeHtml(value) {
         .replace(/'/g, '&#039;');
 }
 
+let pairingQrInstance = null;
+
+async function refreshPairingInfo() {
+    if (!pairingUrl) {
+        return;
+    }
+
+    const isPublicDeploy = !['localhost', '127.0.0.1'].includes(window.location.hostname) && window.location.hostname.includes('onrender.com');
+
+    pairingModeLabel.textContent = isPublicDeploy ? 'Public deployment mode' : 'Local pairing mode';
+
+    try {
+        const response = await fetch('/api/config/ip');
+        const data = await response.json();
+        const localIp = data && data.ip ? data.ip : '127.0.0.1';
+        const wsTarget = `ws://${localIp}:18800`;
+
+        if (isPublicDeploy) {
+            pairingUrl.textContent = wsTarget;
+            pairingHostState.textContent = 'Public host cannot expose your private PC directly';
+            pairingHelpText.textContent = 'This public Render site can explain the pairing flow, but the Android app should connect to the PC running your local AirWriting services. Run platform_app and action_dispatcher.py on that PC, then use the same URL format shown here.';
+            renderPairingQr(null);
+        } else {
+            pairingUrl.textContent = wsTarget;
+            pairingHostState.textContent = `Local host ready at ${localIp}:18800`;
+            pairingHelpText.textContent = 'Use this QR code from the Android app or type the IP manually. The phone and PC must share the same Wi-Fi network, and action_dispatcher.py must be running.';
+            renderPairingQr(wsTarget);
+        }
+    } catch (error) {
+        pairingUrl.textContent = 'ws://unavailable:18800';
+        pairingHostState.textContent = 'Could not fetch pairing IP';
+        pairingHelpText.textContent = 'Start the Flask service locally to expose /api/config/ip, then refresh this panel. Public Render deploys cannot infer your private LAN target.';
+        renderPairingQr(null);
+    }
+}
+
+function renderPairingQr(text) {
+    if (!pairingQr) {
+        return;
+    }
+    pairingQr.innerHTML = '';
+    pairingQrInstance = null;
+
+    if (!text) {
+        const placeholder = document.createElement('div');
+        placeholder.className = 'muted-copy';
+        placeholder.style.textAlign = 'center';
+        placeholder.textContent = 'QR is available when this page is served from a local AirWriting host.';
+        pairingQr.appendChild(placeholder);
+        return;
+    }
+
+    if (typeof QRCode === 'undefined') {
+        const fallback = document.createElement('div');
+        fallback.className = 'muted-copy';
+        fallback.textContent = text;
+        pairingQr.appendChild(fallback);
+        return;
+    }
+
+    pairingQrInstance = new QRCode(pairingQr, {
+        text,
+        width: 190,
+        height: 190,
+        colorDark: '#10201d',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.H,
+    });
+}
+
+if (refreshPairingBtn) {
+    refreshPairingBtn.addEventListener('click', refreshPairingInfo);
+}
+
 updateRecognition(STUDIO.recognition.label, STUDIO.recognition.score, STUDIO.recognition.candidates);
 resizeCanvas();
+refreshPairingInfo();
 setStudioMode('demo');

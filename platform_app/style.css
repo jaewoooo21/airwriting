@@ -663,6 +663,7 @@ a {
 }
 
 .technology-shell,
+.android-shell,
 .team-shell,
 .contact-shell {
   padding: 28px;
@@ -749,6 +750,113 @@ a {
 
 .contact-layout {
   grid-template-columns: 0.95fr 1.05fr;
+}
+
+.android-overview-grid,
+.android-help-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 24px;
+}
+
+.android-help-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.android-layout {
+  display: grid;
+  grid-template-columns: 0.88fr 1.12fr;
+  gap: 18px;
+  margin-top: 24px;
+}
+
+.pair-status-card {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 20px;
+  background: rgba(16, 32, 29, 0.05);
+  border: 1px solid rgba(16, 32, 29, 0.06);
+}
+
+.pair-label {
+  display: block;
+  color: var(--muted);
+  font-size: 0.88rem;
+  margin-bottom: 6px;
+}
+
+.pair-actions {
+  display: flex;
+  gap: 10px;
+  margin: 18px 0;
+  flex-wrap: wrap;
+}
+
+.qr-panel {
+  padding: 20px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(16, 32, 29, 0.95), rgba(17, 52, 47, 0.96));
+  min-height: 320px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(16, 32, 29, 0.1);
+}
+
+.qr-box {
+  width: 220px;
+  min-height: 220px;
+  display: grid;
+  place-items: center;
+  background: white;
+  border-radius: 18px;
+  padding: 14px;
+}
+
+.qr-box img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.guide-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.guide-step {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 14px;
+  align-items: start;
+  padding: 16px;
+  border-radius: 20px;
+  background: rgba(16, 32, 29, 0.05);
+  border: 1px solid rgba(16, 32, 29, 0.06);
+}
+
+.guide-step span {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: rgba(14, 165, 233, 0.14);
+  color: var(--sky);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.82rem;
+}
+
+.guide-step h4 {
+  margin: 0 0 6px;
+}
+
+.guide-step p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
 }
 
 .contact-panel,
@@ -854,8 +962,14 @@ a {
   .proof-grid,
   .flow-grid,
   .tech-summary-grid,
-  .detail-grid {
+  .detail-grid,
+  .android-overview-grid,
+  .android-help-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .android-layout {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -884,6 +998,8 @@ a {
   .path-grid,
   .tech-summary-grid,
   .detail-grid,
+  .android-overview-grid,
+  .android-help-grid,
   .contact-layout {
     grid-template-columns: 1fr;
   }
@@ -910,6 +1026,10 @@ a {
   .site-footer {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .qr-box {
+    width: min(220px, 100%);
   }
 }
 
