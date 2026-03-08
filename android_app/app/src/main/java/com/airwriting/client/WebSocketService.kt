@@ -240,8 +240,8 @@ class WebSocketService : Service() {
                 "NOTE" to "N", "HOME" to "H", "BIXBY" to "B"
             )
             val letter = letterMap[keyword] ?: keyword
-            val custom = CustomMappingActivity.loadMappings(this)[letter]
-            if (custom != null && CustomMappingActivity.executeCustomAction(this, custom)) {
+            val custom = ActionsFragment.loadMappings(this)[letter]
+            if (custom != null && ActionsFragment.executeCustomAction(this, custom)) {
                 log("🎯 Custom: ${custom.optString("value")}")
                 return
             }

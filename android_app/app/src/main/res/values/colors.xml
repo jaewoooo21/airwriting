@@ -1,18 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="bg_primary">#FAFAFA</color>
+    <!-- Platform theme colors (matching web CSS variables) -->
+    <color name="bg_primary">#FAFBFC</color>
     <color name="bg_card">#FFFFFF</color>
-    <color name="bg_card_light">#F5F5F5</color>
-    <color name="accent">#1A1A1A</color>
-    <color name="accent_light">#333333</color>
-    <color name="text_primary">#111111</color>
-    <color name="text_secondary">#777777</color>
-    <color name="text_muted">#AAAAAA</color>
-    <color name="status_connected">#2E7D32</color>
-    <color name="status_connecting">#F57F17</color>
-    <color name="status_disconnected">#C62828</color>
-    <color name="divider">#E0E0E0</color>
-    <color name="log_bg">#F0F0F0</color>
+    <color name="bg_card_light">#F1F5F9</color>
+    <color name="bg_surface">#F1F5F9</color>
+    <color name="accent">#0EA5E9</color>
+    <color name="accent_dark">#0284C7</color>
+    <color name="accent_light">#E0F2FE</color>
+    <color name="text_primary">#0F172A</color>
+    <color name="text_secondary">#334155</color>
+    <color name="text_muted">#94A3B8</color>
+    <color name="status_connected">#10B981</color>
+    <color name="status_connecting">#F59E0B</color>
+    <color name="status_disconnected">#EF4444</color>
+    <color name="divider">#E2E8F0</color>
+    <color name="log_bg">#F1F5F9</color>
+    <color name="border_color">#E2E8F0</color>
+    <color name="border_active">#0EA5E9</color>
     <!-- Recognition card -->
     <color name="recognition_bg">#0D1117</color>
     <color name="recognition_letter">#58A6FF</color>
@@ -22,4 +27,7 @@
     <color name="preset_youtube">#FF0000</color>
     <color name="preset_naver">#03C75A</color>
     <color name="preset_chrome">#4285F4</color>
+    <!-- Bottom nav -->
+    <color name="nav_active">#0EA5E9</color>
+    <color name="nav_inactive">#94A3B8</color>
 </resources>

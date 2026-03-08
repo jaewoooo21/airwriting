@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.AirWriting" parent="Theme.MaterialComponents.Light.NoActionBar">
-        <item name="colorPrimary">#1A1A1A</item>
-        <item name="colorPrimaryVariant">#333333</item>
+        <item name="colorPrimary">#0EA5E9</item>
+        <item name="colorPrimaryVariant">#0284C7</item>
         <item name="colorOnPrimary">#FFFFFF</item>
-        <item name="colorSecondary">#1A1A1A</item>
+        <item name="colorSecondary">#0EA5E9</item>
         <item name="colorOnSecondary">#FFFFFF</item>
-        <item name="android:statusBarColor">#FAFAFA</item>
+        <item name="android:statusBarColor">#FAFBFC</item>
         <item name="android:windowLightStatusBar">true</item>
-        <item name="android:navigationBarColor">#FAFAFA</item>
-        <item name="android:windowBackground">#FAFAFA</item>
+        <item name="android:navigationBarColor">#FFFFFF</item>
+        <item name="android:windowBackground">#FAFBFC</item>
     </style>
 </resources>

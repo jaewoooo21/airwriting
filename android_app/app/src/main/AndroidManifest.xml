@@ -37,14 +37,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity
-            android:name=".CustomMappingActivity"
-            android:exported="false"
-            android:screenOrientation="portrait" />
-        <activity
-            android:name=".ActionHistoryActivity"
-            android:exported="false"
-            android:screenOrientation="portrait" />
         <service
             android:name=".WebSocketService"
             android:exported="false"
