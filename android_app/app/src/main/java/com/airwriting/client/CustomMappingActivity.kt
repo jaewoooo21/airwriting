@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.view.Gravity
 import android.widget.*
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
@@ -18,7 +19,6 @@ class CustomMappingActivity : AppCompatActivity() {
     companion object {
         const val PREFS_KEY = "custom_mappings"
 
-        // Action types the user can choose from
         val ACTION_TYPES = arrayOf(
             "📞 전화 걸기",
             "💬 문자 보내기",
@@ -28,7 +28,6 @@ class CustomMappingActivity : AppCompatActivity() {
         )
         val ACTION_TYPE_KEYS = arrayOf("call", "sms", "url", "search", "app")
 
-        /** Load custom mappings from SharedPreferences */
         fun loadMappings(context: Context): Map<String, JSONObject> {
             val prefs = context.getSharedPreferences("airwriting_prefs", Context.MODE_PRIVATE)
             val json = prefs.getString(PREFS_KEY, "[]") ?: "[]"
@@ -41,7 +40,6 @@ class CustomMappingActivity : AppCompatActivity() {
             return map
         }
 
-        /** Execute a custom mapping */
         fun executeCustomAction(context: Context, mapping: JSONObject): Boolean {
             return try {
                 val type = mapping.getString("actionType")
@@ -67,6 +65,16 @@ class CustomMappingActivity : AppCompatActivity() {
         }
     }
 
+    // Presets: gesture letter -> (actionType, label, value)
+    data class Preset(val gesture: String, val actionType: String, val actionLabel: String, val value: String)
+    private val PRESETS = mapOf(
+        "kakao" to Preset("K", "app", "📱 앱 실행", "com.kakao.talk"),
+        "youtube" to Preset("Y", "app", "📱 앱 실행", "com.google.android.youtube"),
+        "naver" to Preset("N", "url", "🌐 URL 열기", "https://m.naver.com"),
+        "chrome" to Preset("C", "app", "📱 앱 실행", "com.android.chrome"),
+        "maps" to Preset("M", "app", "📱 앱 실행", "com.google.android.apps.maps")
+    )
+
     private lateinit var inputGesture: TextInputEditText
     private lateinit var inputActionType: AutoCompleteTextView
     private lateinit var inputActionValue: TextInputEditText
@@ -91,7 +99,6 @@ class CustomMappingActivity : AppCompatActivity() {
         inputActionType.setAdapter(adapter)
         inputActionType.setOnItemClickListener { _, _, pos, _ ->
             selectedTypeIndex = pos
-            // Update hint based on selected type
             inputActionValue.hint = when (ACTION_TYPE_KEYS[pos]) {
                 "call" -> "전화번호 (예: 01012345678)"
                 "sms" -> "전화번호 (예: 01012345678)"
@@ -130,6 +137,53 @@ class CustomMappingActivity : AppCompatActivity() {
             refreshList()
         }
 
+        // ── Presets ──
+        findViewById<MaterialButton>(R.id.presetKakao).setOnClickListener { applyPreset("kakao") }
+        findViewById<MaterialButton>(R.id.presetYoutube).setOnClickListener { applyPreset("youtube") }
+        findViewById<MaterialButton>(R.id.presetNaver).setOnClickListener { applyPreset("naver") }
+        findViewById<MaterialButton>(R.id.presetChrome).setOnClickListener { applyPreset("chrome") }
+        findViewById<MaterialButton>(R.id.presetMaps).setOnClickListener { applyPreset("maps") }
+
+        // ── Share all ──
+        findViewById<MaterialButton>(R.id.btnShareAll).setOnClickListener {
+            val prefs = getSharedPreferences("airwriting_prefs", MODE_PRIVATE)
+            val json = prefs.getString(PREFS_KEY, "[]") ?: "[]"
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_SUBJECT, "AirWriting Custom Mappings")
+                putExtra(Intent.EXTRA_TEXT, json)
+            }
+            startActivity(Intent.createChooser(intent, "Share mappings"))
+        }
+
+        // ── Clear all ──
+        findViewById<MaterialButton>(R.id.btnClearAll).setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("전체 삭제")
+                .setMessage("모든 커스텀 매핑을 삭제하시겠습니까?")
+                .setPositiveButton("삭제") { _, _ ->
+                    getSharedPreferences("airwriting_prefs", MODE_PRIVATE)
+                        .edit().putString(PREFS_KEY, "[]").apply()
+                    refreshList()
+                    Toast.makeText(this, "전체 삭제 완료", Toast.LENGTH_SHORT).show()
+                }
+                .setNegativeButton("취소", null)
+                .show()
+        }
+
+        refreshList()
+    }
+
+    private fun applyPreset(key: String) {
+        val preset = PRESETS[key] ?: return
+        val mapping = JSONObject().apply {
+            put("gesture", preset.gesture)
+            put("actionType", preset.actionType)
+            put("actionLabel", preset.actionLabel)
+            put("value", preset.value)
+        }
+        saveMappingToList(preset.gesture, mapping)
+        Toast.makeText(this, "✅ '${preset.gesture}' → ${preset.value}", Toast.LENGTH_SHORT).show()
         refreshList()
     }
 
@@ -138,7 +192,6 @@ class CustomMappingActivity : AppCompatActivity() {
         val json = prefs.getString(PREFS_KEY, "[]") ?: "[]"
         val arr = JSONArray(json)
 
-        // Remove existing mapping for the same gesture
         val newArr = JSONArray()
         for (i in 0 until arr.length()) {
             val obj = arr.getJSONObject(i)
@@ -166,7 +219,7 @@ class CustomMappingActivity : AppCompatActivity() {
 
         if (mappings.isEmpty()) {
             val empty = TextView(this).apply {
-                text = "커스텀 매핑이 없습니다.\n위에서 추가해보세요!"
+                text = "커스텀 매핑이 없습니다.\n위에서 추가하거나 프리셋을 눌러보세요!"
                 setTextColor(0xFF666666.toInt())
                 textSize = 14f
                 gravity = Gravity.CENTER
@@ -223,6 +276,24 @@ class CustomMappingActivity : AppCompatActivity() {
                 textSize = 12f
             })
             row.addView(info)
+
+            // Test button
+            val testBtn = MaterialButton(this).apply {
+                text = "▶"
+                setTextColor(0xFF2E7D32.toInt())
+                setBackgroundColor(0x00000000)
+                minimumWidth = 0
+                minWidth = 0
+                setPadding(8, 0, 8, 0)
+                setOnClickListener {
+                    if (executeCustomAction(this@CustomMappingActivity, obj)) {
+                        Toast.makeText(this@CustomMappingActivity, "✅ 테스트 실행", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this@CustomMappingActivity, "❌ 실행 실패", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            row.addView(testBtn)
 
             // Delete button
             val btn = MaterialButton(this).apply {

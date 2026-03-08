@@ -9,7 +9,17 @@
     <color name="text_secondary">#777777</color>
     <color name="text_muted">#AAAAAA</color>
     <color name="status_connected">#2E7D32</color>
+    <color name="status_connecting">#F57F17</color>
     <color name="status_disconnected">#C62828</color>
     <color name="divider">#E0E0E0</color>
     <color name="log_bg">#F0F0F0</color>
+    <!-- Recognition card -->
+    <color name="recognition_bg">#0D1117</color>
+    <color name="recognition_letter">#58A6FF</color>
+    <color name="recognition_confidence">#8B949E</color>
+    <!-- Preset colors -->
+    <color name="preset_kakao">#FEE500</color>
+    <color name="preset_youtube">#FF0000</color>
+    <color name="preset_naver">#03C75A</color>
+    <color name="preset_chrome">#4285F4</color>
 </resources>

@@ -14,7 +14,7 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:layout_marginBottom="20dp">
+        android:layout_marginBottom="16dp">
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnBack"
@@ -35,9 +35,14 @@
             android:textStyle="bold"
             android:textAlignment="center"/>
 
-        <View
-            android:layout_width="72dp"
-            android:layout_height="1dp"/>
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnShareAll"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📤"
+            android:textSize="18sp"
+            android:textAllCaps="false"/>
     </LinearLayout>
 
     <TextView
@@ -47,7 +52,94 @@
         android:textColor="#999999"
         android:textSize="13sp"
         android:lineSpacingExtra="4dp"
-        android:layout_marginBottom="16dp"/>
+        android:layout_marginBottom="12dp"/>
+
+    <!-- Quick Presets -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Quick Presets"
+        android:textColor="#1A1A1A"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp"/>
+
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:scrollbars="none"
+        android:layout_marginBottom="16dp">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/presetKakao"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="💬 카카오톡"
+                android:textSize="12sp"
+                android:textAllCaps="false"
+                android:textColor="#1A1A1A"
+                app:strokeColor="#FEE500"
+                app:cornerRadius="20dp"
+                android:layout_marginEnd="8dp"/>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/presetYoutube"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="▶ 유튜브"
+                android:textSize="12sp"
+                android:textAllCaps="false"
+                android:textColor="#1A1A1A"
+                app:strokeColor="#FF0000"
+                app:cornerRadius="20dp"
+                android:layout_marginEnd="8dp"/>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/presetNaver"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="🟢 네이버"
+                android:textSize="12sp"
+                android:textAllCaps="false"
+                android:textColor="#1A1A1A"
+                app:strokeColor="#03C75A"
+                app:cornerRadius="20dp"
+                android:layout_marginEnd="8dp"/>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/presetChrome"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="🌐 크롬"
+                android:textSize="12sp"
+                android:textAllCaps="false"
+                android:textColor="#1A1A1A"
+                app:strokeColor="#4285F4"
+                app:cornerRadius="20dp"
+                android:layout_marginEnd="8dp"/>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/presetMaps"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="📍 지도"
+                android:textSize="12sp"
+                android:textAllCaps="false"
+                android:textColor="#1A1A1A"
+                app:strokeColor="#34A853"
+                app:cornerRadius="20dp"/>
+        </LinearLayout>
+    </HorizontalScrollView>
 
     <!-- Add Card -->
     <com.google.android.material.card.MaterialCardView
@@ -149,14 +241,32 @@
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
-    <TextView
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Saved Mappings"
-        android:textColor="#1A1A1A"
-        android:textSize="15sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="8dp"/>
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Saved Mappings"
+            android:textColor="#1A1A1A"
+            android:textSize="15sp"
+            android:textStyle="bold"/>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnClearAll"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:text="전체 삭제"
+            android:textSize="12sp"
+            android:textColor="#C62828"
+            android:textAllCaps="false"/>
+    </LinearLayout>
 
     <ScrollView
         android:layout_width="match_parent"

@@ -6,12 +6,18 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.IBinder
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.provider.AlarmClock
 import android.provider.MediaStore
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import okhttp3.*
+import org.json.JSONArray
 import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.*
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -23,10 +29,14 @@ class WebSocketService : Service() {
         const val NOTIFICATION_ID = 1
         const val ACTION_STOP = "com.airwriting.STOP"
         const val EXTRA_IP = "server_ip"
+        const val HISTORY_KEY = "action_history"
+        const val MAX_HISTORY = 50
 
         var isRunning = false
         var onLog: ((String) -> Unit)? = null
         var onStatusChange: ((String) -> Unit)? = null
+        var onRecognition: ((String, String) -> Unit)? = null
+        var onActionDispatched: ((String) -> Unit)? = null
     }
 
     private var webSocket: WebSocket? = null
@@ -35,7 +45,7 @@ class WebSocketService : Service() {
     private var shouldReconnect = true
     private val client = OkHttpClient.Builder()
         .pingInterval(15, TimeUnit.SECONDS)
-        .readTimeout(0, TimeUnit.MILLISECONDS) // No read timeout for persistent connection
+        .readTimeout(0, TimeUnit.MILLISECONDS)
         .build()
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -57,7 +67,6 @@ class WebSocketService : Service() {
         val ip = intent?.getStringExtra(EXTRA_IP)
         if (ip.isNullOrEmpty()) return START_NOT_STICKY
 
-        // If already connected to the same IP, don't reconnect
         if (isRunning && serverIp == ip && webSocket != null) {
             log("Already connected to $ip, skipping reconnect")
             return START_STICKY
@@ -80,7 +89,6 @@ class WebSocketService : Service() {
             return START_NOT_STICKY
         }
 
-        // Close any existing connection before making a new one
         webSocket?.close(1000, "New connection")
         webSocket = null
         connectWebSocket()
@@ -89,7 +97,6 @@ class WebSocketService : Service() {
     }
 
     private fun connectWebSocket() {
-        // Prevent multiple simultaneous connect attempts
         if (!isConnecting.compareAndSet(false, true)) {
             Log.d(TAG, "Already connecting, skipping")
             return
@@ -122,10 +129,31 @@ class WebSocketService : Service() {
                                 put("keyword", keyword)
                             }.toString())
 
+                            vibrate()
                             dispatchIntent(keyword)
+                            saveToHistory(keyword, label)
+                            onActionDispatched?.invoke(keyword)
                         }
                         "config" -> log("⚙️ Config received, ready!")
-                        "recognition" -> log("👀 ${json.optString("label")}")
+                        "recognition" -> {
+                            val label = json.optString("label", "?")
+                            val preds = json.optJSONArray("predictions")
+                            val details = if (preds != null && preds.length() > 0) {
+                                val sb = StringBuilder()
+                                for (i in 0 until minOf(preds.length(), 3)) {
+                                    val p = preds.getJSONObject(i)
+                                    val l = p.optString("label", "?")
+                                    val c = (p.optDouble("confidence", 0.0) * 100).toInt()
+                                    if (i > 0) sb.append("  ·  ")
+                                    sb.append("$l ${c}%")
+                                }
+                                sb.toString()
+                            } else {
+                                label
+                            }
+                            log("👀 $label")
+                            onRecognition?.invoke(label, details)
+                        }
                     }
                 } catch (e: Exception) {
                     log("❌ Parse: ${e.message}")
@@ -153,11 +181,53 @@ class WebSocketService : Service() {
     private fun scheduleReconnect() {
         if (!shouldReconnect || !isRunning) return
         Thread {
-            Thread.sleep(5000) // Wait 5 seconds before retry
+            Thread.sleep(5000)
             if (shouldReconnect && isRunning && !isConnecting.get()) {
                 connectWebSocket()
             }
         }.start()
+    }
+
+    private fun vibrate() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vm = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+                vm.defaultVibrator.vibrate(
+                    VibrationEffect.createOneShot(80, VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                @Suppress("DEPRECATION")
+                val v = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    v.vibrate(VibrationEffect.createOneShot(80, VibrationEffect.DEFAULT_AMPLITUDE))
+                } else {
+                    @Suppress("DEPRECATION")
+                    v.vibrate(80)
+                }
+            }
+        } catch (_: Exception) {}
+    }
+
+    private fun saveToHistory(keyword: String, label: String) {
+        try {
+            val prefs = getSharedPreferences("airwriting_prefs", MODE_PRIVATE)
+            val json = prefs.getString(HISTORY_KEY, "[]") ?: "[]"
+            val arr = JSONArray(json)
+            val entry = JSONObject().apply {
+                put("keyword", keyword)
+                put("label", label)
+                put("time", SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date()))
+            }
+            arr.put(entry)
+            // Keep only last MAX_HISTORY entries
+            val trimmed = if (arr.length() > MAX_HISTORY) {
+                val newArr = JSONArray()
+                for (i in (arr.length() - MAX_HISTORY) until arr.length()) {
+                    newArr.put(arr.getJSONObject(i))
+                }
+                newArr
+            } else arr
+            prefs.edit().putString(HISTORY_KEY, trimmed.toString()).apply()
+        } catch (_: Exception) {}
     }
 
     private fun dispatchIntent(keyword: String) {

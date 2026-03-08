@@ -7,6 +7,8 @@ import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.view.View
 import android.widget.LinearLayout
@@ -16,6 +18,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.card.MaterialCardView
 import com.google.android.material.textfield.TextInputEditText
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanIntentResult
@@ -29,12 +32,37 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnConnect: MaterialButton
     private lateinit var btnScanQr: MaterialButton
     private lateinit var btnToggleManual: MaterialButton
+    private lateinit var btnDisconnect: MaterialButton
     private lateinit var manualInputContainer: LinearLayout
     private lateinit var statusText: TextView
     private lateinit var statusDot: View
     private lateinit var statusContainer: LinearLayout
     private lateinit var logText: TextView
     private lateinit var logScroll: ScrollView
+    // Recognition
+    private lateinit var recognitionCard: MaterialCardView
+    private lateinit var txtRecognizedLetter: TextView
+    private lateinit var txtRecognitionDetails: TextView
+    // Stats
+    private lateinit var statsRow: LinearLayout
+    private lateinit var statActionCount: TextView
+    private lateinit var statUptime: TextView
+    private lateinit var statLastAction: TextView
+
+    private var actionCount = 0
+    private var connectTime: Long = 0L
+    private val uptimeHandler = Handler(Looper.getMainLooper())
+    private val uptimeRunnable = object : Runnable {
+        override fun run() {
+            if (connectTime > 0) {
+                val elapsed = (System.currentTimeMillis() - connectTime) / 1000
+                val m = elapsed / 60
+                val s = elapsed % 60
+                statUptime.text = String.format("%d:%02d", m, s)
+            }
+            uptimeHandler.postDelayed(this, 1000)
+        }
+    }
 
     // QR Scanner
     private val barcodeLauncher = registerForActivityResult(ScanContract()) { result: ScanIntentResult ->
@@ -64,12 +92,20 @@ class MainActivity : AppCompatActivity() {
         btnConnect = findViewById(R.id.btnConnect)
         btnScanQr = findViewById(R.id.btnScanQr)
         btnToggleManual = findViewById(R.id.btnToggleManual)
+        btnDisconnect = findViewById(R.id.btnDisconnect)
         manualInputContainer = findViewById(R.id.manualInputContainer)
         statusText = findViewById(R.id.statusText)
         statusDot = findViewById(R.id.statusDot)
         statusContainer = findViewById(R.id.statusContainer)
         logText = findViewById(R.id.logText)
         logScroll = findViewById(R.id.logScroll)
+        recognitionCard = findViewById(R.id.recognitionCard)
+        txtRecognizedLetter = findViewById(R.id.txtRecognizedLetter)
+        txtRecognitionDetails = findViewById(R.id.txtRecognitionDetails)
+        statsRow = findViewById(R.id.statsRow)
+        statActionCount = findViewById(R.id.statActionCount)
+        statUptime = findViewById(R.id.statUptime)
+        statLastAction = findViewById(R.id.statLastAction)
 
         val prefs = getSharedPreferences("airwriting_prefs", MODE_PRIVATE)
         ipInput.setText(prefs.getString("last_ip", ""))
@@ -82,7 +118,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Request "Draw over other apps" permission (required to launch apps from background)
+        // Request "Draw over other apps" permission
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !Settings.canDrawOverlays(this)) {
             appendLog("⚠️ '다른 앱 위에 표시' 권한이 필요합니다")
             val overlayIntent = Intent(
@@ -120,17 +156,48 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // ── Disconnect ──
+        btnDisconnect.setOnClickListener {
+            val intent = Intent(this, WebSocketService::class.java).apply {
+                action = WebSocketService.ACTION_STOP
+            }
+            startService(intent)
+            setStatus("disconnected")
+            appendLog("🛑 Disconnected by user")
+            showDashboard(false)
+        }
+
         // ── Custom Mappings ──
         findViewById<MaterialButton>(R.id.btnCustomMapping).setOnClickListener {
             startActivity(Intent(this, CustomMappingActivity::class.java))
         }
 
-        // ── Service callbacks for UI updates ──
+        // ── Action History ──
+        findViewById<MaterialButton>(R.id.btnHistory).setOnClickListener {
+            startActivity(Intent(this, ActionHistoryActivity::class.java))
+        }
+
+        // ── Log controls ──
+        var logVisible = true
+        findViewById<MaterialButton>(R.id.btnToggleLog).setOnClickListener {
+            logVisible = !logVisible
+            logScroll.visibility = if (logVisible) View.VISIBLE else View.GONE
+            (it as MaterialButton).text = if (logVisible) "▲" else "▼"
+        }
+        findViewById<MaterialButton>(R.id.btnClearLog).setOnClickListener {
+            logText.text = ""
+            appendLog("Log cleared")
+        }
+
+        // ── Service callbacks ──
         WebSocketService.onLog = { msg -> appendLog(msg) }
         WebSocketService.onStatusChange = { state -> setStatus(state) }
+        WebSocketService.onRecognition = { label, details -> showRecognition(label, details) }
+        WebSocketService.onActionDispatched = { keyword -> onActionDispatched(keyword) }
 
         if (WebSocketService.isRunning) {
             setStatus("connected")
+            showDashboard(true)
             appendLog("Service running in background ✅")
         } else {
             appendLog("Ready. Scan QR or enter IP to connect.")
@@ -139,9 +206,44 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Re-attach callbacks when returning to the app
         WebSocketService.onLog = { msg -> appendLog(msg) }
         WebSocketService.onStatusChange = { state -> setStatus(state) }
+        WebSocketService.onRecognition = { label, details -> showRecognition(label, details) }
+        WebSocketService.onActionDispatched = { keyword -> onActionDispatched(keyword) }
+    }
+
+    private fun showDashboard(show: Boolean) {
+        val vis = if (show) View.VISIBLE else View.GONE
+        recognitionCard.visibility = vis
+        statsRow.visibility = vis
+        btnDisconnect.visibility = vis
+        if (show) {
+            connectTime = System.currentTimeMillis()
+            actionCount = 0
+            statActionCount.text = "0"
+            statUptime.text = "0:00"
+            statLastAction.text = "—"
+            uptimeHandler.post(uptimeRunnable)
+        } else {
+            connectTime = 0
+            uptimeHandler.removeCallbacks(uptimeRunnable)
+        }
+    }
+
+    private fun showRecognition(label: String, details: String) {
+        runOnUiThread {
+            recognitionCard.visibility = View.VISIBLE
+            txtRecognizedLetter.text = label
+            txtRecognitionDetails.text = details
+        }
+    }
+
+    private fun onActionDispatched(keyword: String) {
+        runOnUiThread {
+            actionCount++
+            statActionCount.text = actionCount.toString()
+            statLastAction.text = keyword
+        }
     }
 
     private fun startBackgroundService(ip: String) {
@@ -156,6 +258,7 @@ class MainActivity : AppCompatActivity() {
                 startService(intent)
             }
             appendLog("🚀 Background service started!")
+            showDashboard(true)
         } catch (e: Exception) {
             appendLog("❌ Failed to start service: ${e.message}")
         }
@@ -177,10 +280,13 @@ class MainActivity : AppCompatActivity() {
                     statusText.setTextColor(Color.parseColor("#2E7D32"))
                     statusContainer.setBackgroundResource(R.drawable.status_bg_connected)
                     statusDot.setBackgroundColor(Color.parseColor("#2E7D32"))
+                    btnDisconnect.visibility = View.VISIBLE
+                    showDashboard(true)
                 }
                 "connecting" -> {
                     statusText.text = "Connecting..."
                     statusText.setTextColor(Color.parseColor("#F57F17"))
+                    statusContainer.setBackgroundResource(R.drawable.status_bg_connecting)
                     statusDot.setBackgroundColor(Color.parseColor("#F57F17"))
                 }
                 else -> {
@@ -188,6 +294,7 @@ class MainActivity : AppCompatActivity() {
                     statusText.setTextColor(Color.parseColor("#C62828"))
                     statusContainer.setBackgroundResource(R.drawable.status_bg_disconnected)
                     statusDot.setBackgroundColor(Color.parseColor("#C62828"))
+                    btnDisconnect.visibility = View.GONE
                 }
             }
         }
@@ -200,9 +307,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        // Don't stop the service! Just detach UI callbacks
         WebSocketService.onLog = null
         WebSocketService.onStatusChange = null
-        // Service continues running in background
+        WebSocketService.onRecognition = null
+        WebSocketService.onActionDispatched = null
+        uptimeHandler.removeCallbacks(uptimeRunnable)
     }
 }
