@@ -9,8 +9,8 @@ const valZupt = document.getElementById('valZupt');
 
 // Configuration
 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-const wsPort = window.location.hostname === 'localhost' ? ':18765' : '';
-const WS_URL = `${protocol}//${window.location.hostname}${wsPort}`;
+// Connect to 18765 on the same host (works for localhost, 192.168.x.x, or public IP)
+const WS_URL = `${protocol}//${window.location.hostname}:18765`;
 let ws = null;
 
 // ══════════════════════════════════════════

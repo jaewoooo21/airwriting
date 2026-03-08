@@ -516,20 +516,63 @@ async function fetchNetworkIp() {
   }
 }
 
+let sampleDistChart = null;
+
+function initLabCharts() {
+    const ctxDist = document.getElementById('sampleDistChart')?.getContext('2d');
+    if (ctxDist) {
+        sampleDistChart = new Chart(ctxDist, {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Samples Collected',
+                    data: [],
+                    backgroundColor: 'rgba(56, 189, 248, 0.5)',
+                    borderColor: 'rgba(56, 189, 248, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' } },
+                    y: { grid: { display: false }, ticks: { color: '#64748B' } }
+                },
+                plugins: { legend: { display: false } }
+            }
+        });
+    }
+}
+// Init charts directly or inside fetchMlStats later. We'll init here.
+// Note: DOMContentLoaded already fired by the time this is loaded if script is at bottom, but just in case:
+document.addEventListener('DOMContentLoaded', initLabCharts);
+
 async function fetchMlStats() {
+  if (!sampleDistChart) initLabCharts();
+
   try {
-    const res = await fetch('/ml/stats');
+    const res = await fetch('/api/ml/stats');
     if (!res.ok) return;
     const data = await res.json();
 
     // Update stat cards if they exist
-    const totalEl = document.getElementById('statTotalSamples');
-    const classesEl = document.getElementById('statClasses');
-    const accuracyEl = document.getElementById('statAccuracy');
+    const totalEl = document.getElementById('lab-total-samples');
+    const accuracyEl = document.getElementById('lab-accuracy');
 
     if (totalEl && data.total_samples != null) totalEl.textContent = data.total_samples;
-    if (classesEl && data.n_classes != null) classesEl.textContent = data.n_classes;
     if (accuracyEl && data.accuracy != null) accuracyEl.textContent = (data.accuracy * 100).toFixed(1) + '%';
+    
+    // Update chart
+    if (sampleDistChart && data.class_counts) {
+        const labels = Object.keys(data.class_counts);
+        const counts = Object.values(data.class_counts);
+        sampleDistChart.data.labels = labels;
+        sampleDistChart.data.datasets[0].data = counts;
+        sampleDistChart.update();
+    }
   } catch (err) {
     // ML stats not available
   }
