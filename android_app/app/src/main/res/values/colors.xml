@@ -5,9 +5,12 @@
     <color name="bg_card">#FFFFFF</color>
     <color name="bg_card_light">#F1F5F9</color>
     <color name="bg_surface">#F1F5F9</color>
-    <color name="accent">#0EA5E9</color>
-    <color name="accent_dark">#0284C7</color>
-    <color name="accent_light">#E0F2FE</color>
+    <color name="accent">#00AEEF</color>
+    <color name="accent_dark">#0090C7</color>
+    <color name="accent_light">#E0F7FF</color>
+    <!-- Qorvo-specific -->
+    <color name="qorvo_header_bg">#000000</color>
+    <color name="qorvo_devices_bg">#F0F0F0</color>
     <color name="text_primary">#0F172A</color>
     <color name="text_secondary">#334155</color>
     <color name="text_muted">#94A3B8</color>

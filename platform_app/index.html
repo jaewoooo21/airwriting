@@ -12,11 +12,12 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
     <script>mermaid.initialize({ startOnLoad: true, theme: 'default', themeVariables: { primaryColor: '#E0F2FE', primaryTextColor: '#0F172A', primaryBorderColor: '#0EA5E9', lineColor: '#64748B', secondaryColor: '#F1F5F9', tertiaryColor: '#FAFBFC', background: '#FFFFFF', mainBkg: '#E0F2FE', nodeBorder: '#0EA5E9' } });</script>
 </head>
 
-<body>
+<body class="mode-user">
     <!-- CINEMATIC SF INTRO -->
     <div id="intro-overlay" class="sf-intro">
         <svg class="airwriting-svg" viewBox="0 0 800 200">
@@ -35,36 +36,7 @@
         }, 3500);
     </script>
 
-    <!-- MODE SELECTION MODAL -->
-    <div id="modeSelectModal" class="mode-select-overlay" style="display:none;">
-        <div class="mode-select-card">
-            <div style="text-align:center; margin-bottom:32px;">
-                <div style="font-size:28px; margin-bottom:8px;">✦</div>
-                <h2 style="margin:0 0 6px 0; font-size:22px; font-weight:700; color:var(--text-main);">AirWriting Platform</h2>
-                <p style="margin:0; font-size:13px; color:var(--text-muted);">접속 모드를 선택하세요</p>
-            </div>
-            <div class="mode-buttons">
-                <button id="btnUserMode" class="mode-card" onclick="enterUserMode()">
-                    <div class="mode-icon">👤</div>
-                    <div class="mode-label">사용자 모드</div>
-                    <div class="mode-desc">체험 · 데모 · 기술 소개</div>
-                </button>
-                <button id="btnDevMode" class="mode-card dev" onclick="showDevLogin()">
-                    <div class="mode-icon">🔧</div>
-                    <div class="mode-label">개발자 모드</div>
-                    <div class="mode-desc">전체 기능 · ML · 엔지니어링</div>
-                </button>
-            </div>
-            <!-- Dev login form (hidden initially) -->
-            <div id="devLoginForm" style="display:none; margin-top:24px;">
-                <div style="font-size:13px; color:var(--text-muted); margin-bottom:12px; text-align:center;">🔒 개발자 인증</div>
-                <input type="text" id="devIdInput" placeholder="ID" style="width:100%; padding:10px 14px; margin-bottom:8px; border:1px solid var(--border-color); border-radius:8px; font-size:14px; box-sizing:border-box; background:var(--bg-surface); color:var(--text-main);">
-                <input type="password" id="devPwInput" placeholder="Password" style="width:100%; padding:10px 14px; margin-bottom:12px; border:1px solid var(--border-color); border-radius:8px; font-size:14px; box-sizing:border-box; background:var(--bg-surface); color:var(--text-main);">
-                <div id="devLoginError" style="color:var(--accent-red); font-size:12px; text-align:center; margin-bottom:8px; display:none;">ID 또는 비밀번호가 올바르지 않습니다.</div>
-                <button onclick="devLogin()" class="cta-btn cta-primary" style="width:100%; font-size:14px;">로그인</button>
-            </div>
-        </div>
-    </div>
+    <!-- MODE SELECTION MODAL REMOVED (No longer a demo) -->
 
     <!-- TOP NAVIGATION BAR -->
     <nav class="top-nav glass-panel">
@@ -78,6 +50,7 @@
             <button class="tab-btn" data-target="tab-settings" id="navSettingsBtn" style="display:none;">Settings</button>
             <button class="tab-btn" data-target="tab-team" id="navTeamBtn" style="display:none;">Team</button>
             <button class="tab-btn" data-target="tab-contact" id="navContactBtn">Contact</button>
+            <button id="btnAdminToggle" class="btn-admin-toggle" onclick="toggleDevMode()">🔒 Admin Login</button>
         </div>
     </nav>
 
@@ -116,7 +89,7 @@
                         <div class="step-num">03</div>
                         <div class="step-icon">🧠</div>
                         <h3>Recognize</h3>
-                        <p>117차원 특징 벡터 + RandomForest 앙상블 모델이 실시간으로 글자를 인식·분류합니다.</p>
+                        <p>PyTorch LSTM 딥러닝 모델이 60-프레임 시계열 궤적을 분석하여 겹쳐 쓰기(Superimposed)를 포함한 문맥을 실시간으로 인식·분류합니다.</p>
                     </div>
                 </div>
             </div>
@@ -190,8 +163,8 @@
                     </div>
                 </div>
 
-                <h3 class="candidates-title">RANKING CANDIDATES</h3>
-                <div class="candidates-list" id="aiCandidates">
+                <h3 class="candidates-title dev-feature">RANKING CANDIDATES</h3>
+                <div class="candidates-list dev-feature" id="aiCandidates">
                     <div class="candidate-bar">
                         <div class="c-name">-</div>
                         <div class="c-val">-</div>
@@ -206,15 +179,15 @@
 
                 <h2 class="panel-title">🛠️ ML CONTROLS</h2>
                 <div class="ml-controls">
-                    <button id="btnMlRec" class="ml-btn ml-btn-rec">🎯 [가이드] 단어 학습</button>
-                    <button id="btnMlPredict" class="ml-btn ml-btn-predict">⚡ [자동보정] 켜기</button>
-                    <button id="btnConnectPhone" class="ml-btn ml-btn-predict" style="background:#14B8A6; color:white; margin-top:8px;">📱 Connect Android</button>
-                    <button id="btnDemoSimulator" class="ml-btn ml-btn-predict" style="background:#0EA5E9; color:white; margin-top:8px;">▶️ Run Demo Simulator</button>
+                    <button id="btnMlRec" class="ml-btn ml-btn-rec dev-feature">🎯 [가이드] 단어 학습</button>
+                    <button id="btnMlPredict" class="ml-btn ml-btn-predict">⚡ 자동 보정 (Predict)</button>
+                    <button id="btnConnectPhone" class="ml-btn ml-btn-predict" style="background:#14B8A6; color:white; border:none; margin-top:8px;">📱 안드로이드 연결</button>
+
                     <div class="ml-status" id="mlStatusText">Status: Idle</div>
                 </div>
-                <div class="spacer dev-feature" style="display:none;"></div>
-                <h2 class="panel-title dev-feature" style="display:none;">💾 DATA PIPELINE</h2>
-                <div class="data-group dev-feature" style="display:none;">
+                <div class="spacer dev-feature"></div>
+                <h2 class="panel-title dev-feature">💾 DATA PIPELINE</h2>
+                <div class="data-group dev-feature">
                     <div style="display:flex; gap:8px;">
                         <button id="btnRecData" class="ml-btn" style="flex:1; background:#1e293b; color:#fbbf24; border:1px solid #fbbf24;">🔴 Record</button>
                         <button id="btnPlayData" class="ml-btn" style="flex:1; background:#1e293b; color:#34d399; border:1px solid #34d399;">▶️ Play</button>
@@ -227,7 +200,7 @@
             <main class="canvas-container">
                 <div class="canvas-wrapper glass-panel" style="position: relative;">
                     <!-- PERFORMANCE OVERLAY (Dev Only) -->
-                    <div id="perfOverlay" class="dev-feature" style="display:none; position:absolute; top:20px; right:20px; background:rgba(15,23,42,0.8); backdrop-filter:blur(4px); padding:12px; border-radius:8px; border:1px solid rgba(14,165,233,0.3); color:#f8fafc; font-family:'JetBrains Mono',monospace; font-size:11px; z-index:10; pointer-events:none;">
+                    <div id="perfOverlay" class="dev-feature" style="position:absolute; top:20px; right:20px; background:rgba(15,23,42,0.8); backdrop-filter:blur(4px); padding:12px; border-radius:8px; border:1px solid rgba(14,165,233,0.3); color:#f8fafc; font-family:'JetBrains Mono',monospace; font-size:11px; z-index:10; pointer-events:none;">
                         <div style="color:#0ea5e9; font-weight:700; margin-bottom:6px;">SYS PROFILER</div>
                         <div style="display:flex; justify-content:space-between; width:120px;"><span>FPS</span> <span id="perfFps" style="color:#10b981;">60</span></div>
                         <div style="display:flex; justify-content:space-between; width:120px;"><span>LATENCY</span> <span id="perfLatency" style="color:#f59e0b;">12ms</span></div>
@@ -237,11 +210,12 @@
 
                     <canvas id="drawingCanvas"></canvas>
                     <div class="recognized-text-overlay" id="recognizedTextOverlay"></div>
-                    <!-- crosshair removed for clean view -->
-                    <div class="status-overlay" id="recordingOverlay">🔴 WRITING</div>
+                    <!-- Viewfinder Box for Recording Zone -->
+                    <div class="viewfinder-box" id="viewfinderBox"></div>
+                    <div class="status-overlay" id="recordingOverlay" style="display:none;">🔴 WRITING</div>
 
                     <!-- LIVE TERMINAL (Dev Only) -->
-                    <div id="liveTerminal" class="dev-feature" style="display:none; position:absolute; bottom:20px; right:20px; left:20px; height:120px; background:rgba(10,15,26,0.9); border:1px solid #334155; border-radius:8px; padding:10px; font-family:'JetBrains Mono',monospace; font-size:11px; overflow-y:auto; color:#94a3b8; z-index:10; pointer-events:auto;">
+                    <div id="liveTerminal" class="dev-feature" style="position:absolute; bottom:20px; right:20px; left:20px; height:120px; background:rgba(10,15,26,0.9); border:1px solid #334155; border-radius:8px; padding:10px; font-family:'JetBrains Mono',monospace; font-size:11px; overflow-y:auto; color:#94a3b8; z-index:10; pointer-events:auto;">
                         <div style="color:#e2e8f0; border-bottom:1px solid #334155; padding-bottom:4px; margin-bottom:6px; position:sticky; top:0; background:rgba(10,15,26,0.9);">
                             >_ LIVE SYSTEM LOG <span class="pulse-dot" style="background:#10b981;"></span>
                         </div>
@@ -252,12 +226,12 @@
                     </div>
 
                     <!-- ACTION DISPATCH BOARD (Dev Only) -->
-                    <div id="actionDispatchBoard" class="dev-feature" style="display:none; position:absolute; top:20px; left:20px; width:280px; z-index:20; pointer-events:none; display:flex; flex-direction:column; gap:8px;">
+                    <div id="actionDispatchBoard" class="dev-feature" style="position:absolute; top:20px; left:20px; width:280px; z-index:20; pointer-events:none; display:flex; flex-direction:column; gap:8px;">
                         <!-- Action event toasts inserted here via JS -->
                     </div>
 
                     <!-- HAND WIDGET (Dev Only) -->
-                    <div id="handWidgetContainer" class="dev-feature" style="display:none; position:absolute; bottom:150px; right:20px; z-index:20; background:rgba(15,23,42,0.8); backdrop-filter:blur(4px); border:1px solid rgba(14,165,233,0.3); border-radius:12px; overflow:hidden; box-shadow:0 8px 32px rgba(0,0,0,0.5);">
+                    <div id="handWidgetContainer" class="dev-feature" style="position:absolute; bottom:150px; right:20px; z-index:20; background:rgba(15,23,42,0.8); backdrop-filter:blur(12px); border:1px solid rgba(14,165,233,0.3); border-radius:12px; overflow:hidden; box-shadow:0 8px 32px rgba(0,0,0,0.5);">
                         <div class="hand-widget-header" style="background:rgba(14,165,233,0.15); padding:8px 12px; cursor:grab; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(14,165,233,0.3);">
                             <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:#38bdf8; font-weight:700;">🤚 3D HAND MESH</span>
                             <div>
@@ -270,7 +244,7 @@
                 </div>
             </main>
 
-            <aside class="sidebar right-panel glass-panel">
+            <aside class="sidebar right-panel glass-panel dev-feature">
                 <h2 class="panel-title">⚡ ENGINEERING</h2>
                 <div class="data-group">
                     <div class="data-label">UDP STREAM</div>
@@ -343,7 +317,7 @@
                     </tr>
                     <tr style="border-bottom:1px solid #333;">
                         <td style="padding:8px; font-weight:bold; color:#38BDF8;">🔵 ML Recognition</td>
-                        <td style="padding:8px;">RandomForest 117-dim Feature (60 Spatial + 57 Directional)</td>
+                        <td style="padding:8px;">PyTorch 2-Layer LSTM (Sequence & Contextual Modeling)</td>
                     </tr>
                     <tr>
                         <td style="padding:8px; font-weight:bold; color:#38BDF8;">🔵 Web Dashboard</td>
@@ -535,7 +509,7 @@
                 VEC["117-dim Feature Vector<br />(60 spatial + 57 directional)"]
                 end
                 subgraph TRAIN["🧠 Training"]
-                RF["RandomForest<br />100 Trees"]
+                LSTM["PyTorch LSTM<br />Sequence Model"]
                 SPLIT["80/20 Split<br />Accuracy Report"]
                 MODEL["rf_model.pkl"]
                 end
@@ -750,7 +724,7 @@
                     <h1>🧠 ML Training Lab & Analytics</h1>
                     <div class="model-badge">
                         <span class="status-dot green"></span>
-                        RandomForest.v2 (Directional-Enhanced)
+                        PyTorch LSTM v1 (Sequence & Superimposed Ready)
                     </div>
                 </div>
                 <button id="btnMlTrain" class="ml-btn ml-btn-predict"
@@ -1020,7 +994,7 @@
                 end
 
                 subgraph PHASE4["✅ Phase 4: ML 문자 인식 (완료)"]
-                D1["분류 모델 선정<br />RandomForest (100 Trees)"]
+                D1["시계열 모델 선정<br />PyTorch LSTM"]
                 D2["특징 추출 파이프라인<br />60 Spatial + 57 Directional"]
                 D3["글자별 정확도 평가<br />실시간 Accuracy & Confusion"]
                 D4["온라인 학습 (Online Learning)<br />Web API 연동"]
@@ -1031,8 +1005,8 @@
                 E1["키워드 기반 액션<br />(C=Call, M=Msg 등)"]
                 E2["Web-Phone 연동<br />WebSocket Dispatcher"]
                 E3["향후 딥러닝 고도화<br />(Transformer / LSTM)"]
-                D4 --> E1 --> E2
-                D4 --> E3
+                  FK --> LSTM
+                LSTM --> RES3
                 end
 
                 style PHASE1 fill:#064e3b,stroke:#059669
@@ -1081,11 +1055,11 @@
                         <h3 class="timeline-title">Phase 3: Web Dashboard & ML Recognition</h3>
                         <p class="timeline-desc">
                             WebSocket 기반의 실시간 렌더링 Web 플랫폼 론칭.<br>
-                            RandomForest 앙상블 모델과 117-Dim 공간/방향 특징 추출기를 통한 실시간 글자 인식률 95%+ 달성.
+                            PyTorch LSTM 시계열 딥러닝 모델을 통한 겹쳐쓰기(Superimposed) 인지 및 문맥 연속성 파악 기반 구축.
                         </p>
                         <span class="timeline-milestone">✔ WebSocket</span>
                         <span class="timeline-milestone">✔ HTML5 Canvas</span>
-                        <span class="timeline-milestone">✔ RandomForest Classifier</span>
+                        <span class="timeline-milestone">✔ PyTorch LSTM Sequence Learning</span>
                     </div>
                 </div>
 
@@ -1095,7 +1069,7 @@
                         <div class="timeline-date">2025. 06 ~ 2025. 11</div>
                         <h3 class="timeline-title">Phase 4: Deep Learning Optimization</h3>
                         <p class="timeline-desc">
-                            기존 RandomForest 기반 모델을 넘어 시계열 글로벌 문맥을 파악하기 위한 <strong>Transformer / BiLSTM</strong> 딥러닝 아키텍처
+                            현재의 LSTM 딥러닝을 넘어, 더욱 긴 시계열 글로벌 문맥을 빠르게 병렬 파악하기 위한 <strong>Transformer Attention</strong> 아키텍처 고도화 및 Android 에어 타이핑 키보드 직접 연동.
                             도입.<br>
                             연속된 "단어(Word)" 필기 및 띄어쓰기 패턴 인식을 목표로 모델 재설계.
                         </p>

@@ -18,6 +18,12 @@ WiFiUDP udp;
 
 // Hardware Pins
 const int PEN_BTN_PIN = 15;
+const int VIB_MOTOR_PIN = 4; // Haptic Feedback (Coin Motor)
+
+// Haptic State
+uint8_t lastBtnState = 1; // 1 = Released (PULLUP)
+unsigned long vibTimer = 0;
+bool isVibActive = false;
 
 // I2C Bus Pins
 const int I2C0_SDA = 21;
@@ -251,6 +257,8 @@ void setup() {
   Serial.println("=====================================");
 
   pinMode(PEN_BTN_PIN, INPUT_PULLUP);
+  pinMode(VIB_MOTOR_PIN, OUTPUT);
+  digitalWrite(VIB_MOTOR_PIN, LOW);
 
   packet.header = 0xAA;
   packet.footer = 0x55;
@@ -276,7 +284,22 @@ void loop() {
   readMPU6050(ADDR_S2_MPU, packet.s2); // Hand
   readICM20948(packet.s3);             // Finger (ICM20948)
 
-  packet.button = (digitalRead(PEN_BTN_PIN) == LOW) ? 1 : 0;
+  uint8_t currentBtnState = digitalRead(PEN_BTN_PIN);
+  packet.button = (currentBtnState == LOW) ? 1 : 0;
+  
+  // Haptic Feedback Logic (Non-blocking)
+  if (currentBtnState == LOW && lastBtnState == HIGH) {
+    // Pen Down Event -> Trigger 40ms Vibration
+    digitalWrite(VIB_MOTOR_PIN, HIGH);
+    vibTimer = millis();
+    isVibActive = true;
+  }
+  lastBtnState = currentBtnState;
+
+  if (isVibActive && (millis() - vibTimer >= 40)) {
+    digitalWrite(VIB_MOTOR_PIN, LOW);
+    isVibActive = false;
+  }
 
   uint8_t *ptr = (uint8_t *)&packet;
   uint8_t cksum = 0;

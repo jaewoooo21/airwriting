@@ -4,36 +4,154 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AirWriting Pro Platform</title>
+    <title>AirWriting | IMU-Only 공중 필기 인식 플랫폼</title>
     <link rel="stylesheet" href="style.css">
     <link
         href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&family=Inter:wght@300;400;600&display=swap"
         rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
-    <script>mermaid.initialize({ startOnLoad: true, theme: 'dark', themeVariables: { primaryColor: '#1e293b', primaryTextColor: '#f8fafc', primaryBorderColor: '#334155', lineColor: '#64748b', secondaryColor: '#0f172a', tertiaryColor: '#1e293b' } });</script>
+    <script>mermaid.initialize({ startOnLoad: true, theme: 'default', themeVariables: { primaryColor: '#E0F2FE', primaryTextColor: '#0F172A', primaryBorderColor: '#0EA5E9', lineColor: '#64748B', secondaryColor: '#F1F5F9', tertiaryColor: '#FAFBFC', background: '#FFFFFF', mainBkg: '#E0F2FE', nodeBorder: '#0EA5E9' } });</script>
 </head>
 
-<body>
+<body class="mode-user">
+    <!-- CINEMATIC SF INTRO -->
+    <div id="intro-overlay" class="sf-intro">
+        <svg class="airwriting-svg" viewBox="0 0 800 200">
+            <text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" class="sf-text">AirWriting</text>
+        </svg>
+        <div class="sf-subtext">Sensing the Future...</div>
+    </div>
+    <script>
+        // Force hide intro safely after animation ends without waiting for heavy CDNs
+        setTimeout(() => {
+            const intro = document.getElementById('intro-overlay');
+            if(intro) {
+                intro.classList.add('hidden');
+                setTimeout(() => intro.style.display = 'none', 1000);
+            }
+        }, 3500);
+    </script>
+
+    <!-- MODE SELECTION MODAL REMOVED (No longer a demo) -->
+
     <!-- TOP NAVIGATION BAR -->
     <nav class="top-nav glass-panel">
         <div class="nav-brand">
-            <span class="logo">✨</span> AirWriting Pro Platform
+            <span class="logo-icon">✦</span> AirWriting
         </div>
         <div class="nav-tabs">
-            <button class="tab-btn active" data-target="tab-studio">🏠 Desktop Studio</button>
-            <button class="tab-btn" data-target="tab-architecture">📐 Architecture</button>
-            <button class="tab-btn" data-target="tab-hardware">🔧 Hardware</button>
-            <button class="tab-btn" data-target="tab-training">🧠 ML Training Lab</button>
-            <button class="tab-btn" data-target="tab-action">📱 Action Control</button>
-            <button class="tab-btn" data-target="tab-research">📊 Research Metrics</button>
-            <button class="tab-btn" data-target="tab-roadmap">🗺️ Roadmap</button>
-            <button class="tab-btn" data-target="tab-comments">💬 Comments</button>
+            <button class="tab-btn active" data-target="tab-home">Home</button>
+            <button class="tab-btn" data-target="tab-studio">Studio</button>
+            <button class="tab-btn" data-target="tab-technology">Technology</button>
+            <button class="tab-btn" data-target="tab-settings" id="navSettingsBtn" style="display:none;">Settings</button>
+            <button class="tab-btn" data-target="tab-team" id="navTeamBtn" style="display:none;">Team</button>
+            <button class="tab-btn" data-target="tab-contact" id="navContactBtn">Contact</button>
+            <button id="btnAdminToggle" class="btn-admin-toggle" onclick="toggleDevMode()">🔒 Admin Login</button>
         </div>
     </nav>
 
+    <!-- TAB: HOME (LANDING) -->
+    <section id="tab-home" class="tab-content active">
+        <div class="landing-scroll">
+            <!-- HERO -->
+            <div class="hero-section">
+                <div class="hero-badge">IMU-Only · 98.1% Accuracy · 0-Drift</div>
+                <h1 class="hero-title">Write in the Air,<br><span class="hero-accent">Shape the Future.</span></h1>
+                <p class="hero-subtitle">3개의 IMU 센서와 Forward Kinematics 기반 공중 필기 인식 플랫폼.<br>카메라 없이, 어디서든, 손끝으로 세상에 글을 씁니다.</p>
+                <div class="hero-cta">
+                    <button class="cta-btn cta-primary" onclick="selectTab('tab-studio')">Try Studio →</button>
+                    <button class="cta-btn cta-secondary" onclick="selectTab('tab-technology')">Explore Tech</button>
+                </div>
+            </div>
+
+            <!-- HOW IT WORKS -->
+            <div class="section-block">
+                <h2 class="section-title">How It Works</h2>
+                <p class="section-desc">손가락 끝의 미세한 움직임을 3단계 파이프라인으로 실시간 문자 인식합니다.</p>
+                <div class="steps-grid">
+                    <div class="step-card">
+                        <div class="step-num">01</div>
+                        <div class="step-icon">📡</div>
+                        <h3>Sense</h3>
+                        <p>ESP32 + 3×IMU 센서가 85Hz로 가속도·자이로·지자기 데이터를 실시간 스트리밍합니다.</p>
+                    </div>
+                    <div class="step-card">
+                        <div class="step-num">02</div>
+                        <div class="step-icon">⚙️</div>
+                        <h3>Fuse</h3>
+                        <p>Madgwick MARG + 15-State ESKF + Forward Kinematics로 드리프트 없는 3D 궤적을 추출합니다.</p>
+                    </div>
+                    <div class="step-card">
+                        <div class="step-num">03</div>
+                        <div class="step-icon">🧠</div>
+                        <h3>Recognize</h3>
+                        <p>PyTorch LSTM 딥러닝 모델이 60-프레임 시계열 궤적을 분석하여 겹쳐 쓰기(Superimposed)를 포함한 문맥을 실시간으로 인식·분류합니다.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KEY METRICS -->
+            <div class="section-block">
+                <h2 class="section-title">Key Metrics</h2>
+                <div class="metrics-row">
+                    <div class="metric-item">
+                        <div class="metric-num">98.1%</div>
+                        <div class="metric-label">Recognition Accuracy</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-num">85Hz</div>
+                        <div class="metric-label">Real-time Streaming</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-num">0</div>
+                        <div class="metric-label">Drift Error (FK Mode)</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-num">3</div>
+                        <div class="metric-label">IMU Sensor Nodes</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- HOW TO USE GUIDE -->
+            <div class="section-block how-to-use-section">
+                <h2 class="section-title">Getting Started</h2>
+                <p class="section-desc" style="max-width: 600px; margin: 0 auto 40px auto;">3단계의 가장 간단한 셋업으로 데스크탑과 스마트폰을 연동하고 허공에 글을 써보세요.</p>
+                <div class="steps-grid">
+                    <div class="step-card">
+                        <div class="step-icon">💻</div>
+                        <h3>1. Run PC Server</h3>
+                        <p>PC에서 로컬 Python 서버(<code>app.py</code>)를 실행하여 실시간 WebSocket 중계 서버와 머신러닝 파이프라인을 켭니다.</p>
+                    </div>
+                    <div class="step-card">
+                        <div class="step-icon">📱</div>
+                        <h3>2. Connect App</h3>
+                        <p>AirWriting 모바일 앱을 켭니다. Studio 탭의 <b>📱 Connect Android</b> 버튼을 눌러 생성된 QR을 스캔하면 자동 연결됩니다.<br>
+                        <a href="#" style="color:#0EA5E9; font-weight:600; font-size:13px; margin-top:10px; display:inline-block;">📥 Download APK</a></p>
+                    </div>
+                    <div class="step-card">
+                        <div class="step-icon">✨</div>
+                        <h3>3. Write in the Air</h3>
+                        <p>손에 센서(또는 폰)를 쥐고 허공에 글자를 쓰세요. 실시간 3D 궤적과 인공지능 예측 화면이 즉각적으로 렌더링됩니다.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CTA BOTTOM -->
+            <div class="section-block cta-bottom-section">
+                <h2 class="section-title">Ready to Experience?</h2>
+                <p class="section-desc">Studio 탭에서 실시간 공중 필기를 체험하거나,<br>Technology 탭에서 기술 아키텍처를 살펴보세요.</p>
+                <button class="cta-btn cta-primary" onclick="selectTab('tab-studio')">Launch Studio →</button>
+            </div>
+        </div>
+    </section>
+
     <!-- TAB 1: AIRWRITING STUDIO (MAIN) -->
-    <section id="tab-studio" class="tab-content active">
+    <section id="tab-studio" class="tab-content">
         <div class="app-container">
             <aside class="sidebar left-panel glass-panel">
                 <div class="spacer"></div>
@@ -45,8 +163,8 @@
                     </div>
                 </div>
 
-                <h3 class="candidates-title">RANKING CANDIDATES</h3>
-                <div class="candidates-list" id="aiCandidates">
+                <h3 class="candidates-title dev-feature">RANKING CANDIDATES</h3>
+                <div class="candidates-list dev-feature" id="aiCandidates">
                     <div class="candidate-bar">
                         <div class="c-name">-</div>
                         <div class="c-val">-</div>
@@ -61,22 +179,72 @@
 
                 <h2 class="panel-title">🛠️ ML CONTROLS</h2>
                 <div class="ml-controls">
-                    <button id="btnMlRec" class="ml-btn ml-btn-rec">🎯 [가이드] 단어 학습</button>
-                    <button id="btnMlPredict" class="ml-btn ml-btn-predict">⚡ [자동보정] 켜기</button>
+                    <button id="btnMlRec" class="ml-btn ml-btn-rec dev-feature">🎯 [가이드] 단어 학습</button>
+                    <button id="btnMlPredict" class="ml-btn ml-btn-predict">⚡ 자동 보정 (Predict)</button>
+                    <button id="btnConnectPhone" class="ml-btn ml-btn-predict" style="background:#14B8A6; color:white; border:none; margin-top:8px;">📱 안드로이드 연결</button>
+
                     <div class="ml-status" id="mlStatusText">Status: Idle</div>
+                </div>
+                <div class="spacer dev-feature"></div>
+                <h2 class="panel-title dev-feature">💾 DATA PIPELINE</h2>
+                <div class="data-group dev-feature">
+                    <div style="display:flex; gap:8px;">
+                        <button id="btnRecData" class="ml-btn" style="flex:1; background:#1e293b; color:#fbbf24; border:1px solid #fbbf24;">🔴 Record</button>
+                        <button id="btnPlayData" class="ml-btn" style="flex:1; background:#1e293b; color:#34d399; border:1px solid #34d399;">▶️ Play</button>
+                    </div>
+                    <input type="file" id="filePlayData" accept=".json" style="display:none;">
+                    <div id="recordStatus" style="font-size:11px; margin-top:8px; color:#94a3b8; text-align:center;">No data recorded.</div>
                 </div>
             </aside>
 
             <main class="canvas-container">
-                <div class="canvas-wrapper glass-panel">
+                <div class="canvas-wrapper glass-panel" style="position: relative;">
+                    <!-- PERFORMANCE OVERLAY (Dev Only) -->
+                    <div id="perfOverlay" class="dev-feature" style="position:absolute; top:20px; right:20px; background:rgba(15,23,42,0.8); backdrop-filter:blur(4px); padding:12px; border-radius:8px; border:1px solid rgba(14,165,233,0.3); color:#f8fafc; font-family:'JetBrains Mono',monospace; font-size:11px; z-index:10; pointer-events:none;">
+                        <div style="color:#0ea5e9; font-weight:700; margin-bottom:6px;">SYS PROFILER</div>
+                        <div style="display:flex; justify-content:space-between; width:120px;"><span>FPS</span> <span id="perfFps" style="color:#10b981;">60</span></div>
+                        <div style="display:flex; justify-content:space-between; width:120px;"><span>LATENCY</span> <span id="perfLatency" style="color:#f59e0b;">12ms</span></div>
+                        <div style="display:flex; justify-content:space-between; width:120px;"><span>DRIFT_Z</span> <span id="perfDrift" style="color:#ef4444;">0.01m</span></div>
+                        <div style="display:flex; justify-content:space-between; width:120px;"><span>ZUPT_ON</span> <span id="perfZupt">TRUE</span></div>
+                    </div>
+
                     <canvas id="drawingCanvas"></canvas>
                     <div class="recognized-text-overlay" id="recognizedTextOverlay"></div>
-                    <!-- crosshair removed for clean view -->
-                    <div class="status-overlay" id="recordingOverlay">🔴 WRITING</div>
+                    <!-- Viewfinder Box for Recording Zone -->
+                    <div class="viewfinder-box" id="viewfinderBox"></div>
+                    <div class="status-overlay" id="recordingOverlay" style="display:none;">🔴 WRITING</div>
+
+                    <!-- LIVE TERMINAL (Dev Only) -->
+                    <div id="liveTerminal" class="dev-feature" style="position:absolute; bottom:20px; right:20px; left:20px; height:120px; background:rgba(10,15,26,0.9); border:1px solid #334155; border-radius:8px; padding:10px; font-family:'JetBrains Mono',monospace; font-size:11px; overflow-y:auto; color:#94a3b8; z-index:10; pointer-events:auto;">
+                        <div style="color:#e2e8f0; border-bottom:1px solid #334155; padding-bottom:4px; margin-bottom:6px; position:sticky; top:0; background:rgba(10,15,26,0.9);">
+                            >_ LIVE SYSTEM LOG <span class="pulse-dot" style="background:#10b981;"></span>
+                        </div>
+                        <div id="terminalOutput">
+                            <div>[SYS] AirWriting Platform v2.0 initialized.</div>
+                            <div>[NET] WebSocket server ready on port 18800.</div>
+                        </div>
+                    </div>
+
+                    <!-- ACTION DISPATCH BOARD (Dev Only) -->
+                    <div id="actionDispatchBoard" class="dev-feature" style="position:absolute; top:20px; left:20px; width:280px; z-index:20; pointer-events:none; display:flex; flex-direction:column; gap:8px;">
+                        <!-- Action event toasts inserted here via JS -->
+                    </div>
+
+                    <!-- HAND WIDGET (Dev Only) -->
+                    <div id="handWidgetContainer" class="dev-feature" style="position:absolute; bottom:150px; right:20px; z-index:20; background:rgba(15,23,42,0.8); backdrop-filter:blur(12px); border:1px solid rgba(14,165,233,0.3); border-radius:12px; overflow:hidden; box-shadow:0 8px 32px rgba(0,0,0,0.5);">
+                        <div class="hand-widget-header" style="background:rgba(14,165,233,0.15); padding:8px 12px; cursor:grab; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(14,165,233,0.3);">
+                            <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:#38bdf8; font-weight:700;">🤚 3D HAND MESH</span>
+                            <div>
+                                <span id="handWidgetStatus" style="font-size:10px; margin-right:8px; color:#f59e0b;">● IDLE</span>
+                                <button id="handWidgetToggle" style="background:none; border:none; color:#94a3b8; cursor:pointer; font-size:10px; padding:0;">▼</button>
+                            </div>
+                        </div>
+                        <canvas id="handWidgetCanvas" width="280" height="210"></canvas>
+                    </div>
                 </div>
             </main>
 
-            <aside class="sidebar right-panel glass-panel">
+            <aside class="sidebar right-panel glass-panel dev-feature">
                 <h2 class="panel-title">⚡ ENGINEERING</h2>
                 <div class="data-group">
                     <div class="data-label">UDP STREAM</div>
@@ -109,8 +277,22 @@
         </div>
     </section>
 
-    <!-- TAB 2: ARCHITECTURE & ALGORITHMS -->
-    <section id="tab-architecture" class="tab-content">
+    <!-- TAB: TECHNOLOGY (merged) -->
+    <section id="tab-technology" class="tab-content">
+        <div class="tech-layout">
+            <nav class="tech-sidebar">
+                <div class="tech-sidebar-title">DOCUMENTATION</div>
+                <button class="tech-nav-btn active" data-panel="panel-architecture">Architecture</button>
+                <button class="tech-nav-btn" data-panel="panel-hardware">Hardware</button>
+                <button class="tech-nav-btn" data-panel="panel-training">ML Training</button>
+                <button class="tech-nav-btn" data-panel="panel-action">Action Control</button>
+                <button class="tech-nav-btn" data-panel="panel-research">Research</button>
+                <button class="tech-nav-btn" data-panel="panel-roadmap">Roadmap</button>
+            </nav>
+            <div class="tech-content">
+
+    <!-- PANEL: ARCHITECTURE -->
+    <div id="panel-architecture" class="tech-panel active">
         <div class="doc-container glass-panel">
             <h1>시스템 아키텍처 및 핵심 알고리즘</h1>
 
@@ -135,7 +317,7 @@
                     </tr>
                     <tr style="border-bottom:1px solid #333;">
                         <td style="padding:8px; font-weight:bold; color:#38BDF8;">🔵 ML Recognition</td>
-                        <td style="padding:8px;">RandomForest 117-dim Feature (60 Spatial + 57 Directional)</td>
+                        <td style="padding:8px;">PyTorch 2-Layer LSTM (Sequence & Contextual Modeling)</td>
                     </tr>
                     <tr>
                         <td style="padding:8px; font-weight:bold; color:#38BDF8;">🔵 Web Dashboard</td>
@@ -309,7 +491,6 @@
                         <p>슬라이딩 윈도우(W=20) 내 관성 에너지가 임계값 이하일 경우 정지 상태로 판정하여 속도를 강제로 0으로 교정합니다. 이를 통해 시간에 비례하여 발산하는 위치
                             드리프트를 주기적으로 리셋합니다.</p>
                 </div>
-            </div>
 
             <h2>7. ML 문자 인식 파이프라인 (Character Recognition)</h2>
             <div class="mermaid">
@@ -328,7 +509,7 @@
                 VEC["117-dim Feature Vector<br />(60 spatial + 57 directional)"]
                 end
                 subgraph TRAIN["🧠 Training"]
-                RF["RandomForest<br />100 Trees"]
+                LSTM["PyTorch LSTM<br />Sequence Model"]
                 SPLIT["80/20 Split<br />Accuracy Report"]
                 MODEL["rf_model.pkl"]
                 end
@@ -357,10 +538,10 @@
                     GET /api/ml/stats — 모델 상태 (정확도, 샘플 수, 마지막 학습 시각)
                 </div>
             </div>
-    </section>
+    </div></div>
 
-    <!-- TAB 3: HARDWARE SPECIFICATIONS -->
-    <section id="tab-hardware" class="tab-content">
+    <!-- PANEL: HARDWARE -->
+    <div id="panel-hardware" class="tech-panel">
         <div class="doc-container glass-panel">
             <h1>하드웨어 설계 및 센서 스펙 (Hardware)</h1>
             <p>AirWriting 하드웨어는 초소형, 저지연, 고성능 네트워크 전송을 목표로 설계된 커스텀 임베디드 디바이스입니다.</p>
@@ -533,17 +714,17 @@
                 </table>
             </div>
         </div>
-    </section>
+    </div>
 
-    <!-- TAB: ML TRAINING LAB (NEW) -->
-    <section id="tab-training" class="tab-content">
+    <!-- PANEL: ML TRAINING -->
+    <div id="panel-training" class="tech-panel">
         <div class="doc-container glass-panel">
             <div class="lab-header" style="display: flex; justify-content: space-between; align-items: flex-end;">
                 <div>
                     <h1>🧠 ML Training Lab & Analytics</h1>
                     <div class="model-badge">
                         <span class="status-dot green"></span>
-                        RandomForest.v2 (Directional-Enhanced)
+                        PyTorch LSTM v1 (Sequence & Superimposed Ready)
                     </div>
                 </div>
                 <button id="btnMlTrain" class="ml-btn ml-btn-predict"
@@ -601,10 +782,10 @@
                 </div>
             </div>
         </div>
-    </section>
+    </div>
 
-    <!-- TAB 3.5: ACTION CONTROL -->
-    <section id="tab-action" class="tab-content">
+    <!-- PANEL: ACTION CONTROL -->
+    <div id="panel-action" class="tech-panel">
         <div class="doc-container glass-panel">
             <div class="lab-header" style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
@@ -634,10 +815,10 @@
                 </div>
             </div>
         </div>
-    </section>
+    </div>
 
-    <!-- TAB 4: RESEARCH METRICS & EVALUATION -->
-    <section id="tab-research" class="tab-content">
+    <!-- PANEL: RESEARCH -->
+    <div id="panel-research" class="tech-panel">
         <div class="doc-container glass-panel">
             <h1>공중 필기 알고리즘 성능 평가</h1>
             <p>기존 단일 6축 가속도 기반의 궤적 추정 논문들과 비교하여, 본 AirWriting 플랫폼에서 도입한 다중 모달 융합 필터(Multi-modal Fusion) 및 순방향
@@ -699,29 +880,29 @@
 
             <div class="spec-card">
                 <h3>[1] Core Theory: Sensor Fusion & State Estimation</h3>
-                <ul style="list-style: none; padding-left: 0; color: #cbd5e1; line-height: 1.8; font-size: 13.5px;">
+                <ul style="list-style: none; padding-left: 0; color: #334155; line-height: 1.8; font-size: 13.5px;">
                     <li
-                        style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                        <strong style="color: #f8fafc;">Solà, J. (2017).</strong>
-                        <span style="color: #94a3b8; font-style: italic;">"Quaternion kinematics for the error-state
+                        style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(0,0,0,0.06);">
+                        <strong style="color: #0F172A;">Solà, J. (2017).</strong>
+                        <span style="color: #64748B; font-style: italic;">"Quaternion kinematics for the error-state
                             Kalman filter."</span>
                         arXiv preprint arXiv:1711.02508.
                         <br><span style="color: #10b981; font-size: 12px;">↳ 본 프로젝트의 15-State ESKF 자세 추정 수학적 모델링
                             기반.</span>
                     </li>
                     <li
-                        style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                        <strong style="color: #f8fafc;">Madgwick, S. O. H., et al. (2011).</strong>
-                        <span style="color: #94a3b8; font-style: italic;">"Estimation of IMU and MARG orientation using
+                        style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(0,0,0,0.06);">
+                        <strong style="color: #0F172A;">Madgwick, S. O. H., et al. (2011).</strong>
+                        <span style="color: #64748B; font-style: italic;">"Estimation of IMU and MARG orientation using
                             a gradient descent algorithm."</span>
                         IEEE ICORR.
                         <br><span style="color: #10b981; font-size: 12px;">↳ 낮은 컴퓨팅 자원(ESP32 등) 환경에서의 효율적인 9축/6축 쿼터니언 필터
                             적용.</span>
                     </li>
                     <li
-                        style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                        <strong style="color: #f8fafc;">Skog, I., et al. (2010).</strong>
-                        <span style="color: #94a3b8; font-style: italic;">"Zero-velocity detection — An algorithm
+                        style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(0,0,0,0.06);">
+                        <strong style="color: #0F172A;">Skog, I., et al. (2010).</strong>
+                        <span style="color: #64748B; font-style: italic;">"Zero-velocity detection — An algorithm
                             evaluation."</span>
                         IEEE Trans. Biomed. Eng.
                         <br><span style="color: #10b981; font-size: 12px;">↳ 필기 정지 구간(ZUPT) 에너지 기반 검출(SHOE) 알고리즘.</span>
@@ -731,22 +912,22 @@
 
             <div class="spec-card">
                 <h3>[2] AirWriting & Trajectory Recognition</h3>
-                <ul style="list-style: none; padding-left: 0; color: #cbd5e1; line-height: 1.8; font-size: 13.5px;">
+                <ul style="list-style: none; padding-left: 0; color: #334155; line-height: 1.8; font-size: 13.5px;">
                     <li
-                        style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                        <strong style="color: #f8fafc;">Amma, C., et al. (2012).</strong>
-                        <span style="color: #94a3b8; font-style: italic;">"Airwriting: Hands-free mobile text input by
+                        style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(0,0,0,0.06);">
+                        <strong style="color: #0F172A;">Amma, C., et al. (2012).</strong>
+                        <span style="color: #64748B; font-style: italic;">"Airwriting: Hands-free mobile text input by
                             spotting 3D-space handwriting with inertial sensors."</span>
                         IEEE ISWC.
-                        <br><span style="color: #38bdf8; font-size: 12px;">↳ 관성 센서 기반 3D 공중 필기 인식 시스템 최초 제안 연구.</span>
+                        <br><span style="color: #0EA5E9; font-size: 12px;">↳ 관성 센서 기반 3D 공중 필기 인식 시스템 최초 제안 연구.</span>
                     </li>
                     <li
-                        style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                        <strong style="color: #f8fafc;">Chen, M., et al. (2016).</strong>
-                        <span style="color: #94a3b8; font-style: italic;">"Air-writing recognition — Part I &
+                        style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(0,0,0,0.06);">
+                        <strong style="color: #0F172A;">Chen, M., et al. (2016).</strong>
+                        <span style="color: #64748B; font-style: italic;">"Air-writing recognition — Part I &
                             II."</span>
                         IEEE Trans. HMS.
-                        <br><span style="color: #38bdf8; font-size: 12px;">↳ 복잡한 연속 모션에서의 글자 분할 및 기하학적 궤적 특징화 추출
+                        <br><span style="color: #0EA5E9; font-size: 12px;">↳ 복잡한 연속 모션에서의 글자 분할 및 기하학적 궤적 특징화 추출
                             기법.</span>
                     </li>
                 </ul>
@@ -754,33 +935,33 @@
 
             <div class="spec-card">
                 <h3>[3] Forward Kinematics & Arm Modeling</h3>
-                <ul style="list-style: none; padding-left: 0; color: #cbd5e1; line-height: 1.8; font-size: 13.5px;">
+                <ul style="list-style: none; padding-left: 0; color: #334155; line-height: 1.8; font-size: 13.5px;">
                     <li
-                        style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                        <strong style="color: #f8fafc;">Zhou, H., & Hu, H. (2008).</strong>
-                        <span style="color: #94a3b8; font-style: italic;">"Human motion tracking for rehabilitation — A
+                        style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(0,0,0,0.06);">
+                        <strong style="color: #0F172A;">Zhou, H., & Hu, H. (2008).</strong>
+                        <span style="color: #64748B; font-style: italic;">"Human motion tracking for rehabilitation — A
                             survey."</span>
                         Biomedical Signal Processing and Control.
-                        <br><span style="color: #f472b6; font-size: 12px;">↳ 인체 골격 모델(어깨-전완-손등-펜)의 3-Segment IMU 부착 및
+                        <br><span style="color: #8B5CF6; font-size: 12px;">↳ 인체 골격 모델(어깨-전완-손등-펜)의 3-Segment IMU 부착 및
                             기하학 분석.</span>
                     </li>
                     <li
-                        style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                        <strong style="color: #f8fafc;">Seel, T., et al. (2014).</strong>
-                        <span style="color: #94a3b8; font-style: italic;">"IMU-based joint angle measurement for gait
+                        style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(0,0,0,0.06);">
+                        <strong style="color: #0F172A;">Seel, T., et al. (2014).</strong>
+                        <span style="color: #64748B; font-style: italic;">"IMU-based joint angle measurement for gait
                             analysis."</span>
                         Sensors.
-                        <br><span style="color: #f472b6; font-size: 12px;">↳ 다중 센서 회전 변환을 통한 Joint Position 연산
+                        <br><span style="color: #8B5CF6; font-size: 12px;">↳ 다중 센서 회전 변환을 통한 Joint Position 연산
                             최적화.</span>
                     </li>
                 </ul>
             </div>
 
         </div>
-    </section>
+    </div>
 
-    <!-- TAB 5: PROJECT ROADMAP -->
-    <section id="tab-roadmap" class="tab-content">
+    <!-- PANEL: ROADMAP -->
+    <div id="panel-roadmap" class="tech-panel">
         <div class="doc-container glass-panel">
             <h1>프로젝트 로드맵 및 ML 구현 계획</h1>
 
@@ -813,7 +994,7 @@
                 end
 
                 subgraph PHASE4["✅ Phase 4: ML 문자 인식 (완료)"]
-                D1["분류 모델 선정<br />RandomForest (100 Trees)"]
+                D1["시계열 모델 선정<br />PyTorch LSTM"]
                 D2["특징 추출 파이프라인<br />60 Spatial + 57 Directional"]
                 D3["글자별 정확도 평가<br />실시간 Accuracy & Confusion"]
                 D4["온라인 학습 (Online Learning)<br />Web API 연동"]
@@ -824,8 +1005,8 @@
                 E1["키워드 기반 액션<br />(C=Call, M=Msg 등)"]
                 E2["Web-Phone 연동<br />WebSocket Dispatcher"]
                 E3["향후 딥러닝 고도화<br />(Transformer / LSTM)"]
-                D4 --> E1 --> E2
-                D4 --> E3
+                  FK --> LSTM
+                LSTM --> RES3
                 end
 
                 style PHASE1 fill:#064e3b,stroke:#059669
@@ -874,11 +1055,11 @@
                         <h3 class="timeline-title">Phase 3: Web Dashboard & ML Recognition</h3>
                         <p class="timeline-desc">
                             WebSocket 기반의 실시간 렌더링 Web 플랫폼 론칭.<br>
-                            RandomForest 앙상블 모델과 117-Dim 공간/방향 특징 추출기를 통한 실시간 글자 인식률 95%+ 달성.
+                            PyTorch LSTM 시계열 딥러닝 모델을 통한 겹쳐쓰기(Superimposed) 인지 및 문맥 연속성 파악 기반 구축.
                         </p>
                         <span class="timeline-milestone">✔ WebSocket</span>
                         <span class="timeline-milestone">✔ HTML5 Canvas</span>
-                        <span class="timeline-milestone">✔ RandomForest Classifier</span>
+                        <span class="timeline-milestone">✔ PyTorch LSTM Sequence Learning</span>
                     </div>
                 </div>
 
@@ -888,7 +1069,7 @@
                         <div class="timeline-date">2025. 06 ~ 2025. 11</div>
                         <h3 class="timeline-title">Phase 4: Deep Learning Optimization</h3>
                         <p class="timeline-desc">
-                            기존 RandomForest 기반 모델을 넘어 시계열 글로벌 문맥을 파악하기 위한 <strong>Transformer / BiLSTM</strong> 딥러닝 아키텍처
+                            현재의 LSTM 딥러닝을 넘어, 더욱 긴 시계열 글로벌 문맥을 빠르게 병렬 파악하기 위한 <strong>Transformer Attention</strong> 아키텍처 고도화 및 Android 에어 타이핑 키보드 직접 연동.
                             도입.<br>
                             연속된 "단어(Word)" 필기 및 띄어쓰기 패턴 인식을 목표로 모델 재설계.
                         </p>
@@ -916,19 +1097,127 @@
             <!-- FINAL GOAL -->
             <div class="goal-card">
                 <div class="goal-date">🎯 2026. 07. 31.</div>
-                <h3 style="color:#fff; margin:0 0 10px 0; font-size:20px;">AirWriting Pro v1.0 런칭 완료</h3>
-                <p style="color:#94A3B8; margin:0; font-size:14px;">
+                <h3 style="color:#0F172A; margin:0 0 10px 0; font-size:20px;">AirWriting Pro v1.0 런칭 완료</h3>
+                <p style="color:#64748B; margin:0; font-size:14px;">
                     모든 소프트웨어/하드웨어 스택 통합 최적화 완료, 상용 수준 인식률 99% 획득 및 오픈소스 릴리즈.
                 </p>
             </div>
         </div>
+    </div>
+
+            </div><!-- /tech-content -->
+        </div><!-- /tech-layout -->
+    </section><!-- /tab-technology -->
+
+    <!-- TAB: SETTINGS (DEV ONLY) -->
+    <section id="tab-settings" class="tab-content">
+        <div class="doc-container glass-panel">
+            <h1>시스템 설정 (System Settings)</h1>
+            <p style="color:#64748B; margin-bottom:30px;">system.yaml 값을 실시간으로 변경하고 서버에 적용합니다.</p>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start;">
+                <!-- Left: Form -->
+                <div class="spec-card" style="padding: 24px;">
+                    <h3 style="margin-top:0; font-size:16px; margin-bottom:20px; display:flex; justify-content:space-between;">
+                        <span>⚙️ Sensor Fusion & Platform</span>
+                        <button onclick="saveSystemConfig()" class="cta-btn cta-primary" style="padding:6px 12px; font-size:12px;" id="btnSaveConfig">Save config</button>
+                    </h3>
+
+                    <!-- Network -->
+                    <div style="margin-bottom: 24px;">
+                        <h4 style="font-size:13px; color:var(--text-muted); padding-bottom:6px; border-bottom:1px solid var(--border-color);">Network</h4>
+                        <div style="display:flex; gap:12px; margin-top:8px;">
+                            <div style="flex:1;">
+                                <label style="font-size:12px; display:block; margin-bottom:4px;">Action WebSocket Port</label>
+                                <input type="number" id="confWsPort" style="width:100%; border:1px solid var(--border-color); padding:8px; border-radius:4px;">
+                            </div>
+                            <div style="flex:1;">
+                                <label style="font-size:12px; display:block; margin-bottom:4px;">Action UDP Port</label>
+                                <input type="number" id="confUdpPort" style="width:100%; border:1px solid var(--border-color); padding:8px; border-radius:4px;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- KF & Drift -->
+                    <div style="margin-bottom: 24px;">
+                        <h4 style="font-size:13px; color:var(--text-muted); padding-bottom:6px; border-bottom:1px solid var(--border-color);">ESKF & ZUPT</h4>
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:8px;">
+                            <div>
+                                <label style="font-size:12px; display:block; margin-bottom:4px;">Accel Noise Std</label>
+                                <input type="number" step="0.01" id="confAccelNoise" style="width:100%; border:1px solid var(--border-color); padding:8px; border-radius:4px;">
+                            </div>
+                            <div>
+                                <label style="font-size:12px; display:block; margin-bottom:4px;">Gyro Threshold (ZUPT)</label>
+                                <input type="number" step="0.01" id="confGyroThresh" style="width:100%; border:1px solid var(--border-color); padding:8px; border-radius:4px;">
+                            </div>
+                            <div style="grid-column: span 2;">
+                                <label style="font-size:12px; display:flex; align-items:center; gap:8px;">
+                                    <input type="checkbox" id="confDriftObs">
+                                    Enable Drift Observer (Z-axis compensation)
+                                </label>
+                            </div>
+                            <div style="grid-column: span 2;">
+                                <label style="font-size:12px; display:flex; align-items:center; gap:8px;">
+                                    <input type="checkbox" id="confPlaneLock">
+                                    Absolute Plane Lock (Force 2D projection)
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: YAML Viewer -->
+                <div class="spec-card" style="padding:0; background:#0F172A; border-color:#334155; overflow:hidden;">
+                    <div style="background:#1E293B; padding:10px 15px; color:#94A3B8; font-size:12px; font-family:'JetBrains Mono',monospace; border-bottom:1px solid #334155;">
+                        <span style="color:#38BDF8;">📄 config/system.yaml</span> (Live Preview)
+                    </div>
+                    <pre id="yamlPreviewCode" style="margin:0; padding:20px; color:#F1F5F9; font-size:12px; font-family:'JetBrains Mono',monospace; overflow-x:auto; height:380px;">loading...</pre>
+                </div>
+            </div>
+        </div>
     </section>
 
-    <!-- TAB 6: TEAM COMMENTS -->
-    <section id="tab-comments" class="tab-content">
+    <!-- TAB: TEAM -->
+    <section id="tab-team" class="tab-content">
+        <div class="landing-scroll">
+            <div class="section-block">
+                <h2 class="section-title">Our Team</h2>
+                <p class="section-desc">AirWriting 플랫폼을 만들어가는 팀원들을 소개합니다.</p>
+                <div class="team-grid">
+                    <div class="team-card">
+                        <div class="team-avatar">👤</div>
+                        <h3>Team Member 1</h3>
+                        <div class="team-role">Embedded Systems / HW</div>
+                        <p>ESP32 펌웨어 및 IMU 센서 하드웨어 설계 담당</p>
+                    </div>
+                    <div class="team-card">
+                        <div class="team-avatar">👤</div>
+                        <h3>Team Member 2</h3>
+                        <div class="team-role">Sensor Fusion / Algorithm</div>
+                        <p>Madgwick MARG, ESKF, Forward Kinematics 알고리즘 개발</p>
+                    </div>
+                    <div class="team-card">
+                        <div class="team-avatar">👤</div>
+                        <h3>Team Member 3</h3>
+                        <div class="team-role">Machine Learning</div>
+                        <p>문자 인식 ML 모델 및 특징 추출 파이프라인 설계</p>
+                    </div>
+                    <div class="team-card">
+                        <div class="team-avatar">👤</div>
+                        <h3>Team Member 4</h3>
+                        <div class="team-role">Full-Stack / Web</div>
+                        <p>Web 대시보드, Flask 백엔드, Android 앱 개발</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- TAB: CONTACT -->
+    <section id="tab-contact" class="tab-content">
         <div class="doc-container glass-panel">
-            <h1>팀 게시판 (Team Comments)</h1>
-            <p>프로젝트 진행 상황, 피드백 관리를 위한 팀 전용 실시간 게시판입니다. 데이터를 새로고침해도 유지됩니다.</p>
+            <h1>문의하기 (Contact)</h1>
+            <p style="color:#64748B; margin-bottom:30px;">프로젝트에 대한 문의, 투자 제안, 협업 요청 등 자유롭게 의견을 남겨주세요.</p>
 
             <div class="comments-layout">
                 <div class="comment-form-panel spec-card">
@@ -958,7 +1247,7 @@
     <script>
         // Set default chart fonts to be more elegant
         Chart.defaults.font.family = "'Inter', sans-serif";
-        Chart.defaults.color = '#94A3B8';
+        Chart.defaults.color = '#64748B';
 
         // 1. Accuracy Chart (Bar Chart with Gradient)
         const ctxResAcc = document.getElementById('researchAccuracyChart');
@@ -988,7 +1277,7 @@
                             y: {
                                 beginAtZero: true,
                                 max: 100,
-                                grid: { color: 'rgba(255,255,255,0.05)', drawBorder: false },
+                                grid: { color: '#E2E8F0', drawBorder: false },
                                 ticks: { callback: function (val) { return val + '%' } }
                             },
                             x: { grid: { display: false } }
@@ -1052,9 +1341,9 @@
                         scales: {
                             y: {
                                 title: { display: true, text: 'Positional Error (m)' },
-                                grid: { color: 'rgba(255,255,255,0.05)' }
+                                grid: { color: '#E2E8F0' }
                             },
-                            x: { grid: { color: 'rgba(255,255,255,0.05)' } }
+                            x: { grid: { color: '#E2E8F0' } }
                         }
                     }
                 });
@@ -1094,10 +1383,10 @@
                         scales: {
                             x: {
                                 min: 60, max: 100,
-                                grid: { color: 'rgba(255, 255, 255, 0.05)', drawBorder: false },
+                                grid: { color: '#E2E8F0', drawBorder: false },
                                 ticks: { callback: function (val) { return val + '%' } }
                             },
-                            y: { grid: { display: false }, ticks: { color: '#e2e8f0', font: { size: 12, family: "'JetBrains Mono', monospace" } } }
+                            y: { grid: { display: false }, ticks: { color: '#334155', font: { size: 12, family: "'JetBrains Mono', monospace" } } }
                         },
                         plugins: { legend: { display: false } }
                     }
@@ -1146,14 +1435,14 @@
                     scales: {
                         r: {
                             min: 0, max: 100,
-                            ticks: { stepSize: 25, color: '#64748b', backdropColor: 'transparent' },
-                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                            pointLabels: { color: '#cbd5e1', font: { size: 12, family: "'Inter', sans-serif" } },
-                            angleLines: { color: 'rgba(255, 255, 255, 0.05)' }
+                            ticks: { stepSize: 25, color: '#94A3B8', backdropColor: 'transparent' },
+                            grid: { color: '#E2E8F0' },
+                            pointLabels: { color: '#334155', font: { size: 12, family: "'Inter', sans-serif" } },
+                            angleLines: { color: '#E2E8F0' }
                         }
                     },
                     plugins: {
-                        legend: { labels: { color: '#e2e8f0', usePointStyle: true, font: { family: "'Inter', sans-serif" } } }
+                        legend: { labels: { color: '#334155', usePointStyle: true, font: { family: "'Inter', sans-serif" } } }
                     }
                 }
             });
@@ -1183,8 +1472,56 @@
             </div>
         </div>
     </div>
+
+    <!-- Android QR Connect Modal -->
+    <div id="qrModal" class="qr-modal-overlay">
+        <div class="modal-content glass-panel" style="text-align: center; max-width: 450px;">
+            <h3 style="margin-bottom:10px;">📱 Connect Android App</h3>
+            <p style="margin-bottom: 20px; font-size:14px; color:var(--text-muted);">
+                공유 중인 스마트폰을 연결하려면 현재 실행 중인 PC 서버의 <b>로컬 IP (IPv4)</b> 주소를 입력하세요.
+            </p>
+            
+            <div style="background: rgba(148, 163, 184, 0.1); border-radius: 8px; padding: 10px; margin-bottom: 20px;">
+                <input type="text" id="ipInput" placeholder="ex) 192.168.0.12" autocomplete="off" 
+                       style="text-align:center; font-size:20px; letter-spacing:1px; width:80%; margin:auto; 
+                              background: transparent; border: none; border-bottom: 2px solid var(--border-active); 
+                              color: var(--text-main); font-family: 'JetBrains Mono', monospace;">
+            </div>
+
+            <!-- Dynamic QR Image will be attached here -->
+            <div id="qrCodeContainer" style="margin: 0 auto 20px auto; padding: 15px; background: white; display: inline-block; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); min-width: 200px; min-height: 200px;">
+                <div style="color:#94a3b8; line-height:170px; font-size:13px;">Enter IP to load QR</div>
+            </div>
+            
+            <p style="font-size:13px; color:var(--text-main); font-weight:600;">
+                AirWriting 모바일 앱에서 위 QR을 스캔하세요.
+            </p>
+
+            <div class="modal-actions" style="margin-top: 25px; justify-content: center;">
+                <button id="btnQrCancel" class="ml-btn ml-btn-predict" style="background:var(--bg-panel); color:var(--text-main); border:1px solid var(--border-color);">닫기 (Close)</button>
+            </div>
+            
+            <p style="margin-top:20px; font-size:12px; color:var(--text-muted);">
+                앱이 아직 없으신가요? <br><a href="#" style="color:#0EA5E9; font-weight:600; text-decoration:none;">Download AirWriting Client APK</a>
+            </p>
+        </div>
+    </div>
+    
+    <!-- GLOBAL FOOTER -->
+    <footer class="global-footer">
+        <div class="footer-content">
+            <div class="footer-brand">
+                <span class="logo-icon" style="color:#0EA5E9;">✦</span> AirWriting
+            </div>
+            <div class="footer-copy">
+                &copy; 2026 AirWriting Team. All rights reserved. Built with Python, WebGL, and IMU Fusion.
+                <span style="margin-left: 15px; display: inline-block; background: rgba(14, 165, 233, 0.1); color: #0EA5E9; padding: 2px 8px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 11px;" id="networkIpDisplay">Network IP: Loading...</span>
+            </div>
+        </div>
+    </footer>
+
     <script src="dictionary.js"></script>
+    <script src="hand-widget.js"></script>
     <script src="app.js"></script>
 </body>
-
 </html>

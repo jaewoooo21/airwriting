@@ -1,845 +1,432 @@
-const canvas = document.getElementById('drawingCanvas');
-const ctx = canvas.getContext('2d');
-const overlay = document.getElementById('recordingOverlay');
+/* ==============================================
+   AirWriting Platform — Main Application Script
+   Developer / User Mode System
+   ============================================== */
 
-// DOM Elements
-const valConn = document.getElementById('valConn');
-const valPos = document.getElementById('valPos');
-const valZupt = document.getElementById('valZupt');
-
-// Configuration
-const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-// Connect to 18765 on the same host (works for localhost, 192.168.x.x, or public IP)
-const WS_URL = `${protocol}//${window.location.hostname}:18765`;
+/* ---- Global State ---- */
+let currentTab = 'tab-home';
+let currentTechPanel = 'arch-panel';
 let ws = null;
 
-// ══════════════════════════════════════════
-// FK Config — EXACT copy from digital_twin.py
-// ══════════════════════════════════════════
-// Skeleton chain from imu.yaml:
-//   S1 (forearm) 0.25m → S2 (hand) 0.18m → S3 (finger) 0.08m
-const SEGMENTS = [
-    { sid: "S1", length: 0.25 },
-    { sid: "S2", length: 0.18 },
-    { sid: "S3", length: 0.08 },
-];
-const BONE_DIR = [0.0, 1.0, 0.0]; // Y-forward (same as digital_twin.py)
-const ORIGIN = [0.0, 0.0, 0.0];
-
-// Quaternion to Rotation Matrix [w, x, y, z] — Hamilton convention
-// EXACT copy from digital_twin.py quat_to_rot()
-function quatToRot(q) {
-    let w = q[0], x = q[1], y = q[2], z = q[3];
-    let xx = x * x, yy = y * y, zz = z * z;
-    let xy = x * y, xz = x * z, yz = y * z;
-    let wx = w * x, wy = w * y, wz = w * z;
-    return [
-        [1 - 2 * (yy + zz), 2 * (xy - wz), 2 * (xz + wy)],
-        [2 * (xy + wz), 1 - 2 * (xx + zz), 2 * (yz - wx)],
-        [2 * (xz - wy), 2 * (yz + wx), 1 - 2 * (xx + yy)],
-    ];
-}
-
-// Matrix × Vector (3x3 × 3)
-function matMul(R, v) {
-    return [
-        R[0][0] * v[0] + R[0][1] * v[1] + R[0][2] * v[2],
-        R[1][0] * v[0] + R[1][1] * v[1] + R[1][2] * v[2],
-        R[2][0] * v[0] + R[2][1] * v[1] + R[2][2] * v[2],
-    ];
-}
-
-// EXACT copy of digital_twin.py compute_fk()
-function computeFK(data) {
-    let pos = [...ORIGIN];
-    let positions = [[...pos]];
-
-    for (let seg of SEGMENTS) {
-        let q = data[seg.sid + "q"] || [1, 0, 0, 0];
-        let R = quatToRot(q);
-        // bone_vec = R @ (BONE_DIR * length)
-        let scaledDir = [BONE_DIR[0] * seg.length, BONE_DIR[1] * seg.length, BONE_DIR[2] * seg.length];
-        let boneVec = matMul(R, scaledDir);
-        pos = [pos[0] + boneVec[0], pos[1] + boneVec[1], pos[2] + boneVec[2]];
-        positions.push([...pos]);
-    }
-    return positions; // [origin, elbow, wrist, pen-tip]
-}
-
-// ══════════════════════════════════════════
-// Camera System (matching digital_twin.py presets)
-// ══════════════════════════════════════════
-// digital_twin.py 1st person: distance=0.45, elevation=5, azimuth=90, center=(0, 0.5, 0.1)
-// digital_twin.py 3rd person: distance=1.5, elevation=20, azimuth=-40, center=(0, 0.25, 0)
-// We replicate this as orbital camera parameters
-let camDistance = 0.4;
-let camElevation = 10;     // degrees (level horizon)
-let camAzimuth = 0;        // 0 degrees looks down the +Y axis (arm direction)
-let camCenterX = 0.0;
-let camCenterY = 0.25;     // Shifted slightly forward
-let camCenterZ = 0.15;     // Shifted up to center the view vertically
-let isFPV = true;
-
-const CAM_1ST = { distance: 0.4, elevation: 10, azimuth: 0, cx: 0.0, cy: 0.25, cz: 0.15 };
-const CAM_3RD = { distance: 1.2, elevation: 30, azimuth: 45, cx: 0.0, cy: 0.4, cz: 0.0 };
-const FOCAL = 900;
-
-let isDragging = false;
-let lastMouseX = 0, lastMouseY = 0;
-
-// Stroke history (3D world coordinates)
-let strokeHistory = [];
-let currentStroke = null;
-let lastPenState = false;
-let currentCursorPos = null;
-let armPositions = null; // FK joint positions
-
-// ML State Machine
-let mlLearningLabel = null;
-let mlAutoPredict = false;
-let mlCurrentFull = [];
-let mlCurrentPos = [];
-
-// Cursor Element
-const canvasContainer = document.querySelector('.canvas-container');
-const liveCursor = document.createElement('div');
-liveCursor.className = 'live-cursor';
-if (canvasContainer) canvasContainer.appendChild(liveCursor);
-
-// Canvas Setup
-function resizeCanvas() {
-    const parent = canvas.parentElement;
-    canvas.width = parent.clientWidth;
-    canvas.height = parent.clientHeight;
-    requestAnimationFrame(renderScene);
-}
-window.addEventListener('resize', resizeCanvas);
-resizeCanvas();
-
-// ══════════════════════════════════════════
-// 3D → 2D Projection (Orbital Camera, like PyQtGraph)
-// ══════════════════════════════════════════
-function projectWorld(wx, wy, wz) {
-    // Translate to camera center
-    let dx = wx - camCenterX;
-    let dy = wy - camCenterY;
-    let dz = wz - camCenterZ;
-
-    // Azimuth rotation around Z axis
-    let azRad = camAzimuth * Math.PI / 180;
-    let cosA = Math.cos(azRad), sinA = Math.sin(azRad);
-    let x1 = dx * cosA + dy * sinA;
-    let y1 = -dx * sinA + dy * cosA;
-    let z1 = dz;
-
-    // Elevation rotation around X axis
-    let elRad = camElevation * Math.PI / 180;
-    let cosE = Math.cos(elRad), sinE = Math.sin(elRad);
-    let y2 = y1 * cosE + z1 * sinE;
-    let z2 = -y1 * sinE + z1 * cosE;
-
-    // y2 is now the depth (into the screen)
-    let depth = y2 + camDistance;
-    if (depth < 0.01) depth = 0.01;
-
-    let f = FOCAL;
-    let sx = f * (x1 / depth);
-    let sy = -f * (z2 / depth); // Canvas Y is down, World Z is up
-
-    return { sx, sy, depth, visible: (y2 + camDistance) > 0.01 };
-}
-
-// ══════════════════════════════════════════
-// Rendering
-// ══════════════════════════════════════════
-function renderScene() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const cx = canvas.width / 2;
-    const cy = canvas.height / 2;
-
-    drawGrid(cx, cy);
-    drawCanvasFrame(cx, cy);
-    drawWorkspaceBox(cx, cy); // New visually anchored box
-    drawAxisArrows(cx, cy);
-    drawArm(cx, cy);
-    drawStrokes(cx, cy);
-    drawCursor(cx, cy);
-}
-
-// Minimal floor reference (just 2 lines instead of dense grid)
-function drawGrid(cx, cy) {
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = 'rgba(40, 40, 70, 0.3)';
-    ctx.shadowBlur = 0;
-    const size = 0.6, gz = -0.15;
-    ctx.beginPath();
-    // X-axis line
-    let a = projectWorld(-size, 0, gz), b = projectWorld(size, 0, gz);
-    if (a.visible && b.visible) { ctx.moveTo(cx + a.sx, cy + a.sy); ctx.lineTo(cx + b.sx, cy + b.sy); }
-    // Y-axis line
-    a = projectWorld(0, -size, gz); b = projectWorld(0, size, gz);
-    if (a.visible && b.visible) { ctx.moveTo(cx + a.sx, cy + a.sy); ctx.lineTo(cx + b.sx, cy + b.sy); }
-    ctx.stroke();
-}
-
-// Virtual Canvas Frame (same as digital_twin.py: XZ plane at Y=0.51)
-function drawCanvasFrame(cx, cy) {
-    const framePts = [
-        [-0.3, 0.51, 0.3], [0.3, 0.51, 0.3],
-        [0.3, 0.51, -0.1], [-0.3, 0.51, -0.1], [-0.3, 0.51, 0.3]
-    ];
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = 'rgba(102, 102, 128, 0.6)';
-    ctx.beginPath();
-    let first = true;
-    for (let p of framePts) {
-        let pt = projectWorld(p[0], p[1], p[2]);
-        if (!pt.visible) continue;
-        if (first) { ctx.moveTo(cx + pt.sx, cy + pt.sy); first = false; }
-        else ctx.lineTo(cx + pt.sx, cy + pt.sy);
-    }
-    ctx.stroke();
-
-    // Semi-transparent fill for the board
-    ctx.fillStyle = 'rgba(20, 25, 40, 0.3)';
-    ctx.beginPath();
-    first = true;
-    for (let p of framePts) {
-        let pt = projectWorld(p[0], p[1], p[2]);
-        if (!pt.visible) continue;
-        if (first) { ctx.moveTo(cx + pt.sx, cy + pt.sy); first = false; }
-        else ctx.lineTo(cx + pt.sx, cy + pt.sy);
-    }
-    ctx.closePath();
-    ctx.fill();
-}
-
-// Draw the 3D Bounding Box representing the Anchored local workspace area
-function drawWorkspaceBox(cx, cy) {
-    if (!window.strokeAnchorPos || (!lastPenState && !isAutoRecording)) return;
-
-    // Define a 0.4m x 0.4m semi-transparent board centered at the anchor coordinate
-    // The ML engine learns coordinates relative to this center point.
-    const aw = 0.2; // half-width (X)
-    const ah = 0.2; // half-height (Z)
-    const ax = window.strokeAnchorPos[0];
-    const ay = window.strokeAnchorPos[1]; // Depth is locked (XZ plane)
-    const az = window.strokeAnchorPos[2];
-
-    const corners = [
-        [ax - aw, ay, az - ah], [ax + aw, ay, az - ah],
-        [ax + aw, ay, az + ah], [ax - aw, ay, az + ah],
-        [ax - aw, ay, az - ah]
-    ];
-
-    // Border (Dashed)
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = 'rgba(74, 222, 128, 0.8)'; // Bright green bounding box
-    ctx.setLineDash([5, 5]);
-    ctx.beginPath();
-    let first = true;
-    for (const p of corners) {
-        let pt = projectWorld(p[0], p[1], p[2]);
-        if (!pt.visible) continue;
-        if (first) { ctx.moveTo(cx + pt.sx, cy + pt.sy); first = false; }
-        else ctx.lineTo(cx + pt.sx, cy + pt.sy);
-    }
-    ctx.stroke();
-    ctx.setLineDash([]); // Reset dash
-
-    // Fill (Semi-transparent board)
-    ctx.fillStyle = 'rgba(74, 222, 128, 0.15)';
-    ctx.beginPath();
-    first = true;
-    for (const p of corners) {
-        let pt = projectWorld(p[0], p[1], p[2]);
-        if (!pt.visible) continue;
-        if (first) { ctx.moveTo(cx + pt.sx, cy + pt.sy); first = false; }
-        else ctx.lineTo(cx + pt.sx, cy + pt.sy);
-    }
-    ctx.closePath();
-    ctx.fill();
-
-    // Anchor Center Dot (0,0,0 coordinate for ML Mode)
-    let centerPt = projectWorld(ax, ay, az);
-    if (centerPt.visible) {
-        ctx.fillStyle = 'rgba(74, 222, 128, 0.9)';
-        ctx.beginPath();
-        ctx.arc(cx + centerPt.sx, cy + centerPt.sy, 5, 0, Math.PI * 2);
-        ctx.fill();
-    }
-}
-
-// Axis Arrows (RGB = XYZ)
-function drawAxisArrows(cx, cy) {
-    const L = 0.3;
-    let o = projectWorld(0, 0, 0);
-    if (!o.visible) return;
-    const axes = [
-        { v: [L, 0, 0], c: 'rgba(255, 0, 0, 0.7)' },
-        { v: [0, L, 0], c: 'rgba(0, 200, 0, 0.7)' },
-        { v: [0, 0, L], c: 'rgba(0, 0, 255, 0.7)' },
-    ];
-    ctx.lineWidth = 2;
-    ctx.shadowBlur = 0;
-    for (let a of axes) {
-        let e = projectWorld(a.v[0], a.v[1], a.v[2]);
-        if (!e.visible) continue;
-        ctx.strokeStyle = a.c;
-        ctx.beginPath();
-        ctx.moveTo(cx + o.sx, cy + o.sy);
-        ctx.lineTo(cx + e.sx, cy + e.sy);
-        ctx.stroke();
-    }
-}
-
-// Arm skeleton (last 2 segments: wrist→pen handle→pen tip)
-function drawArm(cx, cy) {
-    if (!armPositions || armPositions.length < 4) return;
-
-    // Draw pen segment (wrist to tip) like digital_twin.py
-    let col = lastPenState ? '#ff1a66' : '#0080ff';
-
-    ctx.lineWidth = 5;
-    ctx.strokeStyle = col;
-    ctx.shadowBlur = 0;
-    ctx.beginPath();
-    let pts = [armPositions[2], armPositions[3]]; // wrist, tip
-    let first = true;
-    for (let p of pts) {
-        let pt = projectWorld(p[0], p[1], p[2]);
-        if (!pt.visible) continue;
-        if (first) { ctx.moveTo(cx + pt.sx, cy + pt.sy); first = false; }
-        else ctx.lineTo(cx + pt.sx, cy + pt.sy);
-    }
-    ctx.stroke();
-
-    // Joint dots
-    for (let i = 2; i < 4; i++) {
-        let p = armPositions[i];
-        let pt = projectWorld(p[0], p[1], p[2]);
-        if (!pt.visible) continue;
-        let r = i === 3 ? 3 : 5; // tip is smaller
-        ctx.fillStyle = i === 3 ? '#ff1a66' : '#888888';
-        ctx.beginPath();
-        ctx.arc(cx + pt.sx, cy + pt.sy, r, 0, Math.PI * 2);
-        ctx.fill();
-    }
-}
-
-// Pen trail strokes
-function drawStrokes(cx, cy) {
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = '#38e67a'; // Neon green trail (COL_TRAIL from digital_twin.py)
-    ctx.shadowBlur = 8;
-    ctx.shadowColor = 'rgba(56, 230, 122, 0.6)';
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-
-    for (const stroke of strokeHistory) {
-        if (stroke.length < 2) continue;
-        ctx.beginPath();
-        let started = false;
-        for (const p of stroke) {
-            let pt = projectWorld(p[0], p[1], p[2]);
-            if (!pt.visible) continue;
-            if (!started) { ctx.moveTo(cx + pt.sx, cy + pt.sy); started = true; }
-            else ctx.lineTo(cx + pt.sx, cy + pt.sy);
-        }
-        ctx.stroke();
-    }
-    ctx.shadowBlur = 0;
-}
-
-// Live cursor
-function drawCursor(cx, cy) {
-    if (!currentCursorPos) return;
-    let pt = projectWorld(currentCursorPos[0], currentCursorPos[1], currentCursorPos[2]);
-    if (!pt.visible) return;
-    liveCursor.style.left = `${cx + pt.sx}px`;
-    liveCursor.style.top = `${cy + pt.sy}px`;
-    if (lastPenState) {
-        liveCursor.style.background = '#ffffff';
-        liveCursor.style.transform = 'translate(-50%, -50%) scale(1.5)';
-    } else {
-        liveCursor.style.background = 'transparent';
-        liveCursor.style.transform = 'translate(-50%, -50%) scale(1.0)';
-    }
-}
-
-// ══════════════════════════════════════════
-// WebSocket
-// ══════════════════════════════════════════
-function connectWebSocket() {
-    valConn.textContent = "🟡 CONNECTING...";
-    valConn.className = "data-value warning";
-    ws = new WebSocket(WS_URL);
-    ws.onopen = () => { valConn.textContent = "🟢 CONNECTED (WS)"; valConn.className = "data-value success"; };
-    ws.onmessage = (event) => {
-        try {
-            const data = JSON.parse(event.data);
-            if (data.t === "f") updateFrame(data);
-        } catch (e) { console.error("JSON parse error:", e); }
-    };
-    ws.onclose = () => { valConn.textContent = "🔴 DISCONNECTED"; valConn.className = "data-value warning"; setTimeout(connectWebSocket, 3000); };
-    ws.onerror = (err) => console.error("WS Error:", err);
-}
-// ── Auto-connect on page load ──
-connectWebSocket();
-
-function updateFrame(data) {
-    const pen = data.pen || false;
-    const zupt = data.S3z || false;
-
-    if (pen) overlay.classList.add('active');
-    else overlay.classList.remove('active');
-
-    if (zupt) { valZupt.textContent = "🟢 ACTIVE"; valZupt.className = "data-value success"; }
-    else { valZupt.textContent = "⚪ INACTIVE"; valZupt.className = "data-value warning"; }
-
-    if (data.S3e) updateLiveChart(data.S3e);
-
-    // ── EXACT SAME FK as digital_twin.py ──
-    let positions = computeFK(data);
-    armPositions = positions;
-    let penTip = positions[positions.length - 1]; // pen-tip = last FK joint
-    currentCursorPos = penTip;
-
-    valPos.innerHTML = `X: ${penTip[0].toFixed(3)}<br>Y: ${penTip[1].toFixed(3)}<br>Z: ${penTip[2].toFixed(3)}`;
-
-    // Store latest data globally (for quaternion access in auto-record)
-    window.latestData = data;
-
-    // ── ML Auto-Predict Logic (Manual Pen Control) ──
-    let localizedTip = [...penTip];
-
-    // Calculate localized position based on anchor
-    if (window.strokeAnchorPos) {
-        localizedTip = [
-            penTip[0] - window.strokeAnchorPos[0],
-            penTip[1] - window.strokeAnchorPos[1],
-            penTip[2] - window.strokeAnchorPos[2]
-        ];
-    }
-
-    if (pen && !lastPenState) {
-        // PEN DOWN EDGE -> Lock new anchor workspace!
-        window.strokeAnchorPos = [...penTip];
-        localizedTip = [0, 0, 0];
-
-        currentStroke = [];
-        strokeHistory.push(currentStroke);
-
-        if (mlAutoPredict) {
-            mlCurrentPos = [];
-            updateMlStatus(`Analyzing...`);
-            updateScoreBoard([]);
-        }
-
-        // ── Pen-Button Manual Collection Mode ──
-        if (isAutoRecording && mlLearningLabel) {
-            mlCurrentFull = [];
-            window.manualRecAnchor = [...penTip];
-            recordingOverlay.innerText = `🔴 REC (쓰는 중...)`;
-            recordingOverlay.style.color = "#EF4444";
-            recordingOverlay.style.fontSize = '20px';
-            updateMlStatus(`🔴 '${mlLearningLabel}' 녹화 중...`);
-        }
-    }
-
-    if (pen) {
-        // Draw the trace in the REAL 3D World (Global coordinates)
-        currentStroke.push([...penTip]);
-
-        // Feed the ML Engine the Anchored Local Space coordinates
-        if (mlAutoPredict) {
-            mlCurrentPos.push([...localizedTip]);
-        }
-
-        // ── Manual collection: accumulate data while pen is held ──
-        if (isAutoRecording && mlLearningLabel && window.manualRecAnchor) {
-            let lx = penTip[0] - window.manualRecAnchor[0];
-            let ly = penTip[1] - window.manualRecAnchor[1];
-            let lz = penTip[2] - window.manualRecAnchor[2];
-            let s3q = data.S3q || [1, 0, 0, 0];
-            mlCurrentFull.push([lx, ly, lz, s3q[0], s3q[1], s3q[2], s3q[3]]);
-        }
-    }
-
-    if (!pen && lastPenState) {
-        // PEN UP EDGE
-        if (mlAutoPredict && mlCurrentPos.length > 5) {
-            sendMlPredict(mlCurrentPos);
-        }
-
-        // ── Manual collection: save on pen-up ──
-        if (isAutoRecording && mlLearningLabel && mlCurrentFull.length > 5) {
-            autoRecordSampleCount++;
-            sendMlRecord(mlLearningLabel, mlCurrentFull);
-            recordingOverlay.innerText = `✅ SAVED #${autoRecordSampleCount} — 다시 펜을 누르세요`;
-            recordingOverlay.style.color = "#10B981";
-            recordingOverlay.style.fontSize = '18px';
-            updateMlStatus(`✅ '${mlLearningLabel}' #${autoRecordSampleCount} 저장!`);
-            mlCurrentFull = [];
-            window.manualRecAnchor = null;
-        }
-    }
-
-    lastPenState = pen;
-    requestAnimationFrame(renderScene);
-}
-
-// ══════════════════════════════════════════
-// ML API Calls & UI
-// ══════════════════════════════════════════
-const btnMlRec = document.getElementById('btnMlRec');
-const btnMlPredict = document.getElementById('btnMlPredict');
-const mlStatusText = document.getElementById('mlStatusText');
-const aiResultWord = document.getElementById('aiResultWord');
-const aiResultScore = document.getElementById('aiResultScore');
-
-// Modal Elements
-const labelModal = document.getElementById('labelModal');
-const labelInput = document.getElementById('labelInput');
-const btnModalCancel = document.getElementById('btnModalCancel');
-const btnModalStart = document.getElementById('btnModalStart');
-const btnMlTrain = document.getElementById('btnMlTrain');
-
-let isAutoRecording = false;
-let autoRecordInterval = null;
-let autoRecordPhase = 'idle';
-let autoRecordTimer = 0;
-
-let autoRecordSampleCount = 0;
-
-function startAutoRecordingLoop() {
-    autoRecordPhase = 'idle';
-    autoRecordSampleCount = 0;
-
-    // Clear any existing interval
-    if (autoRecordInterval) clearInterval(autoRecordInterval);
-
-    autoRecordInterval = setInterval(() => {
-        if (!isAutoRecording || !mlLearningLabel) return;
-
-        let now = performance.now();
-
-        if (autoRecordPhase === 'idle') {
-            autoRecordPhase = 'countdown';
-            autoRecordTimer = now;
-            recordingOverlay.innerText = "⏳ READY...";
-            recordingOverlay.style.color = "#F59E0B";
-            recordingOverlay.style.display = 'block';
-            recordingOverlay.style.fontSize = '18px';
-            updateMlStatus(`'${mlLearningLabel}' 수집 준비 중...`);
-        }
-        else if (autoRecordPhase === 'countdown') {
-            let elapsed = (now - autoRecordTimer) / 1000;
-            let remaining = Math.max(0, 1.5 - elapsed).toFixed(1);
-            recordingOverlay.innerText = `⏳ ${remaining}s 후 시작...`;
-            recordingOverlay.style.color = "#F59E0B";
-
-            if (elapsed >= 1.5) {
-                // Start actual recording
-                autoRecordPhase = 'record';
-                autoRecordTimer = now;
-                mlCurrentFull = [];
-                window.autoRecAnchor = null;
-                recordingOverlay.innerText = "🔴 REC 3.0s (지금 쓰세요!)";
-                recordingOverlay.style.color = "#EF4444";
-                recordingOverlay.style.fontSize = '22px';
-                updateMlStatus(`🔴 녹화 중... '${mlLearningLabel}'`);
-            }
-        }
-        else if (autoRecordPhase === 'record') {
-            let elapsed = (now - autoRecordTimer) / 1000;
-            let remaining = Math.max(0, 3.0 - elapsed).toFixed(1);
-
-            // Live countdown on overlay
-            recordingOverlay.innerText = `🔴 REC ${remaining}s (지금 쓰세요!)`;
-
-            // Collect data every tick (pen state irrelevant during auto-record)
-            if (currentCursorPos) {
-                if (!window.autoRecAnchor) {
-                    window.autoRecAnchor = [...currentCursorPos];
-                }
-
-                let localX = currentCursorPos[0] - window.autoRecAnchor[0];
-                let localY = currentCursorPos[1] - window.autoRecAnchor[1];
-                let localZ = currentCursorPos[2] - window.autoRecAnchor[2];
-
-                let s3q = [1, 0, 0, 0];
-                if (window.latestData && window.latestData.S3q) s3q = window.latestData.S3q;
-
-                mlCurrentFull.push([
-                    localX, localY, localZ,
-                    s3q[0], s3q[1], s3q[2], s3q[3]
-                ]);
-            }
-
-            // 3 seconds elapsed → save and loop
-            if (elapsed >= 3.0) {
-                if (mlCurrentFull.length > 5) {
-                    autoRecordSampleCount++;
-                    sendMlRecord(mlLearningLabel, mlCurrentFull);
-
-                    // Flash "SAVED" briefly
-                    recordingOverlay.innerText = `✅ SAVED #${autoRecordSampleCount}`;
-                    recordingOverlay.style.color = "#10B981";
-                    recordingOverlay.style.fontSize = '20px';
-                    updateMlStatus(`✅ '${mlLearningLabel}' #${autoRecordSampleCount} 저장 완료!`);
-                } else {
-                    recordingOverlay.innerText = "⚠️ 데이터 부족 (다시)";
-                    recordingOverlay.style.color = "#F59E0B";
-                    updateMlStatus("⚠️ 데이터 부족, 다시 시도...");
-                }
-
-                // Reset for next cycle
-                mlCurrentFull = [];
-                autoRecordPhase = 'saved_flash';
-                autoRecordTimer = now;
-            }
-        }
-        else if (autoRecordPhase === 'saved_flash') {
-            // Brief 0.8s pause to show the SAVED message before restarting
-            let elapsed = (now - autoRecordTimer) / 1000;
-            if (elapsed >= 0.8) {
-                autoRecordPhase = 'countdown';
-                autoRecordTimer = now;
-            }
-        }
-    }, 50); // 50ms tick (~20Hz)
-}
-
-
-if (btnMlRec) {
-    btnMlRec.addEventListener('click', () => {
-        if (isAutoRecording) {
-            // Stop recording
-            isAutoRecording = false;
-            clearInterval(autoRecordInterval);
-            autoRecordInterval = null;
-            autoRecordPhase = 'idle';
-            autoRecordSampleCount = 0;
-            mlLearningLabel = null;
-            btnMlRec.innerHTML = `🎯 [가이드] 단어 수집`;
-            btnMlRec.style.background = '';
-            recordingOverlay.style.display = 'none';
-            recordingOverlay.style.fontSize = '';
-            updateMlStatus("Idle");
-            return;
-        }
-
-        // Show Modal
-        if (labelModal) {
-            labelModal.classList.add('active');
-            labelInput.value = '';
-            labelInput.focus();
-        }
-    });
-
-    if (btnModalCancel) {
-        btnModalCancel.addEventListener('click', () => {
-            labelModal.classList.remove('active');
-        });
-    }
-
-    const gridBtns = document.querySelectorAll('.grid-key-btn');
-    gridBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            if (labelInput) {
-                labelInput.value = btn.getAttribute('data-key');
-                labelInput.focus();
-            }
-        });
-    });
-
-    if (btnModalStart) {
-        btnModalStart.addEventListener('click', () => {
-            let label = labelInput.value.trim().toUpperCase();
-            if (label !== '') {
-                mlLearningLabel = label;
-                isAutoRecording = true;
-                autoRecordSampleCount = 0;
-
-                labelModal.classList.remove('active');
-
-                btnMlRec.innerHTML = `⏹️ [중지] '${mlLearningLabel}' 수집 중...`;
-                btnMlRec.style.background = '#F87171';
-
-                // Show pen instruction
-                recordingOverlay.innerText = `🎯 '${mlLearningLabel}' — 펜을 눌러 글씨를 쓰세요!`;
-                recordingOverlay.style.color = '#38BDF8';
-                recordingOverlay.style.fontSize = '18px';
-                recordingOverlay.style.display = 'block';
-                updateMlStatus(`대기: 펜을 누르면 녹화 시작`);
-            }
-        });
-    }
-
-    btnMlPredict.addEventListener('click', () => {
-        mlAutoPredict = !mlAutoPredict;
-        if (mlAutoPredict) {
-            btnMlPredict.innerHTML = `⚡ [자동보정] 끄기`;
-            btnMlPredict.classList.add('active');
-            updateMlStatus("Waiting for gesture...");
-        } else {
-            btnMlPredict.innerHTML = `⚡ [자동보정] 켜기`;
-            btnMlPredict.classList.remove('active');
-            updateMlStatus("Idle");
-            updateScoreBoard([]);
-        }
-    });
-
-    if (btnMlTrain) {
-        btnMlTrain.addEventListener('click', async () => {
-            let originalText = btnMlTrain.innerText;
-            btnMlTrain.innerText = "⏳ 학습 중... (Training)";
-            btnMlTrain.disabled = true;
-            try {
-                const res = await fetch('/api/ml/train', { method: 'POST' });
-                if (res.ok) {
-                    setTimeout(() => {
-                        btnMlTrain.innerText = "✅ 백그라운드 학습 시작 (10초 소요)";
-                        setTimeout(() => {
-                            btnMlTrain.innerText = originalText;
-                            btnMlTrain.disabled = false;
-                        }, 3000);
-                    }, 500);
-                }
-            } catch (e) {
-                console.error(e);
-                btnMlTrain.innerText = "❌ 확인 필요";
-                setTimeout(() => {
-                    btnMlTrain.innerText = originalText;
-                    btnMlTrain.disabled = false;
-                }, 2000);
-            }
-        });
-    }
-}
-
-let recognizedSequence = "";
-let lastTop1 = null;
-let autocorrectSuggestion = null;
-const recognizedTextOverlay = document.getElementById('recognizedTextOverlay');
-
-function updateTextOverlay() {
-    if (!recognizedTextOverlay) return;
-    if (recognizedSequence === "" && !autocorrectSuggestion) {
-        recognizedTextOverlay.classList.remove('active');
-        return;
-    }
-    recognizedTextOverlay.classList.add('active');
-
-    if (autocorrectSuggestion && autocorrectSuggestion.distance > 0) {
-        recognizedTextOverlay.innerHTML = `
-            <span style="color:#F87171; text-decoration:line-through; opacity:0.6">${recognizedSequence}</span>
-            <span style="color:#4ADE80; margin-left:8px">→ ${autocorrectSuggestion.word}?</span>
-            <span style="font-size:12px; color:#888; margin-left:8px">[Enter=확정]</span>
-        `;
-    } else {
-        recognizedTextOverlay.innerText = recognizedSequence;
-    }
-}
-
-document.addEventListener('keydown', (e) => {
-    if (!mlAutoPredict) return;
-
-    if (e.code === 'Space') {
-        e.preventDefault();
-        if (lastTop1) {
-            recognizedSequence += lastTop1.label;
-            lastTop1 = null;
-
-            // Autocorrect check
-            if (typeof findClosestWords === 'function' && recognizedSequence.length >= 2) {
-                let matches = findClosestWords(recognizedSequence);
-                if (matches.length > 0 && matches[0].distance > 0) {
-                    autocorrectSuggestion = matches[0];
-                } else {
-                    autocorrectSuggestion = null;
-                }
-            }
-        }
-        updateTextOverlay();
-        strokeHistory = [];
-        updateScoreBoard([]);
-    } else if (e.code === 'Enter') {
-        // Accept autocorrect suggestion
-        if (autocorrectSuggestion && autocorrectSuggestion.distance > 0) {
-            recognizedSequence = autocorrectSuggestion.word;
-            autocorrectSuggestion = null;
-            updateTextOverlay();
-        }
-    } else if (e.code === 'Backspace') {
-        if (recognizedSequence.length > 0) {
-            recognizedSequence = recognizedSequence.slice(0, -1);
-            autocorrectSuggestion = null;
-            if (recognizedSequence === "") {
-                recognizedTextOverlay?.classList.remove('active');
-            }
-            updateTextOverlay();
-        }
-    }
+/* ---- Constants ---- */
+const DEV_PW = '1234';
+
+/* =========================================
+   1. INITIALIZATION
+   ========================================= */
+document.addEventListener('DOMContentLoaded', () => {
+  initTabNavigation();
+  initTechSidebar();
+  initStudioButtons();
+  initQrModal();
+  initMlLabelModal();
+  initComments();
+  fetchNetworkIp();
+  fetchMlStats();
+
+  // Demo mode modal removed. Enter developer mode immediately.
+  enterMode('developer');
 });
 
-function updateMlStatus(msg) {
-    if (mlStatusText) mlStatusText.innerText = `Status: ${msg}`;
+/* =========================================
+   2. MODE SELECTION
+   ========================================= */
+window.toggleDevMode = function() {
+    const body = document.body;
+    const btn = document.getElementById('btnAdminToggle');
+    
+    if (body.classList.contains('mode-user')) {
+        const pw = prompt("엔지니어 관리자 비밀번호를 입력하세요 (기본 '1234'):");
+        if (pw === DEV_PW || pw === 'admin') {
+            body.classList.remove('mode-user');
+            body.classList.add('mode-dev');
+            if(btn) {
+                btn.textContent = '🔓 엔지니어 모드 종료';
+                btn.style.background = '#ef4444';
+                btn.style.color = '#fff';
+                btn.style.borderColor = '#ef4444';
+            }
+            if(document.getElementById('navSettingsBtn')) document.getElementById('navSettingsBtn').style.display = 'inline-block';
+            if(document.getElementById('navTeamBtn')) document.getElementById('navTeamBtn').style.display = 'inline-block';
+            if(document.getElementById('navContactBtn')) document.getElementById('navContactBtn').style.display = 'none';
+        } else if (pw !== null) {
+            alert('비밀번호가 일치하지 않습니다.');
+        }
+    } else {
+        body.classList.remove('mode-dev');
+        body.classList.add('mode-user');
+        if(btn) {
+            btn.textContent = '🔒 Admin Login';
+            btn.style.background = '';
+            btn.style.color = '';
+            btn.style.borderColor = '';
+        }
+        if(document.getElementById('navSettingsBtn')) document.getElementById('navSettingsBtn').style.display = 'none';
+        if(document.getElementById('navTeamBtn')) document.getElementById('navTeamBtn').style.display = 'none';
+        if(document.getElementById('navContactBtn')) document.getElementById('navContactBtn').style.display = 'inline-block';
+    }
+};
+
+/* =========================================
+   3. TAB NAVIGATION
+   ========================================= */
+function initTabNavigation() {
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => selectTab(btn.dataset.target));
+  });
 }
 
-function updateScoreBoard(predictions) {
-    if (!predictions || predictions.length === 0) {
-        if (aiResultWord) aiResultWord.innerText = "??";
-        if (aiResultScore) aiResultScore.innerText = "(0.0%)";
-        const aiCandidates = document.getElementById('aiCandidates');
-        if (aiCandidates) aiCandidates.innerHTML = '';
+function selectTab(tabId) {
+  currentTab = tabId;
+
+  // Update tab buttons
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.target === tabId);
+  });
+
+  // Update tab content
+  document.querySelectorAll('.tab-content').forEach(section => {
+    section.classList.toggle('active', section.id === tabId);
+  });
+  
+  // reset scroll on tab switch
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* =========================================
+   4. TECHNOLOGY SIDEBAR NAVIGATION
+   ========================================= */
+function initTechSidebar() {
+  document.querySelectorAll('.tech-nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const panelId = btn.dataset.panel;
+      if (!panelId) return;
+
+      // Update active button
+      document.querySelectorAll('.tech-nav-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      // Update active panel
+      document.querySelectorAll('.tech-panel').forEach(p => {
+        p.classList.remove('active');
+        p.style.display = 'none';
+      });
+      const target = document.getElementById(panelId);
+      if (target) {
+        target.classList.add('active');
+        target.style.display = 'block';
+        target.style.position = 'relative';
+        target.style.opacity = '1';
+        target.style.visibility = 'visible';
+      }
+      currentTechPanel = panelId;
+    });
+  });
+
+  // Ensure default panel is visible
+  const defaultPanel = document.querySelector('.tech-panel.active') || document.querySelector('.tech-panel');
+  if (defaultPanel) {
+    defaultPanel.style.display = 'block';
+    defaultPanel.style.position = 'relative';
+    defaultPanel.style.opacity = '1';
+    defaultPanel.style.visibility = 'visible';
+  }
+}
+
+/* =========================================
+   5. STUDIO BUTTONS
+   ========================================= */
+function initStudioButtons() {
+  // Connect Android button
+  const btnConnect = document.getElementById('btnConnectPhone');
+  if (btnConnect) {
+    btnConnect.addEventListener('click', () => {
+      const modal = document.getElementById('qrModal');
+      if (modal) modal.classList.add('active');
+    });
+  }
+
+
+
+  // ML Recording button
+  const btnMlRec = document.getElementById('btnMlRec');
+  if (btnMlRec) {
+    btnMlRec.addEventListener('click', () => {
+      const modal = document.getElementById('mlLabelModal');
+      if (modal) modal.classList.add('active');
+    });
+  }
+
+  // ML Predict toggle
+  const btnPredict = document.getElementById('btnMlPredict');
+  if (btnPredict) {
+    btnPredict.addEventListener('click', () => {
+      const status = document.getElementById('mlStatusText');
+      if (btnPredict.classList.contains('active')) {
+        btnPredict.classList.remove('active');
+        btnPredict.textContent = '⚡ [자동보정] 켜기';
+        btnPredict.style.background = '#1e293b';
+        btnPredict.style.color = '#38bdf8';
+        if (status) status.textContent = 'Status: Predict OFF';
+        isPredictMode = false;
+      } else {
+        btnPredict.classList.add('active');
+        btnPredict.textContent = '⚡ [자동보정] 끄기';
+        btnPredict.style.background = '#38bdf8';
+        btnPredict.style.color = '#0f172a';
+        if (status) status.textContent = 'Status: Predict ON (Draw & Release)';
+        isPredictMode = true;
+        recordedFrames = []; // Clear buffer for new stroke
+      }
+    });
+  }
+
+  // HTML buttons now use window.selectTab directly.
+}
+
+/* =========================================
+   6. REMOVED DEMO SIMULATOR
+   ========================================= */
+
+/* =========================================
+   7. QR CONNECT MODAL
+   ========================================= */
+function initQrModal() {
+  const modal = document.getElementById('qrModal');
+  const cancelBtn = document.getElementById('btnQrCancel');
+  const ipInput = document.getElementById('ipInput');
+
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', () => {
+      if (modal) modal.classList.remove('active');
+    });
+  }
+
+  // Auto-fill IP from server
+  fetchNetworkIp().then(ip => {
+    if (ip && ipInput) ipInput.value = ip;
+  });
+
+  // Generate QR on IP input
+  if (ipInput) {
+    ipInput.addEventListener('input', () => {
+      const ip = ipInput.value.trim();
+      if (!ip) return;
+      generateQr(`ws://${ip}:18800`);
+    });
+  }
+
+  // Close on backdrop click
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) modal.classList.remove('active');
+    });
+  }
+}
+
+function generateQr(text) {
+  const container = document.getElementById('qrCodeContainer');
+  if (!container) return;
+  container.innerHTML = '';
+  if (typeof QRCode !== 'undefined') {
+    new QRCode(container, {
+      text: text,
+      width: 180,
+      height: 180,
+      colorDark: '#0F172A',
+      colorLight: '#FFFFFF',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  }
+}
+
+/* =========================================
+   8. ACTUAL ML RECORDING LOGIC
+   ========================================= */
+function initMlLabelModal() {
+  const modal = document.getElementById('mlLabelModal');
+  const cancelBtn = document.getElementById('btnModalCancel');
+  const startBtn = document.getElementById('btnModalStart');
+
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', () => {
+      if (modal) modal.classList.remove('active');
+    });
+  }
+
+  if (startBtn) {
+    startBtn.addEventListener('click', () => {
+      const labelInput = document.getElementById('labelInput');
+      let label = labelInput ? labelInput.value.trim() : '';
+      if (!label) {
+        // Check if a grid button was selected
+        const selectedKey = document.querySelector('.grid-key-btn.selected');
+        if (!selectedKey) { alert('라벨을 입력하거나 키를 선택하세요.'); return; }
+        label = selectedKey.dataset.key || selectedKey.textContent.trim().charAt(0);
+      }
+      
+      if (modal) modal.classList.remove('active');
+      const status = document.getElementById('mlStatusText');
+      
+      if (status) {
+          status.textContent = `Status: Ready to record "${label}". Start writing!`;
+      }
+      
+      pendingRecordLabel = label;
+      isWaitingForStroke = true;
+      recordedFrames = [];
+      if (strokeTimer) { clearTimeout(strokeTimer); strokeTimer = null; }
+    });
+  }
+
+async function submitRecording(label, frames) {
+    const status = document.getElementById('mlStatusText');
+    if (!frames || frames.length < 5) {
+        if (status) status.textContent = 'Status: Data too short, try again.';
         return;
     }
-
-    // Top 1
-    const top1 = predictions[0];
-    lastTop1 = top1;
-    if (aiResultWord) aiResultWord.innerText = top1.label;
-    if (aiResultScore) aiResultScore.innerText = `(${(top1.confidence * 100).toFixed(1)}%)`;
-
-    // Top N loop
-    const aiCandidates = document.getElementById('aiCandidates');
-    if (aiCandidates) {
-        aiCandidates.innerHTML = ''; // clear
-        // We show up to top 3
-        for (let i = 0; i < Math.min(3, predictions.length); i++) {
-            let p = predictions[i];
-            let percent = (p.confidence * 100).toFixed(1);
-            let bar = document.createElement('div');
-            bar.className = 'candidate-bar';
-
-            // Highlight the first one with a different border or color
-            if (i === 0) bar.style.borderLeftColor = '#4ADE80';
-
-            bar.innerHTML = `
-                <div class="c-name">${i + 1}. ${p.label}</div>
-                <div class="c-val">${percent}%</div>
-            `;
-            aiCandidates.appendChild(bar);
+    
+    // Extract format needed by backend
+    const stroke_full = frames.map(f => {
+        if (f.pos && f.S3q) {
+            return [f.pos.x, f.pos.y, f.pos.z, f.S3q.w, f.S3q.x, f.S3q.y, f.S3q.z];
+        } else {
+            return [0,0,0, 1,0,0,0];
         }
-    }
+    });
+    
+    if (status) status.textContent = `Status: Sending "${label}" ...`;
 
-    // Pulse animation
-    const box = document.getElementById('aiScoreBox');
-    if (box) {
-        box.style.transform = 'scale(1.05)';
-        box.style.borderColor = '#4ADE80';
-        setTimeout(() => {
-            box.style.transform = 'scale(1)';
-            box.style.borderColor = 'var(--border-color)';
-        }, 200);
+    try {
+        const res = await fetch('/api/ml/record', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ label: label, stroke_full: stroke_full })
+        });
+        
+        if (!res.ok) throw new Error('Network error');
+        const result = await res.json();
+        
+        if (status) status.textContent = `Status: ${result.message || 'Saved successfully'}`;
+        setTimeout(() => { if (status) status.textContent = 'Status: Idle'; }, 3000);
+        
+    } catch (err) {
+        console.error("Recording save failed:", err);
+        if (status) status.textContent = 'Status: Error saving data';
     }
 }
 
-// ML Training Lab Charts
+  // Grid key buttons
+  document.querySelectorAll('.grid-key-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.grid-key-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      const labelInput = document.getElementById('labelInput');
+      if (labelInput) labelInput.value = btn.dataset.key || btn.textContent.trim().charAt(0);
+    });
+  });
+
+  // Close on backdrop
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) modal.classList.remove('active');
+    });
+  }
+}
+
+/* =========================================
+   9. COMMENTS SYSTEM
+   ========================================= */
+function initComments() {
+  loadComments();
+  const form = document.getElementById('commentForm');
+  if (form) {
+    form.addEventListener('submit', handleCommentSubmit);
+  }
+}
+
+async function loadComments() {
+  const list = document.getElementById('commentsList');
+  if (!list) return;
+
+  try {
+    const res = await fetch('/api/comments');
+    if (!res.ok) throw new Error('failed');
+    const data = await res.json();
+    const comments = Array.isArray(data.comments) ? data.comments : (Array.isArray(data) ? data : []);
+
+    if (comments.length === 0) {
+      list.innerHTML = '<div class="loading-text">아직 등록된 의견이 없습니다.</div>';
+      return;
+    }
+
+    list.innerHTML = '';
+    comments.slice().reverse().slice(0, 10).forEach(c => {
+      const card = document.createElement('div');
+      card.className = 'comment-card';
+      const author = escapeHtml(c.author || c.name || 'Anonymous');
+      const content = escapeHtml(c.content || c.message || '');
+      const date = c.created_at || c.createdAt || c.timestamp || '';
+      card.innerHTML = `
+        <div class="comment-meta">
+          <span class="comment-author">${author}</span>
+          <span class="comment-date">${formatTimestamp(date)}</span>
+        </div>
+        <div class="comment-body">${content}</div>
+      `;
+      list.appendChild(card);
+    });
+  } catch (err) {
+    list.innerHTML = '<div class="loading-text">댓글을 불러오지 못했습니다.</div>';
+  }
+}
+
+async function handleCommentSubmit(e) {
+  e.preventDefault();
+  const author = document.getElementById('commentAuthor');
+  const content = document.getElementById('commentContent');
+  const btn = document.getElementById('submitCommentBtn');
+
+  if (!author.value.trim() || !content.value.trim()) {
+    alert('이름과 메시지를 모두 입력해주세요.');
+    return;
+  }
+
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch('/api/comments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ author: author.value.trim(), content: content.value.trim() })
+    });
+    if (!res.ok) throw new Error('failed');
+    author.value = '';
+    content.value = '';
+    await loadComments();
+  } catch (err) {
+    alert('메시지를 전송하지 못했습니다.');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+/* =========================================
+   10. NETWORK IP & ML STATS
+   ========================================= */
+async function fetchNetworkIp() {
+  try {
+    const res = await fetch('/api/config/ip');
+    const data = await res.json();
+    const ip = data.ip || data.local_ip || '';
+    const display = document.getElementById('networkIpDisplay');
+    if (display && ip) display.textContent = `Network IP: ${ip}`;
+    return ip;
+  } catch (err) {
+    return '';
+  }
+}
+
 let sampleDistChart = null;
-let accuracyChart = null;
 
 function initLabCharts() {
     const ctxDist = document.getElementById('sampleDistChart')?.getContext('2d');
@@ -862,437 +449,596 @@ function initLabCharts() {
                 maintainAspectRatio: false,
                 scales: {
                     x: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' } },
-                    y: { grid: { display: false }, ticks: { color: '#ccc' } }
+                    y: { grid: { display: false }, ticks: { color: '#64748B' } }
                 },
                 plugins: { legend: { display: false } }
             }
         });
     }
-
-    const ctxAcc = document.getElementById('accuracyChart')?.getContext('2d');
-    if (ctxAcc) {
-        accuracyChart = new Chart(ctxAcc, {
-            type: 'line',
-            data: {
-                labels: ['V1 (Base)', 'V2 (MARG)', 'V3 (FK)', 'V4 (Directional/Live)'],
-                datasets: [{
-                    label: 'Accuracy %',
-                    data: [85, 93, 95, 0], // Live accuracy will be updated
-                    borderColor: '#10B981',
-                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                    fill: true,
-                    tension: 0.4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: { min: 70, max: 100, grid: { color: '#222' }, ticks: { color: '#aaa' } },
-                    x: { grid: { display: false }, ticks: { color: '#aaa' } }
-                }
-            }
-        });
-    }
 }
-initLabCharts();
+// Init charts directly or inside fetchMlStats later. We'll init here.
+// Note: DOMContentLoaded already fired by the time this is loaded if script is at bottom, but just in case:
+document.addEventListener('DOMContentLoaded', initLabCharts);
 
-async function refreshMlStats() {
-    try {
-        const res = await fetch('/api/ml/stats');
-        if (!res.ok) return;
-        const text = await res.text();
-        if (text.trim().startsWith('<')) {
-            console.warn("Stats API returned HTML. Assuming static hosting.");
-            return;
-        }
-        const stats = JSON.parse(text);
+async function fetchMlStats() {
+  if (!sampleDistChart) initLabCharts();
 
-        // Update DOM
-        const labAccuracy = document.getElementById('lab-accuracy');
-        const labTotal = document.getElementById('lab-total-samples');
-        const labTime = document.getElementById('lab-last-trained');
-        const labMonitor = document.getElementById('lab-monitor');
+  try {
+    const res = await fetch('/api/ml/stats');
+    if (!res.ok) return;
+    const data = await res.json();
 
-        if (labAccuracy) labAccuracy.innerText = (stats.accuracy * 100).toFixed(1) + '%';
+    // Update stat cards if they exist
+    const totalEl = document.getElementById('lab-total-samples');
+    const accuracyEl = document.getElementById('lab-accuracy');
 
-        let total = 0;
-        const labels = Object.keys(stats.sample_counts).sort();
-        const data = labels.map(l => {
-            total += stats.sample_counts[l];
-            return stats.sample_counts[l];
-        });
-
-        if (labTotal) labTotal.innerText = total;
-        if (labTime) labTime.innerText = stats.last_trained;
-
-        // Update Chart
-        if (sampleDistChart) {
-            sampleDistChart.data.labels = labels;
-            sampleDistChart.data.datasets[0].data = data;
-            sampleDistChart.update();
-        }
-
-        if (accuracyChart) {
-            // Update the 'Live' point in the accuracy chart
-            accuracyChart.data.datasets[0].data[3] = stats.accuracy * 100;
-            accuracyChart.update();
-        }
-
-        if (labMonitor && stats.last_trained !== 'Never') {
-            const time = new Date().toLocaleTimeString();
-            const logLine = `<div style="color:#10B981">[${time}] Model updated. Accuracy: ${(stats.accuracy * 100).toFixed(1)}%</div>`;
-            labMonitor.innerHTML = logLine + labMonitor.innerHTML;
-        }
-
-        // Update Health Checklist
-        const healthDiverse = document.getElementById('health-diverse');
-        if (healthDiverse) {
-            if (labels.length >= 2) {
-                healthDiverse.querySelector('.check-icon').innerText = '✓';
-                healthDiverse.querySelector('.check-icon').style.color = '#10B981';
-            } else {
-                healthDiverse.querySelector('.check-icon').innerText = '!';
-                healthDiverse.querySelector('.check-icon').style.color = '#f59e0b';
-            }
-        }
-
-    } catch (e) { console.error("Stats fetch error:", e); }
+    if (totalEl && data.total_samples != null) totalEl.textContent = data.total_samples;
+    if (accuracyEl && data.accuracy != null) accuracyEl.textContent = (data.accuracy * 100).toFixed(1) + '%';
+    
+    // Update chart
+    if (sampleDistChart && data.class_counts) {
+        const labels = Object.keys(data.class_counts);
+        const counts = Object.values(data.class_counts);
+        sampleDistChart.data.labels = labels;
+        sampleDistChart.data.datasets[0].data = counts;
+        sampleDistChart.update();
+    }
+  } catch (err) {
+    // ML stats not available
+  }
 }
 
-// Stats polling (every 10s)
-setInterval(refreshMlStats, 10000);
-refreshMlStats();
-
-async function sendMlRecord(label, strokeData) {
-    updateMlStatus("Saving...");
-    try {
-        const res = await fetch('/api/ml/record', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ label: label, stroke_full: strokeData })
-        });
-        const json = await res.json();
-        if (res.ok) {
-            updateMlStatus(`Saved '${label}'!`);
-            // Trigger stats refresh after a short delay for training to kick in
-            setTimeout(refreshMlStats, 2000);
-
-            // Aesthetic glow animation on the lab accuracy card if visible
-            const accCard = document.querySelector('.stat-card.gold-glow');
-            if (accCard) {
-                accCard.style.boxShadow = '0 0 30px rgba(245, 158, 11, 0.4)';
-                setTimeout(() => accCard.style.boxShadow = '', 1000);
-            }
-        } else {
-            updateMlStatus(`Error: ${json.error}`);
-        }
-    } catch (e) {
-        console.error(e);
-        updateMlStatus("Network Error");
-    }
+/* =========================================
+   11. UTILITIES
+   ========================================= */
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
-async function sendMlPredict(strokePosData) {
-    try {
-        const res = await fetch('/api/ml/predict', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ stroke_pos: strokePosData })
-        });
-        const json = await res.json();
-
-        if (res.ok && json.predictions && json.predictions.length > 0) {
-            updateScoreBoard(json.predictions);
-            updateMlStatus(`Predicted: ${json.predictions[0].label}`);
-        } else {
-            updateScoreBoard([]);
-            updateMlStatus("Unrecognized");
-        }
-    } catch (e) {
-        console.error(e);
-    }
+function formatTimestamp(val) {
+  if (!val) return '방금 전';
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return String(val);
+  return new Intl.DateTimeFormat('ko-KR', {
+    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+  }).format(d);
 }
 
-// ══════════════════════════════════════════
-// Camera Controls (matching digital_twin.py)
-// ══════════════════════════════════════════
-function applyPreset(preset) {
-    camDistance = preset.distance;
-    camElevation = preset.elevation;
-    camAzimuth = preset.azimuth;
-    camCenterX = preset.cx;
-    camCenterY = preset.cy;
-    camCenterZ = preset.cz;
-    requestAnimationFrame(renderScene);
+/* =========================================
+   12. SYSTEM SETTINGS (DEV ONLY)
+   ========================================= */
+async function loadSystemConfig() {
+  try {
+    const res = await fetch('/api/config/system');
+    if (!res.ok) throw new Error('failed loading config');
+    const config = await res.json();
+    
+    // Update YAML Preview
+    const preview = document.getElementById('yamlPreviewCode');
+    if (preview && typeof jsyaml !== 'undefined') {
+      preview.textContent = jsyaml.dump(config, { indent: 2 });
+    } else if (preview) {
+      preview.textContent = "jsyaml not loaded yet...";
+    }
+
+    // Populate Form Fields
+    if (config.action_dispatch) {
+      if (document.getElementById('confWsPort')) document.getElementById('confWsPort').value = config.action_dispatch.ws_port || 18800;
+      if (document.getElementById('confUdpPort')) document.getElementById('confUdpPort').value = config.action_dispatch.udp_port || 12348;
+    }
+    if (config.fusion) {
+      if (document.getElementById('confAccelNoise')) document.getElementById('confAccelNoise').value = config.fusion.accel_noise_std || 0.5;
+      if (config.fusion.zupt) {
+        if (document.getElementById('confGyroThresh')) document.getElementById('confGyroThresh').value = config.fusion.zupt.gyro_threshold || 0.05;
+      }
+      if (config.fusion.drift_observer) {
+        if (document.getElementById('confDriftObs')) document.getElementById('confDriftObs').checked = !!config.fusion.drift_observer.enabled;
+      }
+      if (config.fusion.writing_plane) {
+        if (document.getElementById('confPlaneLock')) document.getElementById('confPlaneLock').checked = !!config.fusion.writing_plane.absolute_lock;
+      }
+    }
+  } catch (err) {
+    if (document.getElementById('yamlPreviewCode')) {
+      document.getElementById('yamlPreviewCode').textContent = "Failed to load config. Server unreachable.";
+    }
+  }
 }
 
-window.addEventListener('keydown', (e) => {
-    if (e.code === 'KeyV') {
-        // V = Toggle view (same as digital_twin.py)
-        isFPV = !isFPV;
-        applyPreset(isFPV ? CAM_1ST : CAM_3RD);
+async function saveSystemConfig() {
+  const btn = document.getElementById('btnSaveConfig');
+  const msg = document.getElementById('configSaveMsg');
+  if (btn) btn.disabled = true;
+  
+  // Construct update payload
+  const payload = {
+    action_dispatch: {
+      ws_port: parseInt(document.getElementById('confWsPort').value) || 18800,
+      udp_port: parseInt(document.getElementById('confUdpPort').value) || 12348
+    },
+    fusion: {
+      accel_noise_std: parseFloat(document.getElementById('confAccelNoise').value) || 0.5,
+      zupt: {
+        gyro_threshold: parseFloat(document.getElementById('confGyroThresh').value) || 0.05
+      },
+      drift_observer: {
+        enabled: document.getElementById('confDriftObs').checked
+      },
+      writing_plane: {
+        absolute_lock: document.getElementById('confPlaneLock').checked
+      }
     }
-    if (e.code === 'KeyR' || e.code === 'Space') {
-        e.preventDefault();
-        // R = Reset trail (same as digital_twin.py)
-        strokeHistory = [];
-        requestAnimationFrame(renderScene);
+  };
+
+  try {
+    const res = await fetch('/api/config/system', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error('Failed to save');
+    
+    // Reload preview
+    await loadSystemConfig();
+    
+    // Show success message
+    if (msg) {
+      msg.style.display = 'block';
+      setTimeout(() => msg.style.display = 'none', 3000);
     }
+  } catch (err) {
+    alert("설정 저장에 실패했습니다.");
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// Call load on init
+document.addEventListener('DOMContentLoaded', () => {
+  // ensure jsyaml is loaded
+  if (typeof jsyaml === 'undefined') {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js';
+    script.onload = () => loadSystemConfig();
+    document.head.appendChild(script);
+  } else {
+    loadSystemConfig();
+  }
 });
 
-if (canvasContainer) {
-    // Mouse drag = rotate camera (azimuth + elevation)
-    canvasContainer.addEventListener('mousedown', (e) => {
-        isDragging = true;
-        lastMouseX = e.clientX;
-        lastMouseY = e.clientY;
-        canvasContainer.style.cursor = 'grabbing';
-    });
-    window.addEventListener('mousemove', (e) => {
-        if (!isDragging) return;
-        let dx = e.clientX - lastMouseX;
-        let dy = e.clientY - lastMouseY;
-        camAzimuth += dx * 0.3; // degrees
-        camElevation += dy * 0.3;
-        camElevation = Math.max(-89, Math.min(89, camElevation));
-        lastMouseX = e.clientX;
-        lastMouseY = e.clientY;
-        requestAnimationFrame(renderScene);
-    });
-    window.addEventListener('mouseup', () => {
-        isDragging = false;
-        canvasContainer.style.cursor = 'crosshair';
-    });
+/* =========================================
+   13. EXPLICIT WINDOW BINDINGS FOR HTML 
+   ========================================= */
+window.saveSystemConfig = saveSystemConfig;
+window.selectTab = selectTab;
 
-    // Scroll = zoom (distance)
-    canvasContainer.addEventListener('wheel', (e) => {
-        e.preventDefault();
-        camDistance *= (1 + e.deltaY * 0.001);
-        camDistance = Math.max(0.1, Math.min(5.0, camDistance));
-        requestAnimationFrame(renderScene);
+/* =========================================
+   14. WEBSOCKET & 2D CANVAS DRAWING
+   ========================================= */
+let wsConnection = null;
+let isRecording = false;
+let isPredictMode = false;
+let recordedFrames = [];
+let wasPenDown = false;
+let isWaitingForStroke = false;
+let pendingRecordLabel = '';
+let strokeTimer = null;
+
+const drawingCanvas = document.getElementById('drawingCanvas');
+
+let trajScene, trajCamera, trajRenderer, trajControls;
+let trajLine, trajMaterial, trajGeometry;
+let trajPenTip, trajFloor;
+let trajPositions = [];
+let trajColors = [];
+let lastTrajPos = null;
+let lastTrajTime = 0;
+
+function init3DCanvas() {
+    if (!drawingCanvas) return;
+    
+    const rect = drawingCanvas.parentElement.getBoundingClientRect();
+    
+    trajScene = new THREE.Scene();
+    trajCamera = new THREE.PerspectiveCamera(45, rect.width / rect.height, 0.1, 100);
+    trajCamera.position.set(0, 1.5, 3); // Positioned above and looking slightly down
+    trajCamera.lookAt(0, 0, 0);
+    
+    trajRenderer = new THREE.WebGLRenderer({ canvas: drawingCanvas, antialias: true, alpha: true });
+    trajRenderer.setSize(rect.width, rect.height);
+    trajRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    trajRenderer.setClearColor(0x000000, 0);
+    trajRenderer.shadowMap.enabled = true;
+    
+    if (typeof THREE.OrbitControls !== 'undefined') {
+        trajControls = new THREE.OrbitControls(trajCamera, trajRenderer.domElement);
+        trajControls.enableDamping = true;
+        trajControls.dampingFactor = 0.05;
+    }
+    
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    trajScene.add(ambientLight);
+    
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(0, 4, 2);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 1024;
+    dirLight.shadow.mapSize.height = 1024;
+    trajScene.add(dirLight);
+    
+    // Shadow receiving visual floor
+    const floorGeo = new THREE.PlaneGeometry(6, 6);
+    const floorMat = new THREE.MeshStandardMaterial({ 
+        color: 0x0f172a, transparent: true, opacity: 0.6, roughness: 0.9 
+    });
+    trajFloor = new THREE.Mesh(floorGeo, floorMat);
+    trajFloor.rotation.x = -Math.PI / 2;
+    trajFloor.position.y = -1.0;
+    trajFloor.receiveShadow = true;
+    trajScene.add(trajFloor);
+    
+    const grid = new THREE.GridHelper(6, 30, 0x334155, 0x1e293b);
+    grid.position.y = -0.99;
+    trajScene.add(grid);
+    
+    // Shadow-casting pen tip
+    const tipGeo = new THREE.SphereGeometry(0.04, 16, 16);
+    const tipMat = new THREE.MeshStandardMaterial({ 
+        color: 0x38bdf8, emissive: 0x0ea5e9, emissiveIntensity: 0.8 
+    });
+    trajPenTip = new THREE.Mesh(tipGeo, tipMat);
+    trajPenTip.castShadow = true;
+    trajPenTip.visible = false;
+    trajScene.add(trajPenTip);
+    
+    trajGeometry = new THREE.BufferGeometry();
+    trajMaterial = new THREE.LineBasicMaterial({ vertexColors: true, linewidth: 3 });
+    trajLine = new THREE.Line(trajGeometry, trajMaterial);
+    trajScene.add(trajLine);
+    
+    function animate() {
+        requestAnimationFrame(animate);
+        if (trajControls) trajControls.update();
+        trajRenderer.render(trajScene, trajCamera);
+    }
+    animate();
+    
+    window.addEventListener('resize', () => {
+        const r = drawingCanvas.parentElement.getBoundingClientRect();
+        trajCamera.aspect = r.width / r.height;
+        trajCamera.updateProjectionMatrix();
+        trajRenderer.setSize(r.width, r.height);
     });
 }
+init3DCanvas();
 
-// ══════════════════════════════════════════
-// Chart.js
-// ══════════════════════════════════════════
-Chart.defaults.color = '#666';
-Chart.defaults.font.family = "'JetBrains Mono', monospace";
-const ctxLive = document.getElementById('liveChart')?.getContext('2d');
-const MAX_DATAPOINTS = 100;
-let pitchData = [], rollData = [], yawData = [], labels = [];
-let liveChart = null;
-
-if (ctxLive) {
-    liveChart = new Chart(ctxLive, {
-        type: 'line',
-        data: {
-            labels, datasets: [
-                { label: 'Pitch', borderColor: '#ffffff', data: pitchData, borderWidth: 1, pointRadius: 0, tension: 0.1 },
-                { label: 'Roll', borderColor: '#888888', data: rollData, borderWidth: 1, pointRadius: 0, tension: 0.1 },
-                { label: 'Yaw', borderColor: '#444444', data: yawData, borderWidth: 1, pointRadius: 0, tension: 0.1 }
-            ]
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false, animation: false,
-            plugins: { legend: { display: true, position: 'top', labels: { boxWidth: 10, color: '#aaa', font: { size: 10 } } } },
-            scales: { x: { display: false }, y: { min: -180, max: 180, grid: { color: '#222' }, ticks: { stepSize: 90, color: '#666' } } }
-        }
-    });
-}
-
-function updateLiveChart(euler) {
-    if (!liveChart) return;
-    if (labels.length > MAX_DATAPOINTS) { labels.shift(); pitchData.shift(); rollData.shift(); yawData.shift(); }
-    labels.push(''); pitchData.push(euler[0]); rollData.push(euler[1]); yawData.push(euler[2]);
-    liveChart.update();
-}
-
-
-connectWebSocket();
-
-// SPA Tabs
-const tabBtns = document.querySelectorAll('.tab-btn');
-const tabContents = document.querySelectorAll('.tab-content');
-tabBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-        tabBtns.forEach(b => b.classList.remove('active'));
-        tabContents.forEach(c => c.classList.remove('active'));
-        btn.classList.add('active');
-        const target = document.getElementById(btn.getAttribute('data-target'));
-        if (target) target.classList.add('active');
-
-        // Load comments logic if tab is comments
-        if (target && target.id === 'tab-comments') {
-            loadComments();
-        }
-    });
-});
-
-// ══════════════════════════════════════════
-// Team Comments System
-// ══════════════════════════════════════════
-const commentForm = document.getElementById('commentForm');
-const commentsList = document.getElementById('commentsList');
-const submitBtn = document.getElementById('submitCommentBtn');
-
-async function loadComments() {
-    if (!commentsList) return;
-    try {
-        const res = await fetch('/api/comments');
-        if (!res.ok) throw new Error('API Error');
-        const comments = await res.json();
-        renderComments(comments);
-    } catch (e) {
-        console.error('Failed to load comments:', e);
-        commentsList.innerHTML = '<div class="loading-text" style="color:#ff3333">❌ 백엔드 서버가 로컬에서 실행중이 아닙니다 (정적 파일 모드). Flask앱을 실행해 주세요.</div>';
+function clearTrajectory() {
+    trajPositions = [];
+    trajColors = [];
+    if (trajGeometry) {
+        trajGeometry.setAttribute('position', new THREE.Float32BufferAttribute(trajPositions, 3));
+        trajGeometry.setAttribute('color', new THREE.Float32BufferAttribute(trajColors, 3));
     }
 }
 
-function renderComments(comments) {
-    if (comments.length === 0) {
-        commentsList.innerHTML = '<div class="loading-text">아직 등록된 의견이 없습니다. 첫 의견을 남겨보세요!</div>';
-        return;
-    }
+let lastX = null, lastY = null;
 
-    commentsList.innerHTML = '';
-    comments.forEach(c => {
-        const dateObj = new Date(c.timestamp + 'Z'); // Convert UTC to local
-        const dateStr = isNaN(dateObj) ? c.timestamp : dateObj.toLocaleString();
+function initRealTimeSystem() {
+    const wsUrl = `ws://${window.location.hostname}:18800`;
+    wsConnection = new WebSocket(wsUrl);
 
-        const card = document.createElement('div');
-        card.className = 'comment-card';
-        card.innerHTML = `
-            <div class="comment-meta">
-                <div class="comment-author">${escapeHtml(c.author)}</div>
-                <div class="comment-date">${escapeHtml(dateStr)}</div>
-            </div>
-            <div class="comment-body">${escapeHtml(c.content)}</div>
-        `;
-        commentsList.appendChild(card);
-    });
-}
-
-if (commentForm) {
-    commentForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const authorInput = document.getElementById('commentAuthor');
-        const contentInput = document.getElementById('commentContent');
-
-        const author = authorInput.value.trim();
-        const content = contentInput.value.trim();
-        if (!author || !content) return;
-
-        // Form styling during submit
-        submitBtn.disabled = true;
-        submitBtn.textContent = '등록 중...';
-
-        try {
-            const res = await fetch('/api/comments', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ author, content })
-            });
-            if (!res.ok) throw new Error('Failed to submit comment');
-
-            // Clear form and reload
-            authorInput.value = '';
-            contentInput.value = '';
-            await loadComments();
-        } catch (e) {
-            console.error('Submit error:', e);
-            alert('댓글 등록에 실패했습니다. (Flask 서버가 켜져있는지 확인하세요)');
-        } finally {
-            submitBtn.disabled = false;
-            submitBtn.textContent = '포스트 등록';
-        }
-    });
-}
-
-function escapeHtml(unsafe) {
-    return (unsafe || '').toString()
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-}
-
-// ══════════════════════════════════════════
-// ACTION DISPATCHER & CONFIG
-// ══════════════════════════════════════════
-const actionMappingList = document.getElementById('actionMappingList');
-const actionConnBadge = document.getElementById('actionConnBadge');
-const actionConnDot = document.getElementById('actionConnDot');
-const actionConnText = document.getElementById('actionConnText');
-const actionHistory = document.getElementById('actionHistory');
-
-let actionWs = null;
-
-async function initActionControl() {
-    try {
-        const res = await fetch('/api/config/actions');
-        if (res.ok) {
-            const config = await res.json();
-            if (actionMappingList && config.keywords) {
-                actionMappingList.innerHTML = '';
-                for (const [key, mapping] of Object.entries(config.keywords)) {
-                    const li = document.createElement('li');
-                    li.innerHTML = `<span class="check-icon" style="color:#38BDF8">⚡</span> <strong>${key}</strong> <span style="color:#64748b">→</span> ${mapping.name} <span style="font-size:11px;color:#64748b">(${mapping.intent})</span>`;
-                    actionMappingList.appendChild(li);
-                }
-            }
-
-            // Connect WS (Use configured port or default 18800)
-            const wsPort = config.ports ? config.ports.websocket : 18800;
-            const actionWsUrl = `ws://${window.location.hostname}:${wsPort}`;
-            connectActionWs(actionWsUrl, wsPort);
-        }
-    } catch (e) { console.error("Action config error", e); }
-}
-
-function connectActionWs(url, port) {
-    actionWs = new WebSocket(url);
-    actionWs.onopen = () => {
-        if (actionConnText) actionConnText.innerText = `CONNECTED (Port ${port})`;
-        if (actionConnBadge) { actionConnBadge.style.borderColor = '#10B981'; actionConnBadge.style.color = '#10B981'; }
-        if (actionConnDot) actionConnDot.style.background = '#10B981';
+    wsConnection.onopen = () => {
+        logToTerminal('[NET] WebSocket connected: ' + wsUrl);
+        const connEl = document.getElementById('valConn');
+        if (connEl) { connEl.textContent = '🟢 CONNECTED'; connEl.classList.remove('warning'); connEl.style.color = '#10b981'; }
     };
-    actionWs.onclose = () => {
-        if (actionConnText) actionConnText.innerText = `DISCONNECTED (Port ${port})`;
-        if (actionConnBadge) { actionConnBadge.style.borderColor = '#f59e0b'; actionConnBadge.style.color = '#f59e0b'; }
-        if (actionConnDot) actionConnDot.style.background = '#f59e0b';
-        setTimeout(() => connectActionWs(url, port), 3000);
-    };
-    actionWs.onerror = (e) => console.error("Action WS error", e);
 
-    actionWs.onmessage = (event) => {
+    wsConnection.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
-            if (data.type === 'action' && actionHistory) {
-                const time = new Date().toLocaleTimeString();
+            handleIncomingData(data);
+        } catch (err) {
+            console.error('WS parse error:', err);
+        }
+    };
 
-                // Remove empty placeholder
-                if (actionHistory.innerHTML.includes('No actions triggered')) {
-                    actionHistory.innerHTML = '';
-                }
+    wsConnection.onclose = () => {
+        logToTerminal('[NET] WebSocket disconnected. Reconneting in 3s...');
+        const connEl = document.getElementById('valConn');
+        if (connEl) { connEl.textContent = '🔴 DISCONNECTED'; connEl.classList.add('warning'); connEl.style.color = '#ef4444'; }
+        setTimeout(initRealTimeSystem, 3000);
+    };
 
-                const div = document.createElement('div');
-                div.style.marginBottom = '8px';
-                div.style.borderBottom = '1px solid rgba(255, 255, 255, 0.05)';
-                div.style.paddingBottom = '8px';
-
-                div.innerHTML = `<div style="color:#4ADE80; font-weight:bold;">[${time}] 🚀 ACTION DISPATCH: ${data.label}</div>
-                                 <div style="color:#94a3b8; font-size:13px; margin-top:4px;">Keyword: <span style="color:#38bdf8; font-weight:bold;">${data.keyword}</span></div>
-                                 <div style="color:#64748b; font-size:12px; margin-top:2px;">Intent: ${data.intent} | Confidence: ${(data.confidence * 100).toFixed(1)}%</div>`;
-
-                actionHistory.prepend(div);
-
-                // Play a brief sound or visual pulse here if desired
-            }
-        } catch (e) { console.error(e); }
+    wsConnection.onerror = (err) => {
+        // Ignored to avoid console spam
     };
 }
 
-initActionControl();
+function handleIncomingData(data) {
+    if (demoSimRunning) return; // Ignore real data if demo is running
+
+    if (data.type === 'imu_stream' || data.S3q) {
+        // 1. Update 3D Hand Mesh
+        if (window.handWidgetUpdate) {
+            window.handWidgetUpdate(data);
+        }
+
+        // 2. 3-Second Multi-Stroke Timer Logic
+        if (isWaitingForStroke || isPredictMode) {
+            // Detect first pen down
+            if (data.pen && !strokeTimer) {
+                const status = document.getElementById('mlStatusText');
+                if (status) {
+                    status.textContent = isPredictMode ? 'Status: Auto-predict (Listening 3s...)' : `Status: Recording "${pendingRecordLabel}" (Listening 3s...)`;
+                }
+                
+                // Clear canvas at start of new multi-stroke sequence
+                clearTrajectory();
+                
+                strokeTimer = setTimeout(() => {
+                    // Timer finished
+                    strokeTimer = null;
+                    if (isWaitingForStroke) {
+                        isWaitingForStroke = false;
+                        submitRecording(pendingRecordLabel, recordedFrames);
+                    } else if (isPredictMode) {
+                        if (recordedFrames.length >= 5) {
+                            triggerPrediction(recordedFrames);
+                        }
+                    }
+                    recordedFrames = []; // clear buffer after send
+                    
+                    // Auto-clear canvas afterwards
+                    setTimeout(() => {
+                        if (!strokeTimer) clearTrajectory();
+                    }, 1000); // Wait 1s so user can see what they drew
+                    
+                }, 3000);
+            }
+            
+            // Record frames if pen is down and we are within the 3s window
+            // Or regular 'isRecording' (from pipeline logic)
+            if (strokeTimer && data.pen) {
+                recordedFrames.push(data);
+            }
+        }
+        
+        // Handle normal continuous recording from the pipeline buttons
+        if (isRecording && data.pen) {
+            recordedFrames.push(data);
+        }
+
+        // 3. 3D WebGL Trajectory Drawing with Heatmap
+        if (data.pos) {
+            const viewfinderBox = document.getElementById('viewfinderBox');
+
+            if (data.pen) {
+                if (viewfinderBox) viewfinderBox.classList.add('active');
+                
+                // Scale position logic
+                const currentPos = new THREE.Vector3(data.pos.x * 3, data.pos.y * 3, -data.pos.z * 3);
+                const currentTime = Date.now();
+                
+                if (lastTrajPos !== null) {
+                    const dist = currentPos.distanceTo(lastTrajPos);
+                    const dt = (currentTime - lastTrajTime) / 1000.0 || 0.01;
+                    const speed = dist / dt; 
+                    
+                    // Heatmap: Slow=Cyan, Fast=Orange/Red
+                    const t = Math.min(speed / 2.0, 1.0);
+                    const color = new THREE.Color();
+                    if (t < 0.5) {
+                        color.lerpColors(new THREE.Color(0x0ea5e9), new THREE.Color(0xf59e0b), t * 2);
+                    } else {
+                        color.lerpColors(new THREE.Color(0xf59e0b), new THREE.Color(0xef4444), (t - 0.5) * 2);
+                    }
+                    
+                    trajPositions.push(currentPos.x, currentPos.y, currentPos.z);
+                    trajColors.push(color.r, color.g, color.b);
+                    
+                    if (trajGeometry) {
+                        trajGeometry.setAttribute('position', new THREE.Float32BufferAttribute(trajPositions, 3));
+                        trajGeometry.setAttribute('color', new THREE.Float32BufferAttribute(trajColors, 3));
+                        trajGeometry.computeBoundingSphere();
+                        // Slight zoom out over time
+                        if (trajControls) trajControls.target.copy(currentPos).multiplyScalar(0.1);
+                    }
+                    
+                    if (trajPenTip) {
+                        trajPenTip.position.copy(currentPos);
+                        trajPenTip.visible = true;
+                        trajPenTip.material.color.copy(color);
+                        trajPenTip.material.emissive.copy(color);
+                    }
+                } else {
+                    trajPositions.push(currentPos.x, currentPos.y, currentPos.z);
+                    trajColors.push(0.05, 0.64, 0.91); // Cyan
+                    if (trajPenTip) {
+                        trajPenTip.position.copy(currentPos);
+                        trajPenTip.visible = true;
+                    }
+                }
+                
+                lastTrajPos = currentPos;
+                lastTrajTime = currentTime;
+            } else {
+                if (viewfinderBox) viewfinderBox.classList.remove('active');
+                if (trajPenTip) trajPenTip.visible = false;
+                lastTrajPos = null;
+            }
+        }
+        
+        wasPenDown = !!data.pen;
+    } else if (data.type === 'ml_result' || data.word) {
+        // Handle Recognition Result
+        const resultWord = document.getElementById('aiResultWord');
+        const resultScore = document.getElementById('aiResultScore');
+        if (resultWord) resultWord.textContent = data.word || data.label;
+        if (resultScore) {
+            const conf = data.score || data.confidence || 0;
+            resultScore.textContent = `(${(conf * 100).toFixed(1)}%)`;
+        }
+
+        // Add Action Dispatch Toast
+        showActionToast(data.word || data.label, data.intent);
+    }
+}
+
+function logToTerminal(msg) {
+    const term = document.getElementById('terminalOutput');
+    if (!term) return;
+    const div = document.createElement('div');
+    div.textContent = msg;
+    term.appendChild(div);
+    term.parentElement.scrollTop = term.parentElement.scrollHeight;
+}
+
+/* =========================================
+   15. DATA PIPELINE & ACTION DISPATCH
+   ========================================= */
+function initDataPipeline() {
+    const btnRec = document.getElementById('btnRecData');
+    const btnPlay = document.getElementById('btnPlayData');
+    const filePlay = document.getElementById('filePlayData');
+    const status = document.getElementById('recordStatus');
+
+    if (btnRec) {
+        btnRec.addEventListener('click', () => {
+            if (!isRecording) {
+                // Start Recording
+                isRecording = true;
+                recordedFrames = [];
+                btnRec.textContent = '⏹ Stop Rec';
+                btnRec.style.background = '#fbbf24';
+                btnRec.style.color = '#1e293b';
+                if (status) status.textContent = 'Recording in progress...';
+                logToTerminal('[SYS] Data recording started.');
+            } else {
+                // Stop & Download
+                isRecording = false;
+                btnRec.textContent = '🔴 Record';
+                btnRec.style.background = '#1e293b';
+                btnRec.style.color = '#fbbf24';
+                if (status) status.textContent = `Recorded ${recordedFrames.length} frames.`;
+                logToTerminal(`[SYS] Recording stopped. Saved ${recordedFrames.length} frames.`);
+                
+                if (recordedFrames.length > 0) {
+                    const blob = new Blob([JSON.stringify(recordedFrames, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `airwriting_record_${Date.now()}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                }
+            }
+        });
+    }
+
+    if (btnPlay) {
+        btnPlay.addEventListener('click', () => {
+            filePlay.click();
+        });
+    }
+
+    if (filePlay) {
+        filePlay.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try {
+                    const frames = JSON.parse(ev.target.result);
+                    if (status) status.textContent = `Playing ${frames.length} frames...`;
+                    logToTerminal(`[SYS] Playing back JSON file: ${file.name}`);
+                    playRecordedFrames(frames);
+                } catch (err) {
+                    console.error('Failed to parse JSON', err);
+                    if (status) status.textContent = 'Error loading JSON.';
+                }
+            };
+            reader.readAsText(file);
+        });
+    }
+}
+
+function playRecordedFrames(frames) {
+    if (!frames || frames.length === 0) return;
+    
+    // Clear Canvas
+    if (ctx) ctx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
+    lastX = null;
+    lastY = null;
+    
+    // Stop Demo if running
+    if (demoSimRunning) toggleDemoSimulator();
+
+    let i = 0;
+    const interval = setInterval(() => {
+        if (i >= frames.length) {
+            clearInterval(interval);
+            const status = document.getElementById('recordStatus');
+            if (status) status.textContent = 'Playback finished.';
+            logToTerminal('[SYS] Playback finished.');
+            return;
+        }
+        handleIncomingData(frames[i]);
+        i++;
+    }, 1000 / 85); // approx 85Hz
+}
+
+function showActionToast(word, intent) {
+    const board = document.getElementById('actionDispatchBoard');
+    if (!board || currentMode !== 'developer') return;
+
+    if (!intent) {
+        if (word === 'CALL' || word === 'ㄱ') intent = 'Dialer / Phone App';
+        else if (word === 'MUSIC' || word === 'ㅁ') intent = 'Music Player Play/Pause';
+        else if (word === 'MAP' || word === 'ㄴ') intent = 'Navigation App';
+        else intent = `Generic Text Input: ${word}`;
+    }
+
+    const toast = document.createElement('div');
+    toast.style.background = 'rgba(16, 185, 129, 0.2)';
+    toast.style.border = '1px solid rgba(16, 185, 129, 0.5)';
+    toast.style.borderRadius = '8px';
+    toast.style.padding = '12px';
+    toast.style.backdropFilter = 'blur(4px)';
+    toast.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+    toast.style.fontFamily = "'Inter', sans-serif";
+    toast.style.transform = 'translateX(-20px)';
+    toast.style.opacity = '0';
+    toast.style.transition = 'all 0.3s ease';
+
+    toast.innerHTML = `
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+            <span style="font-size:16px;">🚀</span>
+            <span style="font-weight:700; color:#10b981; font-size:12px;">ACTION DISPATCHED</span>
+        </div>
+        <div style="color:#e2e8f0; font-size:14px; margin-bottom:2px;">[${word}] recognized.</div>
+        <div style="color:#94a3b8; font-size:11px; font-family:'JetBrains Mono',monospace;">Intent: ${intent}</div>
+    `;
+
+    board.prepend(toast);
+
+    setTimeout(() => {
+        toast.style.transform = 'translateX(0)';
+        toast.style.opacity = '1';
+    }, 50);
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(-20px)';
+        setTimeout(() => toast.remove(), 300);
+    }, 5000);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    initRealTimeSystem();
+    initDataPipeline();
+});

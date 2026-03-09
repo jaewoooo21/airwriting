@@ -4,18 +4,12 @@
    ============================================== */
 
 /* ---- Global State ---- */
-let currentMode = null;       // 'developer' | 'user'
 let currentTab = 'tab-home';
 let currentTechPanel = 'arch-panel';
 let ws = null;
-let demoSimRunning = false;
-let demoSimInterval = null;
 
 /* ---- Constants ---- */
-const DEV_ID = 'wodn1100';
 const DEV_PW = '1234';
-const DEV_ONLY_TABS = ['tab-team', 'tab-settings'];  // tabs hidden for user mode
-const USER_ONLY_TABS = ['tab-technology', 'tab-contact']; // tabs hidden for dev mode
 
 /* =========================================
    1. INITIALIZATION
@@ -30,111 +24,48 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchNetworkIp();
   fetchMlStats();
 
-  // Show mode selection after intro finishes
-  setTimeout(() => {
-    const modal = document.getElementById('modeSelectModal');
-    if (modal) modal.style.display = 'flex';
-  }, 4200);
+  // Demo mode modal removed. Enter developer mode immediately.
+  enterMode('developer');
 });
 
 /* =========================================
    2. MODE SELECTION
    ========================================= */
-window.showDevLogin = function() {
-  document.getElementById('devLoginForm').style.display = 'block';
-  document.getElementById('devIdInput').focus();
-};
-
-window.devLogin = function() {
-  const id = document.getElementById('devIdInput').value.trim();
-  const pw = document.getElementById('devPwInput').value.trim();
-  const err = document.getElementById('devLoginError');
-
-  if (id === DEV_ID && pw === DEV_PW) {
-    err.style.display = 'none';
-    enterMode('developer');
-  } else {
-    err.style.display = 'block';
-    document.getElementById('devPwInput').value = '';
-  }
-};
-
-window.enterUserMode = function() {
-  enterMode('user');
-};
-
-// Allow Enter key in password field
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && document.getElementById('modeSelectModal').style.display === 'flex') {
-    const devForm = document.getElementById('devLoginForm');
-    if (devForm.style.display === 'block') {
-      devLogin();
-    }
-  }
-});
-
-function enterMode(mode) {
-  currentMode = mode;
-  document.getElementById('modeSelectModal').style.display = 'none';
-  applyModeRestrictions();
-  selectTab('tab-home');
-}
-
-function applyModeRestrictions() {
-  const isUser = currentMode === 'user';
-
-  // Hide/show developer-only tabs
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    const target = btn.dataset.target;
-    if (DEV_ONLY_TABS.includes(target)) {
-      btn.style.display = isUser ? 'none' : 'inline-block';
-    }
-    if (USER_ONLY_TABS.includes(target)) {
-      btn.style.display = isUser ? 'inline-block' : 'none';
-    }
-  });
-
-  // Hide/show developer-only elements by class
-  document.querySelectorAll('.dev-feature').forEach(el => {
-    if (isUser) {
-      el.style.display = 'none';
+window.toggleDevMode = function() {
+    const body = document.body;
+    const btn = document.getElementById('btnAdminToggle');
+    
+    if (body.classList.contains('mode-user')) {
+        const pw = prompt("엔지니어 관리자 비밀번호를 입력하세요 (기본 '1234'):");
+        if (pw === DEV_PW || pw === 'admin') {
+            body.classList.remove('mode-user');
+            body.classList.add('mode-dev');
+            if(btn) {
+                btn.textContent = '🔓 엔지니어 모드 종료';
+                btn.style.background = '#ef4444';
+                btn.style.color = '#fff';
+                btn.style.borderColor = '#ef4444';
+            }
+            if(document.getElementById('navSettingsBtn')) document.getElementById('navSettingsBtn').style.display = 'inline-block';
+            if(document.getElementById('navTeamBtn')) document.getElementById('navTeamBtn').style.display = 'inline-block';
+            if(document.getElementById('navContactBtn')) document.getElementById('navContactBtn').style.display = 'none';
+        } else if (pw !== null) {
+            alert('비밀번호가 일치하지 않습니다.');
+        }
     } else {
-      if (el.id === 'actionDispatchBoard' || el.style.flexDirection) {
-        el.style.display = 'flex';
-      } else {
-        el.style.display = 'block';
-      }
+        body.classList.remove('mode-dev');
+        body.classList.add('mode-user');
+        if(btn) {
+            btn.textContent = '🔒 Admin Login';
+            btn.style.background = '';
+            btn.style.color = '';
+            btn.style.borderColor = '';
+        }
+        if(document.getElementById('navSettingsBtn')) document.getElementById('navSettingsBtn').style.display = 'none';
+        if(document.getElementById('navTeamBtn')) document.getElementById('navTeamBtn').style.display = 'none';
+        if(document.getElementById('navContactBtn')) document.getElementById('navContactBtn').style.display = 'inline-block';
     }
-  });
-
-  // Engineering panel visibility (right sidebar in Studio)
-  const rightPanel = document.querySelector('.right-panel');
-  if (rightPanel) {
-    if (isUser) {
-      rightPanel.style.display = 'none';
-    } else {
-      rightPanel.style.display = '';
-    }
-  }
-
-  // Add mode indicator to nav
-  let modeTag = document.getElementById('navModeTag');
-  if (!modeTag) {
-    modeTag = document.createElement('span');
-    modeTag.id = 'navModeTag';
-    modeTag.style.cssText = 'font-size:10px; padding:3px 8px; border-radius:4px; margin-left:10px; font-family:"JetBrains Mono",monospace; letter-spacing:0.5px;';
-    document.querySelector('.nav-brand').appendChild(modeTag);
-  }
-  if (currentMode === 'developer') {
-    modeTag.textContent = 'DEV';
-    modeTag.style.background = 'rgba(139,92,246,0.1)';
-    modeTag.style.color = '#8B5CF6';
-  } else {
-    modeTag.textContent = 'USER';
-    modeTag.style.background = 'rgba(16,185,129,0.1)';
-    modeTag.style.color = '#10B981';
-  }
-}
+};
 
 /* =========================================
    3. TAB NAVIGATION
@@ -215,11 +146,7 @@ function initStudioButtons() {
     });
   }
 
-  // Demo Simulator button
-  const btnDemo = document.getElementById('btnDemoSimulator');
-  if (btnDemo) {
-    btnDemo.addEventListener('click', toggleDemoSimulator);
-  }
+
 
   // ML Recording button
   const btnMlRec = document.getElementById('btnMlRec');
@@ -234,11 +161,23 @@ function initStudioButtons() {
   const btnPredict = document.getElementById('btnMlPredict');
   if (btnPredict) {
     btnPredict.addEventListener('click', () => {
-      btnPredict.classList.toggle('active');
-      const isActive = btnPredict.classList.contains('active');
-      btnPredict.textContent = isActive ? '⚡ [자동보정] 끄기' : '⚡ [자동보정] 켜기';
       const status = document.getElementById('mlStatusText');
-      if (status) status.textContent = isActive ? 'Status: Auto-correction ON' : 'Status: Idle';
+      if (btnPredict.classList.contains('active')) {
+        btnPredict.classList.remove('active');
+        btnPredict.textContent = '⚡ [자동보정] 켜기';
+        btnPredict.style.background = '#1e293b';
+        btnPredict.style.color = '#38bdf8';
+        if (status) status.textContent = 'Status: Predict OFF';
+        isPredictMode = false;
+      } else {
+        btnPredict.classList.add('active');
+        btnPredict.textContent = '⚡ [자동보정] 끄기';
+        btnPredict.style.background = '#38bdf8';
+        btnPredict.style.color = '#0f172a';
+        if (status) status.textContent = 'Status: Predict ON (Draw & Release)';
+        isPredictMode = true;
+        recordedFrames = []; // Clear buffer for new stroke
+      }
     });
   }
 
@@ -246,79 +185,8 @@ function initStudioButtons() {
 }
 
 /* =========================================
-   6. DEMO SIMULATOR
+   6. REMOVED DEMO SIMULATOR
    ========================================= */
-function toggleDemoSimulator() {
-  const btn = document.getElementById('btnDemoSimulator');
-  const status = document.getElementById('mlStatusText');
-  const canvas = document.getElementById('drawingCanvas');
-
-  if (demoSimRunning) {
-    // Stop
-    demoSimRunning = false;
-    clearInterval(demoSimInterval);
-    if (btn) btn.textContent = '▶️ Run Demo Simulator';
-    if (status) status.textContent = 'Status: Idle';
-    return;
-  }
-
-  // Start demo
-  demoSimRunning = true;
-  if (btn) btn.textContent = '⏹ Stop Simulator';
-  if (status) status.textContent = 'Status: Simulating...';
-
-  const resultWord = document.getElementById('aiResultWord');
-  const resultScore = document.getElementById('aiResultScore');
-
-  const demoWords = [
-    { word: 'ㄱ', score: 97.2 },
-    { word: 'ㄴ', score: 95.8 },
-    { word: 'ㅏ', score: 98.1 },
-    { word: 'A', score: 94.5 },
-    { word: 'B', score: 96.3 },
-    { word: 'AIR', score: 97.8 }
-  ];
-  let demoIdx = 0;
-
-  demoSimInterval = setInterval(() => {
-    if (!demoSimRunning) return;
-    const demo = demoWords[demoIdx % demoWords.length];
-    if (resultWord) resultWord.textContent = demo.word;
-    if (resultScore) resultScore.textContent = `(${demo.score}%)`;
-
-    // Show recognized overlay
-    const overlay = document.getElementById('recognizedTextOverlay');
-    if (overlay) {
-      overlay.textContent = demo.word;
-      overlay.classList.add('active');
-      setTimeout(() => overlay.classList.remove('active'), 1500);
-    }
-
-    // Update Performance Overlay
-    if (currentMode === 'developer') {
-      const fpsEl = document.getElementById('perfFps');
-      const latEl = document.getElementById('perfLatency');
-      const driftEl = document.getElementById('perfDrift');
-      const zuptEl = document.getElementById('perfZupt');
-      if (fpsEl) fpsEl.textContent = (58 + Math.random() * 4).toFixed(1);
-      if (latEl) latEl.textContent = (11 + Math.random() * 3).toFixed(1) + 'ms';
-      if (driftEl) driftEl.textContent = (Math.random() * 0.05).toFixed(3) + 'm';
-      if (zuptEl) zuptEl.textContent = Math.random() > 0.3 ? 'TRUE' : 'FALSE';
-      
-      // Update Live Terminal
-      const terminal = document.getElementById('terminalOutput');
-      if (terminal && Math.random() > 0.7) {
-        const msg = document.createElement('div');
-        msg.textContent = `[SIM] Replaying frame ${demoIdx}: ZUPT ${Math.random()>0.3?'Stabilized':'Moving'}, Score ${demo.score.toFixed(1)}`;
-        terminal.appendChild(msg);
-        if (terminal.childElementCount > 30) terminal.removeChild(terminal.firstChild);
-        terminal.parentNode.scrollTop = terminal.parentNode.scrollHeight;
-      }
-    }
-
-    demoIdx++;
-  }, 1000); // Changed to 1000ms for more active simulation
-}
 
 /* =========================================
    7. QR CONNECT MODAL
@@ -373,7 +241,7 @@ function generateQr(text) {
 }
 
 /* =========================================
-   8. ML LABEL MODAL
+   8. ACTUAL ML RECORDING LOGIC
    ========================================= */
 function initMlLabelModal() {
   const modal = document.getElementById('mlLabelModal');
@@ -389,22 +257,64 @@ function initMlLabelModal() {
   if (startBtn) {
     startBtn.addEventListener('click', () => {
       const labelInput = document.getElementById('labelInput');
-      const label = labelInput ? labelInput.value.trim() : '';
+      let label = labelInput ? labelInput.value.trim() : '';
       if (!label) {
         // Check if a grid button was selected
         const selectedKey = document.querySelector('.grid-key-btn.selected');
         if (!selectedKey) { alert('라벨을 입력하거나 키를 선택하세요.'); return; }
+        label = selectedKey.dataset.key || selectedKey.textContent.trim().charAt(0);
       }
+      
       if (modal) modal.classList.remove('active');
       const status = document.getElementById('mlStatusText');
-      if (status) status.textContent = `Status: Recording "${label || 'selected key'}" for 3s...`;
-      // Auto-reset after 3s
-      setTimeout(() => {
-        if (status) status.textContent = 'Status: Recording complete!';
-        setTimeout(() => { if (status) status.textContent = 'Status: Idle'; }, 2000);
-      }, 3000);
+      
+      if (status) {
+          status.textContent = `Status: Ready to record "${label}". Start writing!`;
+      }
+      
+      pendingRecordLabel = label;
+      isWaitingForStroke = true;
+      recordedFrames = [];
+      if (strokeTimer) { clearTimeout(strokeTimer); strokeTimer = null; }
     });
   }
+
+async function submitRecording(label, frames) {
+    const status = document.getElementById('mlStatusText');
+    if (!frames || frames.length < 5) {
+        if (status) status.textContent = 'Status: Data too short, try again.';
+        return;
+    }
+    
+    // Extract format needed by backend
+    const stroke_full = frames.map(f => {
+        if (f.pos && f.S3q) {
+            return [f.pos.x, f.pos.y, f.pos.z, f.S3q.w, f.S3q.x, f.S3q.y, f.S3q.z];
+        } else {
+            return [0,0,0, 1,0,0,0];
+        }
+    });
+    
+    if (status) status.textContent = `Status: Sending "${label}" ...`;
+
+    try {
+        const res = await fetch('/api/ml/record', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ label: label, stroke_full: stroke_full })
+        });
+        
+        if (!res.ok) throw new Error('Network error');
+        const result = await res.json();
+        
+        if (status) status.textContent = `Status: ${result.message || 'Saved successfully'}`;
+        setTimeout(() => { if (status) status.textContent = 'Status: Idle'; }, 3000);
+        
+    } catch (err) {
+        console.error("Recording save failed:", err);
+        if (status) status.textContent = 'Status: Error saving data';
+    }
+}
 
   // Grid key buttons
   document.querySelectorAll('.grid-key-btn').forEach(btn => {
@@ -706,46 +616,114 @@ document.addEventListener('DOMContentLoaded', () => {
    ========================================= */
 window.saveSystemConfig = saveSystemConfig;
 window.selectTab = selectTab;
-window.enterMode = enterMode;
-window.enterUserMode = function() { enterMode('user'); };
-window.devLogin = window.devLogin || function() {
-  const id = document.getElementById('devIdInput').value.trim();
-  const pw = document.getElementById('devPwInput').value.trim();
-  const err = document.getElementById('devLoginError');
-  if (id === DEV_ID && pw === DEV_PW) {
-    err.style.display = 'none';
-    enterMode('developer');
-  } else {
-    err.style.display = 'block';
-    document.getElementById('devPwInput').value = '';
-  }
-};
-window.showDevLogin = function() {
-  const form = document.getElementById('devLoginForm');
-  if (form) form.style.display = 'block';
-};
 
 /* =========================================
    14. WEBSOCKET & 2D CANVAS DRAWING
    ========================================= */
 let wsConnection = null;
 let isRecording = false;
+let isPredictMode = false;
 let recordedFrames = [];
+let wasPenDown = false;
+let isWaitingForStroke = false;
+let pendingRecordLabel = '';
+let strokeTimer = null;
 
 const drawingCanvas = document.getElementById('drawingCanvas');
-let ctx;
-if (drawingCanvas) {
-    const resizeCanvas = () => {
-        const rect = drawingCanvas.parentElement.getBoundingClientRect();
-        drawingCanvas.width = rect.width;
-        drawingCanvas.height = rect.height;
-    };
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-    ctx = drawingCanvas.getContext('2d');
-    ctx.lineWidth = 4;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#38bdf8';
+
+let trajScene, trajCamera, trajRenderer, trajControls;
+let trajLine, trajMaterial, trajGeometry;
+let trajPenTip, trajFloor;
+let trajPositions = [];
+let trajColors = [];
+let lastTrajPos = null;
+let lastTrajTime = 0;
+
+function init3DCanvas() {
+    if (!drawingCanvas) return;
+    
+    const rect = drawingCanvas.parentElement.getBoundingClientRect();
+    
+    trajScene = new THREE.Scene();
+    trajCamera = new THREE.PerspectiveCamera(45, rect.width / rect.height, 0.1, 100);
+    trajCamera.position.set(0, 1.5, 3); // Positioned above and looking slightly down
+    trajCamera.lookAt(0, 0, 0);
+    
+    trajRenderer = new THREE.WebGLRenderer({ canvas: drawingCanvas, antialias: true, alpha: true });
+    trajRenderer.setSize(rect.width, rect.height);
+    trajRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    trajRenderer.setClearColor(0x000000, 0);
+    trajRenderer.shadowMap.enabled = true;
+    
+    if (typeof THREE.OrbitControls !== 'undefined') {
+        trajControls = new THREE.OrbitControls(trajCamera, trajRenderer.domElement);
+        trajControls.enableDamping = true;
+        trajControls.dampingFactor = 0.05;
+    }
+    
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    trajScene.add(ambientLight);
+    
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(0, 4, 2);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 1024;
+    dirLight.shadow.mapSize.height = 1024;
+    trajScene.add(dirLight);
+    
+    // Shadow receiving visual floor
+    const floorGeo = new THREE.PlaneGeometry(6, 6);
+    const floorMat = new THREE.MeshStandardMaterial({ 
+        color: 0x0f172a, transparent: true, opacity: 0.6, roughness: 0.9 
+    });
+    trajFloor = new THREE.Mesh(floorGeo, floorMat);
+    trajFloor.rotation.x = -Math.PI / 2;
+    trajFloor.position.y = -1.0;
+    trajFloor.receiveShadow = true;
+    trajScene.add(trajFloor);
+    
+    const grid = new THREE.GridHelper(6, 30, 0x334155, 0x1e293b);
+    grid.position.y = -0.99;
+    trajScene.add(grid);
+    
+    // Shadow-casting pen tip
+    const tipGeo = new THREE.SphereGeometry(0.04, 16, 16);
+    const tipMat = new THREE.MeshStandardMaterial({ 
+        color: 0x38bdf8, emissive: 0x0ea5e9, emissiveIntensity: 0.8 
+    });
+    trajPenTip = new THREE.Mesh(tipGeo, tipMat);
+    trajPenTip.castShadow = true;
+    trajPenTip.visible = false;
+    trajScene.add(trajPenTip);
+    
+    trajGeometry = new THREE.BufferGeometry();
+    trajMaterial = new THREE.LineBasicMaterial({ vertexColors: true, linewidth: 3 });
+    trajLine = new THREE.Line(trajGeometry, trajMaterial);
+    trajScene.add(trajLine);
+    
+    function animate() {
+        requestAnimationFrame(animate);
+        if (trajControls) trajControls.update();
+        trajRenderer.render(trajScene, trajCamera);
+    }
+    animate();
+    
+    window.addEventListener('resize', () => {
+        const r = drawingCanvas.parentElement.getBoundingClientRect();
+        trajCamera.aspect = r.width / r.height;
+        trajCamera.updateProjectionMatrix();
+        trajRenderer.setSize(r.width, r.height);
+    });
+}
+init3DCanvas();
+
+function clearTrajectory() {
+    trajPositions = [];
+    trajColors = [];
+    if (trajGeometry) {
+        trajGeometry.setAttribute('position', new THREE.Float32BufferAttribute(trajPositions, 3));
+        trajGeometry.setAttribute('color', new THREE.Float32BufferAttribute(trajColors, 3));
+    }
 }
 
 let lastX = null, lastY = null;
@@ -790,32 +768,112 @@ function handleIncomingData(data) {
             window.handWidgetUpdate(data);
         }
 
-        // 2. Data Recording
-        if (isRecording) {
+        // 2. 3-Second Multi-Stroke Timer Logic
+        if (isWaitingForStroke || isPredictMode) {
+            // Detect first pen down
+            if (data.pen && !strokeTimer) {
+                const status = document.getElementById('mlStatusText');
+                if (status) {
+                    status.textContent = isPredictMode ? 'Status: Auto-predict (Listening 3s...)' : `Status: Recording "${pendingRecordLabel}" (Listening 3s...)`;
+                }
+                
+                // Clear canvas at start of new multi-stroke sequence
+                clearTrajectory();
+                
+                strokeTimer = setTimeout(() => {
+                    // Timer finished
+                    strokeTimer = null;
+                    if (isWaitingForStroke) {
+                        isWaitingForStroke = false;
+                        submitRecording(pendingRecordLabel, recordedFrames);
+                    } else if (isPredictMode) {
+                        if (recordedFrames.length >= 5) {
+                            triggerPrediction(recordedFrames);
+                        }
+                    }
+                    recordedFrames = []; // clear buffer after send
+                    
+                    // Auto-clear canvas afterwards
+                    setTimeout(() => {
+                        if (!strokeTimer) clearTrajectory();
+                    }, 1000); // Wait 1s so user can see what they drew
+                    
+                }, 3000);
+            }
+            
+            // Record frames if pen is down and we are within the 3s window
+            // Or regular 'isRecording' (from pipeline logic)
+            if (strokeTimer && data.pen) {
+                recordedFrames.push(data);
+            }
+        }
+        
+        // Handle normal continuous recording from the pipeline buttons
+        if (isRecording && data.pen) {
             recordedFrames.push(data);
         }
 
-        // 3. 2D Canvas Drawing (Simple orthogonal projection)
-        if (ctx && data.pos) {
-            const canvasW = drawingCanvas.width;
-            const canvasH = drawingCanvas.height;
-            const screenX = canvasW / 2 + (data.pos.x * 500);
-            const screenY = canvasH / 2 - (data.pos.z * 500);
+        // 3. 3D WebGL Trajectory Drawing with Heatmap
+        if (data.pos) {
+            const viewfinderBox = document.getElementById('viewfinderBox');
 
             if (data.pen) {
-                if (lastX !== null && lastY !== null) {
-                    ctx.beginPath();
-                    ctx.moveTo(lastX, lastY);
-                    ctx.lineTo(screenX, screenY);
-                    ctx.stroke();
+                if (viewfinderBox) viewfinderBox.classList.add('active');
+                
+                // Scale position logic
+                const currentPos = new THREE.Vector3(data.pos.x * 3, data.pos.y * 3, -data.pos.z * 3);
+                const currentTime = Date.now();
+                
+                if (lastTrajPos !== null) {
+                    const dist = currentPos.distanceTo(lastTrajPos);
+                    const dt = (currentTime - lastTrajTime) / 1000.0 || 0.01;
+                    const speed = dist / dt; 
+                    
+                    // Heatmap: Slow=Cyan, Fast=Orange/Red
+                    const t = Math.min(speed / 2.0, 1.0);
+                    const color = new THREE.Color();
+                    if (t < 0.5) {
+                        color.lerpColors(new THREE.Color(0x0ea5e9), new THREE.Color(0xf59e0b), t * 2);
+                    } else {
+                        color.lerpColors(new THREE.Color(0xf59e0b), new THREE.Color(0xef4444), (t - 0.5) * 2);
+                    }
+                    
+                    trajPositions.push(currentPos.x, currentPos.y, currentPos.z);
+                    trajColors.push(color.r, color.g, color.b);
+                    
+                    if (trajGeometry) {
+                        trajGeometry.setAttribute('position', new THREE.Float32BufferAttribute(trajPositions, 3));
+                        trajGeometry.setAttribute('color', new THREE.Float32BufferAttribute(trajColors, 3));
+                        trajGeometry.computeBoundingSphere();
+                        // Slight zoom out over time
+                        if (trajControls) trajControls.target.copy(currentPos).multiplyScalar(0.1);
+                    }
+                    
+                    if (trajPenTip) {
+                        trajPenTip.position.copy(currentPos);
+                        trajPenTip.visible = true;
+                        trajPenTip.material.color.copy(color);
+                        trajPenTip.material.emissive.copy(color);
+                    }
+                } else {
+                    trajPositions.push(currentPos.x, currentPos.y, currentPos.z);
+                    trajColors.push(0.05, 0.64, 0.91); // Cyan
+                    if (trajPenTip) {
+                        trajPenTip.position.copy(currentPos);
+                        trajPenTip.visible = true;
+                    }
                 }
-                lastX = screenX;
-                lastY = screenY;
+                
+                lastTrajPos = currentPos;
+                lastTrajTime = currentTime;
             } else {
-                lastX = null;
-                lastY = null;
+                if (viewfinderBox) viewfinderBox.classList.remove('active');
+                if (trajPenTip) trajPenTip.visible = false;
+                lastTrajPos = null;
             }
         }
+        
+        wasPenDown = !!data.pen;
     } else if (data.type === 'ml_result' || data.word) {
         // Handle Recognition Result
         const resultWord = document.getElementById('aiResultWord');

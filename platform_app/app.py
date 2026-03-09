@@ -25,6 +25,7 @@ def init_db():
     """Initialize the SQLite database and create the comments table if it doesn't exist."""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
+    cursor.execute('PRAGMA journal_mode=WAL;')
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS comments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -207,7 +208,8 @@ def get_local_ip():
     return jsonify({"ip": IP})
 
 if __name__ == '__main__':
-    # Run the Flask app on the port specified by the environment (required for Render/Heroku)
-    # Fallback to 5000 for local development
     port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    # Run the Waitress WSGI server instead of Werkzeug debug server
+    from waitress import serve
+    print(f"Starting Waitress server on port {port}...")
+    serve(app, host='0.0.0.0', port=port)

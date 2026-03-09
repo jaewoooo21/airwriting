@@ -3,6 +3,7 @@ import sqlite3
 import threading
 import numpy as np
 import yaml
+import socket
 from datetime import datetime
 from flask import Flask, request, jsonify, send_from_directory
 
@@ -24,6 +25,7 @@ def init_db():
     """Initialize the SQLite database and create the comments table if it doesn't exist."""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
+    cursor.execute('PRAGMA journal_mode=WAL;')
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS comments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -140,20 +142,74 @@ def ml_stats():
 # ════════════════════════════════════════════════════════════════
 # Configuration API
 # ════════════════════════════════════════════════════════════════
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), '..', 'config', 'system.yaml')
+
+@app.route('/api/config/system', methods=['GET'])
+def get_system_config():
+    """Retrieve full system.yaml configuration."""
+    try:
+        with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+        return jsonify(config)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/config/system', methods=['PUT'])
+def update_system_config():
+    """Update system.yaml configuration."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+    try:
+        # Read current config to preserve comments structure
+        with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
+            current = yaml.safe_load(f)
+        
+        # Deep merge: only update provided keys
+        def deep_merge(base, updates):
+            for k, v in updates.items():
+                if isinstance(v, dict) and isinstance(base.get(k), dict):
+                    deep_merge(base[k], v)
+                else:
+                    base[k] = v
+        
+        deep_merge(current, data)
+        
+        with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
+            yaml.dump(current, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+        
+        return jsonify({"status": "success", "message": "Configuration updated"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/config/actions', methods=['GET'])
 def get_action_config():
     """Retrieve action_dispatch config from system.yaml"""
-    config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'system.yaml')
     try:
-        with open(config_path, 'r', encoding='utf-8') as f:
+        with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
             action_config = config.get('action_dispatch', {})
             return jsonify(action_config)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/config/ip', methods=['GET'])
+def get_local_ip():
+    """Retrieve the local network IP address"""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # doesn't even have to be reachable
+        s.connect(('10.255.255.255', 1))
+        IP = s.getsockname()[0]
+    except Exception:
+        IP = '127.0.0.1'
+    finally:
+        s.close()
+    return jsonify({"ip": IP})
+
 if __name__ == '__main__':
-    # Run the Flask app on the port specified by the environment (required for Render/Heroku)
-    # Fallback to 5000 for local development
     port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    # Run the Waitress WSGI server instead of Werkzeug debug server
+    from waitress import serve
+    print(f"Starting Waitress server on port {port}...")
+    serve(app, host='0.0.0.0', port=port)

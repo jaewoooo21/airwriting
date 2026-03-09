@@ -37,14 +37,11 @@ class ControlFragment : Fragment() {
     private lateinit var btnDisconnect: MaterialButton
     private lateinit var manualInputContainer: LinearLayout
     private lateinit var statusText: TextView
-    private lateinit var statusDot: View
-    private lateinit var statusContainer: LinearLayout
     private lateinit var logText: TextView
     private lateinit var logScroll: ScrollView
     private lateinit var recognitionCard: MaterialCardView
     private lateinit var txtRecognizedLetter: TextView
     private lateinit var txtRecognitionDetails: TextView
-    private lateinit var statsRow: LinearLayout
     private lateinit var statActionCount: TextView
     private lateinit var statUptime: TextView
     private lateinit var statLastAction: TextView
@@ -98,14 +95,11 @@ class ControlFragment : Fragment() {
         btnDisconnect = view.findViewById(R.id.btnDisconnect)
         manualInputContainer = view.findViewById(R.id.manualInputContainer)
         statusText = view.findViewById(R.id.statusText)
-        statusDot = view.findViewById(R.id.statusDot)
-        statusContainer = view.findViewById(R.id.statusContainer)
         logText = view.findViewById(R.id.logText)
         logScroll = view.findViewById(R.id.logScroll)
         recognitionCard = view.findViewById(R.id.recognitionCard)
         txtRecognizedLetter = view.findViewById(R.id.txtRecognizedLetter)
         txtRecognitionDetails = view.findViewById(R.id.txtRecognitionDetails)
-        statsRow = view.findViewById(R.id.statsRow)
         statActionCount = view.findViewById(R.id.statActionCount)
         statUptime = view.findViewById(R.id.statUptime)
         statLastAction = view.findViewById(R.id.statLastAction)
@@ -137,7 +131,7 @@ class ControlFragment : Fragment() {
         btnToggleManual.setOnClickListener {
             manualVisible = !manualVisible
             manualInputContainer.visibility = if (manualVisible) View.VISIBLE else View.GONE
-            btnToggleManual.text = if (manualVisible) "IP 입력 ▲" else "직접 IP 입력 ▼"
+            btnToggleManual.text = if (manualVisible) "Hide IP Input ▲" else "Enter IP Manually ▼"
         }
 
         btnConnect.setOnClickListener {
@@ -186,7 +180,7 @@ class ControlFragment : Fragment() {
 
     private fun showDashboard(show: Boolean) {
         val vis = if (show) View.VISIBLE else View.GONE
-        recognitionCard.visibility = vis; statsRow.visibility = vis; btnDisconnect.visibility = vis
+        recognitionCard.visibility = vis; btnDisconnect.visibility = vis
         if (show) {
             connectTime = System.currentTimeMillis(); actionCount = 0
             statActionCount.text = "0"; statUptime.text = "0:00"; statLastAction.text = "—"
@@ -231,20 +225,14 @@ class ControlFragment : Fragment() {
         activity?.runOnUiThread {
             when (state) {
                 "connected" -> {
-                    statusText.text = "Connected"; statusText.setTextColor(Color.parseColor("#10B981"))
-                    statusContainer.setBackgroundResource(R.drawable.status_bg_connected)
-                    statusDot.setBackgroundColor(Color.parseColor("#10B981"))
+                    statusText.text = "CONNECTED"; statusText.setTextColor(Color.parseColor("#10B981"))
                     btnDisconnect.visibility = View.VISIBLE; showDashboard(true)
                 }
                 "connecting" -> {
-                    statusText.text = "Connecting..."; statusText.setTextColor(Color.parseColor("#F59E0B"))
-                    statusContainer.setBackgroundResource(R.drawable.status_bg_connecting)
-                    statusDot.setBackgroundColor(Color.parseColor("#F59E0B"))
+                    statusText.text = "CONNECTING..."; statusText.setTextColor(Color.parseColor("#F59E0B"))
                 }
                 else -> {
-                    statusText.text = "Not Connected"; statusText.setTextColor(Color.parseColor("#EF4444"))
-                    statusContainer.setBackgroundResource(R.drawable.status_bg_disconnected)
-                    statusDot.setBackgroundColor(Color.parseColor("#EF4444"))
+                    statusText.text = "NOT CONNECTED"; statusText.setTextColor(Color.parseColor("#EF4444"))
                     btnDisconnect.visibility = View.GONE
                 }
             }
