@@ -15,7 +15,8 @@ scipy
 joblib
 PyYAML
 
-# Deep Learning (LSTM Phase 7)
+# Deep Learning (LSTM Phase 7) - CPU Only for Serverless Deployment
+--extra-index-url https://download.pytorch.org/whl/cpu
 torch
 torchvision
 torchaudio
