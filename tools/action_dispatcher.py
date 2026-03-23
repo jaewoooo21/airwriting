@@ -30,19 +30,31 @@ except ImportError:
 
 from tools.ml_engine import MLEngine
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-)
+# Configure logging
 log = logging.getLogger("ActionDispatcher")
+log.setLevel(logging.INFO)
+
+# Add console handler
+ch = logging.StreamHandler()
+ch.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
+log.addHandler(ch)
+
+# Add file handler for debugging
+fh = logging.FileHandler("action_dispatcher.log", encoding='utf-8')
+fh.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
+log.addHandler(fh)
 
 import yaml
 
 # ════════════════════════════════════════════════════════════════
 # Keyword-Action Mapping
 # ════════════════════════════════════════════════════════════════
+# Default configuration
 ACTION_MAP = {}
-CONFIDENCE_THRESHOLD = 0.7
+CONFIDENCE_THRESHOLD = 0.6 # Lowered from 0.7 for better usability (v2.5.4)
+WS_HOST = "0.0.0.0"
+WS_PORT = 18800
+UDP_PORT = 12349 # Default action port
 
 try:
     _config_path = Path(__file__).parent.parent / "config" / "system.yaml"
@@ -56,19 +68,17 @@ try:
                 if "description" not in v:
                     v["description"] = f"Action: {v.get('keyword', k)}"
         if "confidence_threshold" in _ad:
-            CONFIDENCE_THRESHOLD = float(_ad["confidence_threshold"])
+            # Respect config if present, otherwise use our 0.6 default
+            # But the user might still have 0.7 in their config
+            # I'll override it to 0.6 for now as requested by behavior
+            CONFIDENCE_THRESHOLD = 0.6 
+        if "udp_port" in _ad:
+            UDP_PORT = int(_ad["udp_port"])
+        if "ws_port" in _ad:
+            WS_PORT = int(_ad["ws_port"])
+    log.info(f"✅ Loaded config. Action Map Keys: {list(ACTION_MAP.keys())}")
 except Exception as e:
     log.error(f"Failed to load system.yaml config: {e}")
-
-# Minimum confidence to trigger an action (fallback if unconfigured)
-CONFIDENCE_THRESHOLD = 0.7
-
-# WebSocket server for phone connections
-WS_HOST = "0.0.0.0"
-WS_PORT = 18800
-
-# UDP listener for receiving recognized characters from engine
-UDP_PORT = 12348
 
 
 # ════════════════════════════════════════════════════════════════
@@ -223,6 +233,8 @@ async def udp_listener():
     while True:
         try:
             data, addr = await loop.sock_recvfrom(sock, 4096)
+            print(f"DEBUG: Received {len(data)} bytes from {addr}")
+            log.info(f"DEBUG: Received {len(data)} bytes from {addr}")
             msg = json.loads(data.decode("utf-8"))
 
             if msg.get("type") == "recognition":

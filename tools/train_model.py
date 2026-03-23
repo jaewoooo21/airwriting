@@ -52,6 +52,14 @@ def normalize_stroke(stroke_data):
     normalized = (stroke_data - center) / scale
     return normalized
 
+
+def compute_direction_features(resampled_stroke):
+    """19 normalized direction vectors from 20 resampled points."""
+    deltas = np.diff(resampled_stroke, axis=0)
+    norms = np.linalg.norm(deltas, axis=1, keepdims=True)
+    norms[norms <= 1e-8] = 1.0
+    return deltas / norms
+
 def extract_features(df):
     """
     Group the dataframe by stroke, and extract flattened ML features.
@@ -78,8 +86,11 @@ def extract_features(df):
         # 2. Resample to fixed length
         resampled = resample_stroke(norm_coords, NUM_POINTS)
         
-        # 3. Flatten (20 * 3 = 60 features)
-        feature_vector = resampled.flatten()
+        # 3. Add normalized direction vectors (19 * 3 = 57 features)
+        directions = compute_direction_features(resampled)
+
+        # 4. Flatten -> 60 spatial + 57 directional = 117 features
+        feature_vector = np.concatenate([resampled.flatten(), directions.flatten()])
         
         features.append(feature_vector)
         labels.append(label)
@@ -112,7 +123,11 @@ def main():
     
     # Train Model
     print("\n🧠 Training Random Forest Classifier...")
-    clf = RandomForestClassifier(n_estimators=100, random_state=42)
+    clf = RandomForestClassifier(
+        n_estimators=200,
+        random_state=42,
+        class_weight='balanced_subsample'
+    )
     clf.fit(X_train, y_train)
     
     # Evaluate

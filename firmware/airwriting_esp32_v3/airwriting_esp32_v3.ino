@@ -3,6 +3,14 @@
 // - SSID: 재우의 S25
 // - Password: asdf750505*
 
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <WiFi.h>
+#include <WiFiUdp.h>
+#include <Wire.h>
+
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 #include <WiFi.h>
 #include <WiFiUdp.h>
 #include <Wire.h>
@@ -12,18 +20,31 @@ const char *ssid = "재우의 S25";
 const char *pass = "asdf750505*";
 
 // UDP Configuration
-const char *targetIP = "10.191.239.131"; // REPLACE WITH PC IP
+const char *targetIP = "10.112.127.131"; // REPLACE WITH PC IP
 const int targetPort = 12345;
+const int localPort = 5555; // Port to receive data FROM python
 WiFiUDP udp;
+
+// OLED Configuration
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET -1
+Adafruit_SSD1306 *display;
 
 // Hardware Pins
 const int PEN_BTN_PIN = 15;
 const int VIB_MOTOR_PIN = 4; // Haptic Feedback (Coin Motor)
 
-// Haptic State
-uint8_t lastBtnState = 1; // 1 = Released (PULLUP)
+// Debounce & Haptic State
+uint8_t lastBtnState = 1; // The previous STABLE state
 unsigned long vibTimer = 0;
 bool isVibActive = false;
+
+// Debounce variables
+uint8_t stableBtnState = 1;       // Current STABLE button state
+uint8_t lastUnstableBtnState = 1; // Previous RAW reading
+unsigned long lastDebounceTime = 0;
+const unsigned long debounceDelay = 100; // 30ms debounce delay
 
 // I2C Bus Pins
 const int I2C0_SDA = 21;
@@ -239,6 +260,23 @@ void scanI2C(TwoWire *wire, const char *busName) {
   }
 }
 
+void updateOLED(String letter, float accuracy) {
+  if (!display)
+    return;
+  display->clearDisplay();
+  display->setTextColor(WHITE);
+  display->setTextSize(4);
+  display->setCursor(22, 30);
+  display->println(letter);
+
+  display->setTextSize(1);
+  display->setCursor(5, 90);
+  display->print("Acc: ");
+  display->print(accuracy, 1);
+  display->println("%");
+  display->display();
+}
+
 void setup() {
   Serial.begin(115200);
 
@@ -249,6 +287,21 @@ void setup() {
   // Initialize Two I2C Buses
   I2C_MPU->begin(I2C0_SDA, I2C0_SCL, 400000); // 21, 22
   I2C_ICM->begin(I2C1_SDA, I2C1_SCL, 400000); // 32, 33
+
+  // Initialize OLED on I2C_MPU (Pins 21/22)
+  display =
+      new Adafruit_SSD1306(SCREEN_WIDTH, SCREEN_HEIGHT, I2C_MPU, OLED_RESET);
+  if (!display->begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println(F("OLED Init Failed"));
+  } else {
+    display->setRotation(1);
+    display->clearDisplay();
+    display->setTextSize(2);
+    display->setTextColor(WHITE);
+    display->setCursor(0, 50);
+    display->println("AirWriting");
+    display->display();
+  }
 
   Serial.println("=====================================");
   Serial.println("I2C Scanner - Checking Connections...");
@@ -270,6 +323,8 @@ void setup() {
     delay(500);
     Serial.print(".");
   }
+  Serial.println("\nWiFi Connected.");
+  udp.begin(localPort); // Start listening for incoming PC messages
 
   // Setup Sensors
   setupMPU6050(ADDR_S1_MPU); // S1
@@ -284,17 +339,31 @@ void loop() {
   readMPU6050(ADDR_S2_MPU, packet.s2); // Hand
   readICM20948(packet.s3);             // Finger (ICM20948)
 
-  uint8_t currentBtnState = digitalRead(PEN_BTN_PIN);
-  packet.button = (currentBtnState == LOW) ? 1 : 0;
-  
-  // Haptic Feedback Logic (Non-blocking)
-  if (currentBtnState == LOW && lastBtnState == HIGH) {
+  // -- Button Debounce Logic --
+  uint8_t currentRawBtnState = digitalRead(PEN_BTN_PIN);
+
+  if (currentRawBtnState != lastUnstableBtnState) {
+    lastDebounceTime = millis();
+  }
+
+  if ((millis() - lastDebounceTime) > debounceDelay) {
+    if (currentRawBtnState != stableBtnState) {
+      stableBtnState = currentRawBtnState;
+    }
+  }
+  lastUnstableBtnState = currentRawBtnState;
+
+  // Set packet based on STABLE state
+  packet.button = (stableBtnState == LOW) ? 1 : 0;
+
+  // Haptic Feedback Logic (using STABLE state)
+  if (stableBtnState == LOW && lastBtnState == HIGH) {
     // Pen Down Event -> Trigger 40ms Vibration
     digitalWrite(VIB_MOTOR_PIN, HIGH);
     vibTimer = millis();
     isVibActive = true;
   }
-  lastBtnState = currentBtnState;
+  lastBtnState = stableBtnState;
 
   if (isVibActive && (millis() - vibTimer >= 40)) {
     digitalWrite(VIB_MOTOR_PIN, LOW);
@@ -311,6 +380,23 @@ void loop() {
   udp.beginPacket(targetIP, targetPort);
   udp.write(ptr, sizeof(AirWritingPacketV3));
   udp.endPacket();
+
+  // Check for incoming UDP message from PC
+  int packetSize = udp.parsePacket();
+  if (packetSize) {
+    char incomingMsg[32];
+    int len = udp.read(incomingMsg, 31);
+    if (len > 0) {
+      incomingMsg[len] = 0;
+      String msg = String(incomingMsg);
+      int commaIndex = msg.indexOf(',');
+      if (commaIndex > 0) {
+        String letter = msg.substring(0, commaIndex);
+        float accuracy = msg.substring(commaIndex + 1).toFloat();
+        updateOLED(letter, accuracy);
+      }
+    }
+  }
 
   delay(10);
 }

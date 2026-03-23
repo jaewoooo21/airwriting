@@ -7,3 +7,5 @@ websockets>=12.0
 scikit-learn>=1.3
 pandas>=2.0
 joblib>=1.3
+torch>=2.0
+waitress>=3.0

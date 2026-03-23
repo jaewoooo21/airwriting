@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.AirWriting" parent="Theme.MaterialComponents.Light.NoActionBar">
-        <item name="colorPrimary">#0EA5E9</item>
-        <item name="colorPrimaryVariant">#0284C7</item>
-        <item name="colorOnPrimary">#FFFFFF</item>
-        <item name="colorSecondary">#0EA5E9</item>
+    <style name="Theme.AirWriting" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/accent</item>
+        <item name="colorPrimaryVariant">@color/accent_dark</item>
+        <item name="colorOnPrimary">#0B0F19</item>
+        <item name="colorSecondary">@color/accent_purple</item>
         <item name="colorOnSecondary">#FFFFFF</item>
-        <item name="android:statusBarColor">#FAFBFC</item>
-        <item name="android:windowLightStatusBar">true</item>
-        <item name="android:navigationBarColor">#FFFFFF</item>
-        <item name="android:windowBackground">#FAFBFC</item>
+        <item name="android:statusBarColor">#0B0F19</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:navigationBarColor">#090C15</item>
+        <item name="android:windowBackground">@color/bg_primary</item>
     </style>
 </resources>

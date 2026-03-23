@@ -17,11 +17,12 @@
         android:id="@+id/bottomNav"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@color/bg_card"
+        android:background="#090C15"
         app:menu="@menu/bottom_nav"
         app:itemIconTint="@color/nav_active"
         app:itemTextColor="@color/nav_active"
         app:labelVisibilityMode="labeled"
-        app:elevation="8dp" />
+        app:elevation="24dp"
+        app:itemRippleColor="@color/accent_light" />
 
 </LinearLayout>

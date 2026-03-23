@@ -224,7 +224,8 @@ class AirWritingIMUController:
     def _loop(self):
         while self.running and not self._stop_flag:
             try:
-                data, _ = self._rx_sock.recvfrom(256)
+                data, addr = self._rx_sock.recvfrom(256)
+                self._esp_last_addr = addr
             except socket.timeout:
                 self._check_cal_timeout()
                 continue
@@ -274,8 +275,24 @@ class AirWritingIMUController:
                 return []
                 
             pen_raw = bool(data[89] & 0x01)
-            self._pen_down = pen_raw
+            if pen_raw:
+                self._pen_down = True
+                self._pen_up_counter = 0
+            else:
+                if not hasattr(self, '_pen_up_counter'):
+                    self._pen_up_counter = 0
+                self._pen_up_counter += 1
+                if self._pen_up_counter > 4:  # ~50ms hysteresis
+                    self._pen_down = False
             ts = _FMT_TS.unpack_from(data, 1)[0]
+            
+            # v2.5.2: Safely ignore out-of-order UDP packets
+            if hasattr(self, '_last_rx_ts'):
+                diff = ts - self._last_rx_ts
+                # ESP32 millis() wraps 49 days, so only drop if older by less than ~10 sec
+                if diff < 0 and diff > -10000:
+                    return []
+            self._last_rx_ts = ts
             
             pkts = []
             
@@ -778,7 +795,14 @@ class AirWritingIMUController:
                 }
                 try:
                     raw = json.dumps(obj, default=_json_default).encode()
+                    # 1. Notify Web Relay (12348)
+                    self._tx_sock.sendto(raw, ("127.0.0.1", 12348))
+                    # 2. Notify Action Dispatcher (12349)
                     self._tx_sock.sendto(raw, ("127.0.0.1", self._action_port))
+                    
+                    if hasattr(self, '_esp_last_addr'):
+                        oled_msg = f"{label},{confidence*100:.1f}".encode('utf-8')
+                        self._tx_sock.sendto(oled_msg, (self._esp_last_addr[0], 5555))
                 except Exception as e:
                     log.debug(f"Action dispatch tx: {e}")
             else:

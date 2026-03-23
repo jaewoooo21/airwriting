@@ -250,7 +250,7 @@ class WebSocketService : Service() {
         // Default intents
         try {
             val intent = when (keyword) {
-                "CALL" -> Intent(Intent.ACTION_DIAL)
+                "CALL" -> Intent(Intent.ACTION_CALL, Uri.parse("tel:"))
                 "MESSAGE" -> Intent(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_APP_MESSAGING) }
                 "GEMINI" -> Intent(Intent.ACTION_ASSIST)
                 "SEARCH" -> Intent(Intent.ACTION_WEB_SEARCH).apply { putExtra("query", "") }

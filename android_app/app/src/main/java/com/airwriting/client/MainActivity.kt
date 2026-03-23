@@ -1,12 +1,18 @@
 package com.airwriting.client
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.google.android.material.bottomnavigation.BottomNavigationView
 
 class MainActivity : AppCompatActivity() {
 
+    private val PERMISSION_REQUEST_CODE = 100
     private val platformFragment = PlatformFragment()
     private val controlFragment = ControlFragment()
     private val actionsFragment = ActionsFragment()
@@ -16,6 +22,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        checkPermissions()
 
         val bottomNav = findViewById<BottomNavigationView>(R.id.bottomNav)
 
@@ -53,5 +60,23 @@ class MainActivity : AppCompatActivity() {
         WebSocketService.onStatusChange = null
         WebSocketService.onRecognition = null
         WebSocketService.onActionDispatched = null
+    }
+
+    private fun checkPermissions() {
+        val permissions = mutableListOf(
+            Manifest.permission.CALL_PHONE,
+            Manifest.permission.CAMERA
+        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
+        val toRequest = permissions.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+
+        if (toRequest.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, toRequest.toTypedArray(), PERMISSION_REQUEST_CODE)
+        }
     }
 }

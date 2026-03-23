@@ -198,40 +198,15 @@
             </aside>
 
             <main class="canvas-container">
-                <div class="canvas-wrapper glass-panel" style="position: relative;">
-                    <!-- PERFORMANCE OVERLAY (Dev Only) -->
-                    <div id="perfOverlay" class="dev-feature" style="position:absolute; top:20px; right:20px; background:rgba(15,23,42,0.8); backdrop-filter:blur(4px); padding:12px; border-radius:8px; border:1px solid rgba(14,165,233,0.3); color:#f8fafc; font-family:'JetBrains Mono',monospace; font-size:11px; z-index:10; pointer-events:none;">
-                        <div style="color:#0ea5e9; font-weight:700; margin-bottom:6px;">SYS PROFILER</div>
-                        <div style="display:flex; justify-content:space-between; width:120px;"><span>FPS</span> <span id="perfFps" style="color:#10b981;">60</span></div>
-                        <div style="display:flex; justify-content:space-between; width:120px;"><span>LATENCY</span> <span id="perfLatency" style="color:#f59e0b;">12ms</span></div>
-                        <div style="display:flex; justify-content:space-between; width:120px;"><span>DRIFT_Z</span> <span id="perfDrift" style="color:#ef4444;">0.01m</span></div>
-                        <div style="display:flex; justify-content:space-between; width:120px;"><span>ZUPT_ON</span> <span id="perfZupt">TRUE</span></div>
-                    </div>
-
+                <div class="canvas-wrapper" style="position: relative;">
+                    <canvas id="mainHandCanvas"></canvas>
                     <canvas id="drawingCanvas"></canvas>
-                    <div class="recognized-text-overlay" id="recognizedTextOverlay"></div>
-                    <!-- Viewfinder Box for Recording Zone -->
-                    <div class="viewfinder-box" id="viewfinderBox"></div>
-                    <div class="status-overlay" id="recordingOverlay" style="display:none;">🔴 WRITING</div>
 
                     <!-- LIVE TERMINAL (Dev Only) -->
-                    <div id="liveTerminal" class="dev-feature" style="position:absolute; bottom:20px; right:20px; left:20px; height:120px; background:rgba(10,15,26,0.9); border:1px solid #334155; border-radius:8px; padding:10px; font-family:'JetBrains Mono',monospace; font-size:11px; overflow-y:auto; color:#94a3b8; z-index:10; pointer-events:auto;">
-                        <div style="color:#e2e8f0; border-bottom:1px solid #334155; padding-bottom:4px; margin-bottom:6px; position:sticky; top:0; background:rgba(10,15,26,0.9);">
-                            >_ LIVE SYSTEM LOG <span class="pulse-dot" style="background:#10b981;"></span>
-                        </div>
-                        <div id="terminalOutput">
-                            <div>[SYS] AirWriting Platform v2.0 initialized.</div>
-                            <div>[NET] WebSocket server ready on port 18800.</div>
-                        </div>
-                    </div>
 
-                    <!-- ACTION DISPATCH BOARD (Dev Only) -->
-                    <div id="actionDispatchBoard" class="dev-feature" style="position:absolute; top:20px; left:20px; width:280px; z-index:20; pointer-events:none; display:flex; flex-direction:column; gap:8px;">
-                        <!-- Action event toasts inserted here via JS -->
-                    </div>
 
                     <!-- HAND WIDGET (Dev Only) -->
-                    <div id="handWidgetContainer" class="dev-feature" style="position:absolute; bottom:150px; right:20px; z-index:20; background:rgba(15,23,42,0.8); backdrop-filter:blur(12px); border:1px solid rgba(14,165,233,0.3); border-radius:12px; overflow:hidden; box-shadow:0 8px 32px rgba(0,0,0,0.5);">
+                    <div id="handWidgetContainer" style="position:absolute; bottom:150px; right:20px; z-index:20; background:rgba(15,23,42,0.8); backdrop-filter:blur(12px); border:1px solid rgba(14,165,233,0.3); border-radius:12px; overflow:hidden; box-shadow:0 8px 32px rgba(0,0,0,0.5);">
                         <div class="hand-widget-header" style="background:rgba(14,165,233,0.15); padding:8px 12px; cursor:grab; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(14,165,233,0.3);">
                             <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:#38bdf8; font-weight:700;">🤚 3D HAND MESH</span>
                             <div>
@@ -267,6 +242,22 @@
                     <div class="data-label">S3 REAL-TIME WAVEFORM (EULER)</div>
                     <div class="chart-wrapper">
                         <canvas id="liveChart"></canvas>
+                    </div>
+                </div>
+                <hr>
+                <div class="data-group">
+                    <div class="data-label">LIVE SKEW CORRECTION</div>
+                    <div class="quick-skew-panel">
+                        <div class="quick-skew-head">
+                            <span id="quickPlaneSkewVal">15.0°</span>
+                            <span class="quick-skew-caption">Instant visual correction</span>
+                        </div>
+                        <input type="range" id="quickPlaneSkew" min="-45" max="45" step="0.5" value="15">
+                        <div class="quick-skew-row">
+                            <input type="number" id="quickPlaneSkewNumber" min="-45" max="45" step="0.5" value="15">
+                            <button id="btnQuickSkewReset" class="quick-skew-btn">Reset 0°</button>
+                            <button id="btnQuickSkewSave" class="quick-skew-btn primary">Save</button>
+                        </div>
                     </div>
                 </div>
                 <div class="controls-hint">
@@ -724,7 +715,7 @@
                     <h1>🧠 ML Training Lab & Analytics</h1>
                     <div class="model-badge">
                         <span class="status-dot green"></span>
-                        PyTorch LSTM v1 (Sequence & Superimposed Ready)
+                        Random Forest (117-dim FK Stroke Features)
                     </div>
                 </div>
                 <button id="btnMlTrain" class="ml-btn ml-btn-predict"
@@ -1162,6 +1153,13 @@
                                     Absolute Plane Lock (Force 2D projection)
                                 </label>
                             </div>
+                            <div style="grid-column: span 2;">
+                                <label style="font-size:12px; display:block; margin-bottom:4px;">Left/Right Skew Correction (deg)</label>
+                                <input type="number" step="0.5" min="-45" max="45" id="confPlaneSkew" style="width:100%; border:1px solid var(--border-color); padding:8px; border-radius:4px;">
+                                <div style="font-size:11px; color:var(--text-muted); margin-top:6px;">
+                                    Positive value rotates the writing plane to correct left-leaning drift. Negative value corrects right-leaning drift.
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1449,7 +1447,7 @@
         }
     </script>
     <!-- ML Label Input Modal -->
-    <div id="labelModal" class="modal-overlay">
+    <div id="mlLabelModal" class="modal-overlay">
         <div class="modal-content glass-panel">
             <h3>🎯 가이드 단어 수집</h3>
             <p style="margin-bottom: 5px;">연속 수집할 단어나 글자를 입력하세요.</p>

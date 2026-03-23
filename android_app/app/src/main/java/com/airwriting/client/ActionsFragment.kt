@@ -37,7 +37,7 @@ class ActionsFragment : Fragment() {
             return try {
                 val type = mapping.getString("actionType"); val value = mapping.getString("value")
                 val intent = when (type) {
-                    "call" -> Intent(Intent.ACTION_DIAL, Uri.parse("tel:$value"))
+                    "call" -> Intent(Intent.ACTION_CALL, Uri.parse("tel:$value"))
                     "sms" -> Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$value"))
                     "url" -> Intent(Intent.ACTION_VIEW, Uri.parse(value))
                     "search" -> Intent(Intent.ACTION_WEB_SEARCH).apply { putExtra("query", value) }

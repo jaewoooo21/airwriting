@@ -5,23 +5,8 @@ echo ============================================
 
 :: ── Step 1: Kill any existing Python processes on our ports ──
 echo.
-echo [1/4] Cleaning up zombie processes...
-for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":12345 " ^| findstr "LISTENING"') do (
-    echo   Killing PID %%a (port 12345)
-    taskkill /F /PID %%a >nul 2>&1
-)
-for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":12346 " ^| findstr "LISTENING"') do (
-    echo   Killing PID %%a (port 12346)
-    taskkill /F /PID %%a >nul 2>&1
-)
-for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":18765 " ^| findstr "LISTENING"') do (
-    echo   Killing PID %%a (port 18765)
-    taskkill /F /PID %%a >nul 2>&1
-)
-for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":5000 " ^| findstr "LISTENING"') do (
-    echo   Killing PID %%a (port 5000)
-    taskkill /F /PID %%a >nul 2>&1
-)
+echo [1/4] Cleaning up zombie processes (PowerShell)...
+powershell -ExecutionPolicy Bypass -File "%~dp0kill_ports.ps1"
 echo   Done.
 
 :: ── Step 2: Wait for ports to fully release ──
@@ -48,7 +33,7 @@ echo   Started: WebSocket Relay (web_relay.py)
 timeout /t 1 /nobreak >nul
 
 :: Start Flask Web App
-start "Flask Web App" cmd /k "cd /d %~dp0 && .venv\Scripts\activate && python web_app\app.py"
+start "Flask Web App" cmd /k "cd /d %~dp0 && .venv\Scripts\activate && python platform_app\app.py"
 echo   Started: Flask ML API (app.py)
 
 :: Wait briefly

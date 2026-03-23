@@ -1,116 +1,67 @@
-network:
-  ports:
-    esp32_to_python: 12345
-    python_to_unity: 12346
-    python_to_dashboard: 12347
-    python_to_action: 12348
-  unity:
-    ip: 127.0.0.1
-    rate_hz: 60
-  dashboard:
-    ip: 127.0.0.1
-    rate_hz: 10
-fusion:
-  strategy: eskf_imu_only
-  initial_covariance: 1.0
-  accel_noise_std: 0.5
-  gyro_noise_std: 0.01
-  accel_bias_std: 0.0001
-  gyro_bias_std: 1.0e-05
-  zupt:
-    enabled: true
-    gyro_threshold: 0.05
-    accel_variance_threshold: 0.3
-    noise: 0.001
-    window_size: 20
-    adaptive: true
-  zaru:
-    enabled: true
-    noise: 0.0001
-  constraints:
-    max_velocity: 3.0
-    max_acceleration: 30.0
-    velocity_decay: 0.98
-    max_reach: 0.51
-  forward_kinematics:
-    enabled: true
-    fk_weight: 0.3
-    origin_fixed: true
-  writing_plane:
-    enabled: true
-    buffer_size: 100
-    min_spread: 0.005
-    suppress_ratio: 1.0
-    absolute_lock: true
-  drift_observer:
-    enabled: true
-    window: 30
-    threshold: 0.001
-    correction_factor: 0.5
-  loop_closure:
-    enabled: true
-    min_loop_length: 15
-    proximity_m: 0.008
-    cooldown: 20
-    noise_std: 0.02
-  vrn:
-    enabled: false
-    window_size: 20
-    noise_std: 0.1
-  multi_rate:
-    enabled: false
-    fast_multiplier: 2
-    slow_divisor: 10
-calibration:
-  num_samples: 300
-  timeout_sec: 10
-  gravity: 9.81
-madgwick:
-  beta: 0.1
-  sample_rate: 100
-  warmup_samples: 200
-unity_send:
-  rate_hz: 60
-  format: flat_json
 action_dispatch:
-  enabled: true
-  confidence_threshold: 1
+  udp_port: 12349
   ws_port: 18800
-  udp_port: 12348
+  confidence_threshold: 0.6
+  model_type: "cnn"
   action_map:
     C:
       keyword: CALL
-      intent: 'tel:'
+      intent: "tel:"
+      description: "전화기 (Dialer)"
     M:
       keyword: MESSAGE
-      intent: 'sms:'
+      intent: "sms:"
+      description: "메시지 (SMS)"
     G:
       keyword: GEMINI
-      intent: intent://#Intent;action=android.intent.action.ASSIST;end
+      intent: "gemini:"
+      description: "AI 어시스턴트"
     S:
       keyword: SEARCH
-      intent: intent://#Intent;action=android.intent.action.WEB_SEARCH;S.query=;end
+      intent: "search:"
+      description: "웹 검색"
     W:
       keyword: WEATHER
-      intent: intent://#Intent;action=android.intent.action.VIEW;component=com.sec.android.app.desktoplauncher/.WeatherActivity;end
+      intent: "weather:"
+      description: "날씨 확인"
     P:
       keyword: PHOTO
-      intent: intent://#Intent;action=android.media.action.STILL_IMAGE_CAMERA;package=com.sec.android.app.camera;end
+      intent: "camera:"
+      description: "카메라 실행"
     V:
       keyword: GALLERY
-      intent: intent://#Intent;action=android.intent.action.VIEW;type=image/*;end
+      intent: "gallery:"
+      description: "갤러리 열기"
     T:
       keyword: TIMER
-      intent: intent://#Intent;action=android.intent.action.SET_TIMER;end
+      intent: "timer:"
+      description: "타이머 설정"
     A:
       keyword: ALARM
-      intent: intent://#Intent;action=android.intent.action.SET_ALARM;end
+      intent: "alarm:"
+      description: "알람 설정"
     N:
       keyword: NOTE
-      intent: intent://#Intent;action=android.intent.action.SEND;type=text/plain;package=com.samsung.android.app.notes;end
+      intent: "note:"
+      description: "노트 작성"
     H:
       keyword: HOME
-      intent: intent://#Intent;action=android.intent.action.MAIN;category=android.intent.category.HOME;end
+      intent: "home:"
+      description: "홈 화면으로 이동"
     B:
       keyword: BIXBY
-      intent: intent://#Intent;action=android.intent.action.VOICE_COMMAND;package=com.samsung.android.bixby.agent;end
+      intent: "bixby:"
+      description: "보이스 커맨드"
+
+fusion:
+  accel_noise_std: 0.5
+  drift_observer:
+    enabled: true
+  writing_plane:
+    absolute_lock: true
+  zupt:
+    gyro_threshold: 0.05
+
+visualization:
+  writing_board:
+    plane_skew_deg: -2.5

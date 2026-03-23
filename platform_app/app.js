@@ -7,6 +7,8 @@
 let currentTab = 'tab-home';
 let currentTechPanel = 'arch-panel';
 let ws = null;
+let currentMode = 'developer';
+const demoSimRunning = false;
 
 /* ---- Constants ---- */
 const DEV_PW = '1234';
@@ -20,13 +22,23 @@ document.addEventListener('DOMContentLoaded', () => {
   initStudioButtons();
   initQrModal();
   initMlLabelModal();
+  initQuickSkewControls();
   initComments();
   fetchNetworkIp();
   fetchMlStats();
+  window.setInterval(fetchMlStats, 5000);
 
   // Demo mode modal removed. Enter developer mode immediately.
   enterMode('developer');
 });
+
+function enterMode(mode) {
+  currentMode = mode === 'developer' ? 'developer' : 'user';
+  const body = document.body;
+  if (!body) return;
+  body.classList.toggle('mode-dev', currentMode === 'developer');
+  body.classList.toggle('mode-user', currentMode !== 'developer');
+}
 
 /* =========================================
    2. MODE SELECTION
@@ -152,6 +164,11 @@ function initStudioButtons() {
   const btnMlRec = document.getElementById('btnMlRec');
   if (btnMlRec) {
     btnMlRec.addEventListener('click', () => {
+      if (guidedRecordingActive) {
+        stopGuidedRecording();
+        clearTrajectory();
+        return;
+      }
       const modal = document.getElementById('mlLabelModal');
       if (modal) modal.classList.add('active');
     });
@@ -178,6 +195,13 @@ function initStudioButtons() {
         isPredictMode = true;
         recordedFrames = []; // Clear buffer for new stroke
       }
+    });
+  }
+
+  const btnMlTrain = document.getElementById('btnMlTrain');
+  if (btnMlTrain) {
+    btnMlTrain.addEventListener('click', () => {
+      manualTrainModel();
     });
   }
 
@@ -269,52 +293,12 @@ function initMlLabelModal() {
       const status = document.getElementById('mlStatusText');
       
       if (status) {
-          status.textContent = `Status: Ready to record "${label}". Start writing!`;
+          status.textContent = `Status: Ready for "${label}". Press pen down to start 3s capture.`;
       }
-      
-      pendingRecordLabel = label;
-      isWaitingForStroke = true;
-      recordedFrames = [];
-      if (strokeTimer) { clearTimeout(strokeTimer); strokeTimer = null; }
+
+      armGuidedRecording(label);
     });
   }
-
-async function submitRecording(label, frames) {
-    const status = document.getElementById('mlStatusText');
-    if (!frames || frames.length < 5) {
-        if (status) status.textContent = 'Status: Data too short, try again.';
-        return;
-    }
-    
-    // Extract format needed by backend
-    const stroke_full = frames.map(f => {
-        if (f.pos && f.S3q) {
-            return [f.pos.x, f.pos.y, f.pos.z, f.S3q.w, f.S3q.x, f.S3q.y, f.S3q.z];
-        } else {
-            return [0,0,0, 1,0,0,0];
-        }
-    });
-    
-    if (status) status.textContent = `Status: Sending "${label}" ...`;
-
-    try {
-        const res = await fetch('/api/ml/record', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ label: label, stroke_full: stroke_full })
-        });
-        
-        if (!res.ok) throw new Error('Network error');
-        const result = await res.json();
-        
-        if (status) status.textContent = `Status: ${result.message || 'Saved successfully'}`;
-        setTimeout(() => { if (status) status.textContent = 'Status: Idle'; }, 3000);
-        
-    } catch (err) {
-        console.error("Recording save failed:", err);
-        if (status) status.textContent = 'Status: Error saving data';
-    }
-}
 
   // Grid key buttons
   document.querySelectorAll('.grid-key-btn').forEach(btn => {
@@ -332,6 +316,52 @@ async function submitRecording(label, frames) {
       if (e.target === modal) modal.classList.remove('active');
     });
   }
+}
+
+async function submitRecording(label, frames) {
+    const status = document.getElementById('mlStatusText');
+    if (!frames || frames.length < 5) {
+        if (status) status.textContent = 'Status: Data too short, try again.';
+        return;
+    }
+    
+    // Extract format needed by backend
+    const stroke_full = frames.map(f => {
+        const pos = extractCorrectedStrokePos(f);
+        const quat = toQuatObject(f.S3q ?? f.S3qObj);
+        if (pos && quat) {
+            return [pos.x, pos.y, pos.z, quat.w, quat.x, quat.y, quat.z];
+        } else {
+            return [0,0,0, 1,0,0,0];
+        }
+    });
+    
+    if (status) status.textContent = `Status: Sending "${label}" ...`;
+
+    try {
+        const res = await fetch('/api/ml/record', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ label: label, stroke_full: stroke_full })
+        });
+        
+        if (!res.ok) throw new Error('Network error');
+        const result = await res.json();
+        
+        if (status) {
+            status.textContent = guidedRecordingActive
+                ? `Status: ${result.message || `Saved "${label}".`} Press pen down for next 3s capture.`
+                : `Status: ${result.message || 'Saved successfully'}`;
+        }
+        clearTrajectory();
+        fetchMlStats();
+        setTimeout(fetchMlStats, 1500);
+        setTimeout(fetchMlStats, 5000);
+        
+    } catch (err) {
+        console.error("Recording save failed:", err);
+        if (status) status.textContent = 'Status: Error saving data';
+    }
 }
 
 /* =========================================
@@ -471,9 +501,45 @@ async function fetchMlStats() {
     // Update stat cards if they exist
     const totalEl = document.getElementById('lab-total-samples');
     const accuracyEl = document.getElementById('lab-accuracy');
+    const lastTrainedEl = document.getElementById('lab-last-trained');
+    const diversityEl = document.getElementById('health-diverse');
+    const monitorEl = document.getElementById('lab-monitor');
+    const btnMlTrain = document.getElementById('btnMlTrain');
+    const badge = document.querySelector('#panel-training .model-badge');
 
     if (totalEl && data.total_samples != null) totalEl.textContent = data.total_samples;
     if (accuracyEl && data.accuracy != null) accuracyEl.textContent = (data.accuracy * 100).toFixed(1) + '%';
+    if (lastTrainedEl) lastTrainedEl.textContent = data.last_trained || 'Never';
+
+    if (diversityEl) {
+        const ok = data.class_count >= 2;
+        diversityEl.innerHTML = `<span class="check-icon">${ok ? 'OK' : '!'}</span> Dataset Diversity (${data.class_count || 0} labels, min ${data.min_samples_per_class || 0}/label)`;
+    }
+
+    if (badge) {
+        const predictReady = data.predict_ready ? 'Predict Ready' : 'No Model';
+        badge.innerHTML = `<span class="status-dot ${data.predict_ready ? 'green' : 'warning'}"></span> Random Forest (117-dim FK Stroke) / ${predictReady}`;
+    }
+
+    if (btnMlTrain) {
+        btnMlTrain.disabled = data.status === 'TRAINING';
+        btnMlTrain.textContent = data.status === 'TRAINING' ? 'Training...' : 'Train Model';
+        btnMlTrain.style.opacity = data.status === 'TRAINING' ? '0.7' : '1';
+        btnMlTrain.title = data.is_trainable ? 'Dataset is ready for training.' : (data.trainability_reason || 'Need more data.');
+    }
+
+    if (monitorEl) {
+        const classes = Array.isArray(data.model_classes) ? data.model_classes.join(', ') : '';
+        monitorEl.textContent = [
+            `[MODEL] RandomForest / feature_dim=${data.model_feature_dim || 0} / predict_ready=${data.predict_ready ? 'YES' : 'NO'}`,
+            `[DATA] total=${data.total_samples || 0} / labels=${data.class_count || 0} / min_per_label=${data.min_samples_per_class || 0}`,
+            `[TRAIN] status=${data.status || 'UNKNOWN'} / trainable=${data.is_trainable ? 'YES' : 'NO'}`,
+            `[RULE] ${data.trainability_reason || 'No status available.'}`,
+            `[LAST] trained=${data.last_trained || 'Never'} / accuracy=${((data.accuracy || 0) * 100).toFixed(1)}%`,
+            `[CLASSES] ${classes || '-'}`,
+            data.last_error ? `[ERROR] ${data.last_error}` : '[ERROR] -',
+        ].join('\n');
+    }
     
     // Update chart
     if (sampleDistChart && data.class_counts) {
@@ -485,6 +551,31 @@ async function fetchMlStats() {
     }
   } catch (err) {
     // ML stats not available
+  }
+}
+
+async function manualTrainModel() {
+  const status = document.getElementById('mlStatusText');
+  if (status) status.textContent = 'Status: Checking training readiness...';
+
+  try {
+    const res = await fetch('/api/ml/train', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    if (!res.ok) throw new Error('Training request failed');
+
+    const payload = await res.json();
+    if (status) status.textContent = `Status: ${payload.message || 'Training request sent.'}`;
+    fetchMlStats();
+    if (payload.training_started) {
+      setTimeout(fetchMlStats, 1500);
+      setTimeout(fetchMlStats, 5000);
+    }
+  } catch (err) {
+    console.error('Manual training failed:', err);
+    if (status) status.textContent = 'Status: Manual training failed';
   }
 }
 
@@ -543,6 +634,8 @@ async function loadSystemConfig() {
         if (document.getElementById('confPlaneLock')) document.getElementById('confPlaneLock').checked = !!config.fusion.writing_plane.absolute_lock;
       }
     }
+    const visualSkew = config.visualization?.writing_board?.plane_skew_deg;
+    setPlaneSkewCorrection(typeof visualSkew === 'number' ? visualSkew : 15);
   } catch (err) {
     if (document.getElementById('yamlPreviewCode')) {
       document.getElementById('yamlPreviewCode').textContent = "Failed to load config. Server unreachable.";
@@ -572,6 +665,11 @@ async function saveSystemConfig() {
       writing_plane: {
         absolute_lock: document.getElementById('confPlaneLock').checked
       }
+    },
+    visualization: {
+      writing_board: {
+        plane_skew_deg: parseFloat(document.getElementById('confPlaneSkew').value) || 0
+      }
     }
   };
 
@@ -585,6 +683,7 @@ async function saveSystemConfig() {
     
     // Reload preview
     await loadSystemConfig();
+    setPlaneSkewCorrection(payload.visualization.writing_board.plane_skew_deg);
     
     // Show success message
     if (msg) {
@@ -617,6 +716,96 @@ document.addEventListener('DOMContentLoaded', () => {
 window.saveSystemConfig = saveSystemConfig;
 window.selectTab = selectTab;
 
+function toVec3Object(value) {
+    if (Array.isArray(value) && value.length >= 3) {
+        return {
+            x: Number(value[0]) || 0,
+            y: Number(value[1]) || 0,
+            z: Number(value[2]) || 0,
+        };
+    }
+
+    if (value && typeof value === 'object') {
+        return {
+            x: Number(value.x) || 0,
+            y: Number(value.y) || 0,
+            z: Number(value.z) || 0,
+        };
+    }
+
+    return null;
+}
+
+function toQuatArray(value) {
+    if (Array.isArray(value) && value.length >= 4) {
+        return [
+            Number(value[0]) || 1,
+            Number(value[1]) || 0,
+            Number(value[2]) || 0,
+            Number(value[3]) || 0,
+        ];
+    }
+
+    if (value && typeof value === 'object') {
+        return [
+            Number(value.w) || 1,
+            Number(value.x) || 0,
+            Number(value.y) || 0,
+            Number(value.z) || 0,
+        ];
+    }
+
+    return null;
+}
+
+function toQuatObject(value) {
+    const arr = toQuatArray(value);
+    if (!arr) return null;
+    return { w: arr[0], x: arr[1], y: arr[2], z: arr[3] };
+}
+
+function normalizeIncomingData(raw) {
+    const data = { ...raw };
+
+    const pos = toVec3Object(data.pos ?? data.S3p ?? data.p);
+    if (pos) data.pos = pos;
+
+    const fk = toVec3Object(data.fk ?? data.S3fk);
+    if (fk) data.fk = fk;
+
+    const renderPos = toVec3Object(data.renderPos ?? data.fk ?? data.S3fk ?? data.pos ?? data.S3p ?? data.p);
+    if (renderPos) data.renderPos = renderPos;
+
+    const vel = toVec3Object(data.vel ?? data.S3v ?? data.v);
+    if (vel) data.vel = vel;
+
+    for (const key of ['S1q', 'S2q', 'S3q']) {
+        const arr = toQuatArray(data[key]);
+        if (arr) {
+            data[key] = arr;
+            data[`${key}Obj`] = toQuatObject(arr);
+        }
+    }
+
+    if (data.type == null && data.t === 'f') {
+        data.type = 'imu_stream';
+    }
+
+    if (data.word == null && data.type === 'recognition' && data.label) {
+        data.word = data.label;
+    }
+
+    if (data.score == null && typeof data.confidence === 'number') {
+        data.score = data.confidence;
+    }
+
+    if (data.zupt == null && typeof data.S3z === 'boolean') {
+        data.zupt = data.S3z;
+    }
+
+    return data;
+}
+
 /* =========================================
    14. WEBSOCKET & 2D CANVAS DRAWING
    ========================================= */
@@ -630,14 +819,315 @@ let pendingRecordLabel = '';
 let strokeTimer = null;
 
 const drawingCanvas = document.getElementById('drawingCanvas');
+const boardOrigin = new THREE.Vector3(0.0, 0.04, -0.86);
+const boardNormal = new THREE.Vector3(0, 0, 1);
+const sceneUpAxis = new THREE.Vector3(0, 1, 0);
+const boardTilt = new THREE.Euler(
+    THREE.MathUtils.degToRad(-6),
+    THREE.MathUtils.degToRad(4),
+    0,
+    'XYZ'
+);
+const boardBounds = {
+    width: 1.24,
+    height: 0.86,
+    depth: 0.024,
+    surfaceZ: 0.013,
+};
+let planeSkewCorrectionDeg = 15;
+let planeSkewCorrectionRad = THREE.MathUtils.degToRad(planeSkewCorrectionDeg);
+const penSpace = {
+    scaleX: 4.0,
+    scaleY: 5.0,
+    scaleZ: 4.0,
+    offsetX: 0.0,
+    offsetY: -0.02,
+    offsetZ: -0.46,
+    drawDistance: 0.42,
+};
 
-let trajScene, trajCamera, trajRenderer, trajControls;
+let trajScene, trajCamera, trajRenderer;
+let trajStage, trajBoardRoot;
+let trajControls;
 let trajLine, trajMaterial, trajGeometry;
-let trajPenTip, trajFloor;
+let trajPenGroup, trajPenTip, trajPenBody;
+let trajBoard, trajBoardFrame, trajBoardGlow, trajGround;
+let trajInkGroup;
+let trajBoardCursor, trajBoardCursorHalo;
 let trajPositions = [];
 let trajColors = [];
 let lastTrajPos = null;
+let lastInkPos = null;
 let lastTrajTime = 0;
+let lastPenDirection = new THREE.Vector3(0, -0.1, -1).normalize();
+let penCalibrationOrigin = new THREE.Vector3(0, 0, 0);
+let hasPenCalibrationOrigin = false;
+let lastRenderSensorPos = null;
+let guidedRecordingActive = false;
+
+function setPlaneSkewCorrection(deg) {
+    const safeDeg = Number.isFinite(deg) ? THREE.MathUtils.clamp(deg, -45, 45) : 15;
+    planeSkewCorrectionDeg = safeDeg;
+    planeSkewCorrectionRad = THREE.MathUtils.degToRad(planeSkewCorrectionDeg);
+    const textValue = planeSkewCorrectionDeg.toFixed(1);
+    const input = document.getElementById('confPlaneSkew');
+    const quickSlider = document.getElementById('quickPlaneSkew');
+    const quickNumber = document.getElementById('quickPlaneSkewNumber');
+    const quickLabel = document.getElementById('quickPlaneSkewVal');
+    if (input && Number(input.value) !== planeSkewCorrectionDeg) input.value = textValue;
+    if (quickSlider && Number(quickSlider.value) !== planeSkewCorrectionDeg) quickSlider.value = textValue;
+    if (quickNumber && Number(quickNumber.value) !== planeSkewCorrectionDeg) quickNumber.value = textValue;
+    if (quickLabel) quickLabel.textContent = `${textValue}°`;
+}
+
+function initQuickSkewControls() {
+    const quickSlider = document.getElementById('quickPlaneSkew');
+    const quickNumber = document.getElementById('quickPlaneSkewNumber');
+    const btnReset = document.getElementById('btnQuickSkewReset');
+    const btnSave = document.getElementById('btnQuickSkewSave');
+
+    if (!quickSlider || !quickNumber) return;
+
+    const apply = (value) => {
+        const parsed = Number.parseFloat(value);
+        setPlaneSkewCorrection(Number.isFinite(parsed) ? parsed : planeSkewCorrectionDeg);
+    };
+
+    quickSlider.addEventListener('input', () => {
+        apply(quickSlider.value);
+    });
+
+    quickNumber.addEventListener('input', () => {
+        apply(quickNumber.value);
+    });
+
+    quickNumber.addEventListener('change', () => {
+        apply(quickNumber.value);
+    });
+
+    if (btnReset) {
+        btnReset.addEventListener('click', () => {
+            apply(0);
+        });
+    }
+
+    if (btnSave) {
+        btnSave.addEventListener('click', async () => {
+            const settingsInput = document.getElementById('confPlaneSkew');
+            if (settingsInput) settingsInput.value = planeSkewCorrectionDeg.toFixed(1);
+            await saveSystemConfig();
+            const status = document.getElementById('mlStatusText');
+            if (status) status.textContent = `Status: Skew correction saved (${planeSkewCorrectionDeg.toFixed(1)}°).`;
+        });
+    }
+
+    setPlaneSkewCorrection(planeSkewCorrectionDeg);
+}
+
+function applySensorPlaneCorrection(pos) {
+    const cosA = Math.cos(planeSkewCorrectionRad);
+    const sinA = Math.sin(planeSkewCorrectionRad);
+    return new THREE.Vector3(
+        pos.x * cosA + pos.z * sinA,
+        pos.y,
+        -pos.x * sinA + pos.z * cosA
+    );
+}
+
+function extractCorrectedStrokePos(frame) {
+    const pos = toVec3Object(frame.fk ?? frame.S3fk ?? frame.pos ?? frame.S3p ?? frame.p);
+    if (!pos) return null;
+    return applySensorPlaneCorrection(new THREE.Vector3(pos.x, pos.y, pos.z));
+}
+
+function mapSensorPositionToWorld(pos) {
+    const origin = hasPenCalibrationOrigin ? penCalibrationOrigin : pos;
+    const correctedPos = applySensorPlaneCorrection(pos);
+    const correctedOrigin = applySensorPlaneCorrection(origin);
+    const calibrated = new THREE.Vector3(
+        correctedPos.x - correctedOrigin.x,
+        correctedPos.y - correctedOrigin.y,
+        correctedPos.z - correctedOrigin.z
+    );
+    // Sensor axes: X = left/right, Z = up/down, Y = depth
+    return new THREE.Vector3(
+        THREE.MathUtils.clamp(calibrated.x * penSpace.scaleX + penSpace.offsetX, -0.65, 0.65),
+        THREE.MathUtils.clamp(calibrated.z * penSpace.scaleY + penSpace.offsetY, -0.48, 0.48),
+        THREE.MathUtils.clamp(
+            penSpace.offsetZ - calibrated.y * penSpace.scaleZ,
+            -0.95,
+            0.2
+        )
+    );
+}
+
+function computeHandVisualOffset(data) {
+    const rawOffset = new THREE.Vector3();
+
+    const specs = [
+        { key: 'S1q', len: 0.22, weight: 0.28 },
+        { key: 'S2q', len: 0.14, weight: 0.45 },
+        { key: 'S3q', len: 0.08, weight: 0.62 },
+    ];
+
+    specs.forEach(spec => {
+        const arr = toQuatArray(data[spec.key]);
+        if (!arr) return;
+        const q = new THREE.Quaternion(arr[1], arr[2], arr[3], arr[0]);
+        const neutral = new THREE.Vector3(0, spec.len, 0);
+        const rotated = neutral.clone().applyQuaternion(q);
+        rawOffset.add(rotated.sub(neutral).multiplyScalar(spec.weight));
+    });
+
+    return new THREE.Vector3(
+        rawOffset.x * 0.85,
+        rawOffset.z * -2.1,
+        rawOffset.y * 0.8
+    );
+}
+
+function boardLocalToWorld(point) {
+    if (!trajBoardRoot) return point.clone();
+    return trajBoardRoot.localToWorld(point.clone());
+}
+
+function worldToBoardLocal(point) {
+    if (!trajBoardRoot) return point.clone();
+    return trajBoardRoot.worldToLocal(point.clone());
+}
+
+function projectTipToBoardIfWritable(tipWorld) {
+    if (!trajBoardRoot) return null;
+
+    const localTip = worldToBoardLocal(tipWorld);
+    const halfW = boardBounds.width * 0.5;
+    const halfH = boardBounds.height * 0.5;
+    const depth = localTip.z - boardBounds.surfaceZ;
+
+    if (depth < 0 || depth > penSpace.drawDistance) {
+        return null;
+    }
+
+    if (Math.abs(localTip.x) > halfW || Math.abs(localTip.y) > halfH) {
+        return null;
+    }
+
+    return boardLocalToWorld(new THREE.Vector3(localTip.x, localTip.y, boardBounds.surfaceZ));
+}
+
+function projectTipToBoardPreview(tipWorld) {
+    if (!trajBoardRoot) return null;
+
+    const localTip = worldToBoardLocal(tipWorld);
+    const halfW = boardBounds.width * 0.5;
+    const halfH = boardBounds.height * 0.5;
+    const clampedX = THREE.MathUtils.clamp(localTip.x, -halfW, halfW);
+    const clampedY = THREE.MathUtils.clamp(localTip.y, -halfH, halfH);
+    const depth = localTip.z - boardBounds.surfaceZ;
+    const point = boardLocalToWorld(new THREE.Vector3(clampedX, clampedY, boardBounds.surfaceZ));
+
+    return {
+        point,
+        depth,
+        inBounds: Math.abs(localTip.x) <= halfW && Math.abs(localTip.y) <= halfH,
+    };
+}
+
+function orientPenGroup(group, direction) {
+    const dir = direction.clone();
+    if (dir.lengthSq() < 1e-6) {
+        dir.copy(lastPenDirection);
+    }
+    dir.normalize();
+    lastPenDirection.copy(dir);
+    group.quaternion.setFromUnitVectors(sceneUpAxis, dir);
+}
+
+function updateTrajectoryGeometry() {
+    if (!trajGeometry) return;
+    trajGeometry.setAttribute('position', new THREE.Float32BufferAttribute(trajPositions, 3));
+    trajGeometry.setAttribute('color', new THREE.Float32BufferAttribute(trajColors, 3));
+    if (trajPositions.length >= 6) {
+        trajGeometry.computeBoundingSphere();
+    }
+}
+
+function addInkSegment(start, end, color) {
+    if (!trajInkGroup) return;
+
+    const segment = end.clone().sub(start);
+    const length = segment.length();
+    if (length < 1e-4) return;
+
+    const mid = start.clone().add(end).multiplyScalar(0.5);
+    const geom = new THREE.CylinderGeometry(0.0055, 0.0055, length, 10);
+    const mat = new THREE.MeshStandardMaterial({
+        color: color.getHex(),
+        emissive: color.clone().multiplyScalar(0.18),
+        roughness: 0.28,
+        metalness: 0.02,
+    });
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.position.copy(mid);
+    mesh.quaternion.setFromUnitVectors(sceneUpAxis, segment.clone().normalize());
+    trajInkGroup.add(mesh);
+}
+
+function updateMlRecordButton() {
+    const btnMlRec = document.getElementById('btnMlRec');
+    if (!btnMlRec) return;
+    if (guidedRecordingActive) {
+        btnMlRec.textContent = '■ 가이드 학습 종료';
+        btnMlRec.style.background = '#ef4444';
+        btnMlRec.style.color = '#ffffff';
+    } else {
+        btnMlRec.textContent = '🎯 [가이드] 단어 학습';
+        btnMlRec.style.background = '';
+        btnMlRec.style.color = '';
+    }
+}
+
+function stopGuidedRecording(message = 'Status: Guided recording stopped.') {
+    guidedRecordingActive = false;
+    isWaitingForStroke = false;
+    pendingRecordLabel = '';
+    recordedFrames = [];
+    if (strokeTimer) {
+        clearTimeout(strokeTimer);
+        strokeTimer = null;
+    }
+    const status = document.getElementById('mlStatusText');
+    if (status) status.textContent = message;
+    updateMlRecordButton();
+}
+
+function armGuidedRecording(label) {
+    guidedRecordingActive = true;
+    pendingRecordLabel = label;
+    isWaitingForStroke = true;
+    recordedFrames = [];
+    if (strokeTimer) {
+        clearTimeout(strokeTimer);
+        strokeTimer = null;
+    }
+    clearTrajectory();
+    const status = document.getElementById('mlStatusText');
+    if (status) status.textContent = `Status: Ready for "${label}". Press pen down to start 3s capture.`;
+    updateMlRecordButton();
+}
+
+function recalibratePenFromCurrentPose() {
+    if (!lastRenderSensorPos) return false;
+    penCalibrationOrigin.copy(lastRenderSensorPos);
+    hasPenCalibrationOrigin = true;
+    lastTrajPos = null;
+    lastInkPos = null;
+    clearTrajectory();
+    const status = document.getElementById('mlStatusText');
+    if (status) status.textContent = 'Status: Pen recalibrated to current pose.';
+    logToTerminal('[SYS] Pen visual calibration updated.');
+    return true;
+}
 
 function init3DCanvas() {
     if (!drawingCanvas) return;
@@ -645,61 +1135,169 @@ function init3DCanvas() {
     const rect = drawingCanvas.parentElement.getBoundingClientRect();
     
     trajScene = new THREE.Scene();
-    trajCamera = new THREE.PerspectiveCamera(45, rect.width / rect.height, 0.1, 100);
-    trajCamera.position.set(0, 1.5, 3); // Positioned above and looking slightly down
-    trajCamera.lookAt(0, 0, 0);
+    trajCamera = new THREE.PerspectiveCamera(42, rect.width / rect.height, 0.01, 100);
+    trajCamera.position.set(0.0, 0.08, 0.72);
+    trajCamera.lookAt(boardOrigin.x, boardOrigin.y, boardOrigin.z);
     
     trajRenderer = new THREE.WebGLRenderer({ canvas: drawingCanvas, antialias: true, alpha: true });
     trajRenderer.setSize(rect.width, rect.height);
     trajRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     trajRenderer.setClearColor(0x000000, 0);
     trajRenderer.shadowMap.enabled = true;
-    
+
     if (typeof THREE.OrbitControls !== 'undefined') {
         trajControls = new THREE.OrbitControls(trajCamera, trajRenderer.domElement);
+        trajControls.target.copy(boardOrigin);
         trajControls.enableDamping = true;
-        trajControls.dampingFactor = 0.05;
+        trajControls.dampingFactor = 0.08;
+        trajControls.enablePan = false;
+    trajControls.minDistance = 0.4;
+    trajControls.maxDistance = 2.2;
+        trajControls.minPolarAngle = 0.7;
+        trajControls.maxPolarAngle = 2.2;
     }
-    
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+
+    const ambientLight = new THREE.AmbientLight(0xe6f6ff, 0.72);
     trajScene.add(ambientLight);
     
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    dirLight.position.set(0, 4, 2);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    dirLight.position.set(0.3, 1.1, 1.8);
     dirLight.castShadow = true;
     dirLight.shadow.mapSize.width = 1024;
     dirLight.shadow.mapSize.height = 1024;
     trajScene.add(dirLight);
-    
-    // Shadow receiving visual floor
-    const floorGeo = new THREE.PlaneGeometry(6, 6);
-    const floorMat = new THREE.MeshStandardMaterial({ 
-        color: 0x0f172a, transparent: true, opacity: 0.6, roughness: 0.9 
+
+    const rimLight = new THREE.DirectionalLight(0x7dd3fc, 0.5);
+    rimLight.position.set(-1.4, 0.3, 1.1);
+    trajScene.add(rimLight);
+
+    trajStage = new THREE.Group();
+    trajScene.add(trajStage);
+
+    const groundGeo = new THREE.PlaneGeometry(6, 6);
+    const groundMat = new THREE.MeshStandardMaterial({
+        color: 0x08111d,
+        transparent: true,
+        opacity: 0.72,
+        roughness: 0.95,
+        metalness: 0.02,
     });
-    trajFloor = new THREE.Mesh(floorGeo, floorMat);
-    trajFloor.rotation.x = -Math.PI / 2;
-    trajFloor.position.y = -1.0;
-    trajFloor.receiveShadow = true;
-    trajScene.add(trajFloor);
-    
-    const grid = new THREE.GridHelper(6, 30, 0x334155, 0x1e293b);
-    grid.position.y = -0.99;
-    trajScene.add(grid);
-    
-    // Shadow-casting pen tip
-    const tipGeo = new THREE.SphereGeometry(0.04, 16, 16);
-    const tipMat = new THREE.MeshStandardMaterial({ 
-        color: 0x38bdf8, emissive: 0x0ea5e9, emissiveIntensity: 0.8 
-    });
-    trajPenTip = new THREE.Mesh(tipGeo, tipMat);
-    trajPenTip.castShadow = true;
-    trajPenTip.visible = false;
-    trajScene.add(trajPenTip);
+    trajGround = new THREE.Mesh(groundGeo, groundMat);
+    trajGround.rotation.x = -Math.PI / 2;
+    trajGround.position.set(0, -0.78, -0.34);
+    trajGround.receiveShadow = true;
+    trajStage.add(trajGround);
+
+    const groundGrid = new THREE.GridHelper(5.4, 24, 0x1d4f73, 0x0f2233);
+    groundGrid.position.set(0, -0.779, -0.34);
+    trajStage.add(groundGrid);
+
+    trajBoardRoot = new THREE.Group();
+    trajBoardRoot.position.copy(boardOrigin);
+    trajBoardRoot.rotation.copy(boardTilt);
+    trajStage.add(trajBoardRoot);
+
+    trajBoardGlow = new THREE.Mesh(
+        new THREE.PlaneGeometry(boardBounds.width + 0.12, boardBounds.height + 0.12),
+        new THREE.MeshBasicMaterial({
+            color: 0x38bdf8,
+            transparent: true,
+            opacity: 0.08,
+            depthWrite: false,
+        })
+    );
+    trajBoardGlow.position.z = -0.03;
+    trajBoardRoot.add(trajBoardGlow);
+
+    trajBoard = new THREE.Mesh(
+        new THREE.BoxGeometry(boardBounds.width, boardBounds.height, boardBounds.depth),
+        new THREE.MeshStandardMaterial({
+            color: 0x102433,
+            transparent: true,
+            opacity: 0.24,
+            roughness: 0.6,
+            metalness: 0.04,
+        })
+    );
+    trajBoard.receiveShadow = true;
+    trajBoardRoot.add(trajBoard);
+
+    trajBoardFrame = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.BoxGeometry(boardBounds.width, boardBounds.height, boardBounds.depth)),
+        new THREE.LineBasicMaterial({
+            color: 0x7dd3fc,
+            transparent: true,
+            opacity: 0.42,
+        })
+    );
+    trajBoardRoot.add(trajBoardFrame);
+
+    trajBoardCursorHalo = new THREE.Mesh(
+        new THREE.RingGeometry(0.016, 0.032, 32),
+        new THREE.MeshBasicMaterial({
+            color: 0x67e8f9,
+            transparent: true,
+            opacity: 0.0,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+        })
+    );
+    trajBoardCursorHalo.visible = false;
+    trajStage.add(trajBoardCursorHalo);
+
+    trajBoardCursor = new THREE.Mesh(
+        new THREE.CircleGeometry(0.008, 24),
+        new THREE.MeshBasicMaterial({
+            color: 0xf8fafc,
+            transparent: true,
+            opacity: 0.0,
+            depthWrite: false,
+        })
+    );
+    trajBoardCursor.visible = false;
+    trajStage.add(trajBoardCursor);
+
+    trajInkGroup = new THREE.Group();
+    trajStage.add(trajInkGroup);
+
+    trajPenGroup = new THREE.Group();
+
+    const shaftLength = 0.082;
+    const shaftGeometry = new THREE.CylinderGeometry(0.004, 0.0065, shaftLength, 12);
+    shaftGeometry.translate(0, -(shaftLength * 0.5 + 0.018), 0);
+    trajPenBody = new THREE.Mesh(
+        shaftGeometry,
+        new THREE.MeshStandardMaterial({
+            color: 0x38bdf8,
+            emissive: 0x0ea5e9,
+            emissiveIntensity: 0.55,
+            roughness: 0.16,
+            metalness: 0.38,
+        })
+    );
+    trajPenGroup.add(trajPenBody);
+
+    const tipLength = 0.024;
+    const tipGeometry = new THREE.ConeGeometry(0.007, tipLength, 12);
+    tipGeometry.translate(0, -(tipLength * 0.5), 0);
+    trajPenTip = new THREE.Mesh(
+        tipGeometry,
+        new THREE.MeshStandardMaterial({
+            color: 0xf8fafc,
+            emissive: 0xffffff,
+            emissiveIntensity: 0.14,
+            roughness: 0.14,
+            metalness: 0.08,
+        })
+    );
+    trajPenGroup.add(trajPenTip);
+    trajPenGroup.visible = false;
+    trajStage.add(trajPenGroup);
     
     trajGeometry = new THREE.BufferGeometry();
-    trajMaterial = new THREE.LineBasicMaterial({ vertexColors: true, linewidth: 3 });
-    trajLine = new THREE.Line(trajGeometry, trajMaterial);
-    trajScene.add(trajLine);
+    trajMaterial = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.95 });
+    trajLine = new THREE.LineSegments(trajGeometry, trajMaterial);
+    trajStage.add(trajLine);
     
     function animate() {
         requestAnimationFrame(animate);
@@ -720,16 +1318,25 @@ init3DCanvas();
 function clearTrajectory() {
     trajPositions = [];
     trajColors = [];
-    if (trajGeometry) {
-        trajGeometry.setAttribute('position', new THREE.Float32BufferAttribute(trajPositions, 3));
-        trajGeometry.setAttribute('color', new THREE.Float32BufferAttribute(trajColors, 3));
+    lastTrajPos = null;
+    lastInkPos = null;
+    lastPenDirection.set(0, -0.1, -1).normalize();
+    if (trajBoardCursor) trajBoardCursor.visible = false;
+    if (trajBoardCursorHalo) trajBoardCursorHalo.visible = false;
+    if (trajInkGroup) {
+        while (trajInkGroup.children.length) {
+            const child = trajInkGroup.children.pop();
+            child.geometry?.dispose?.();
+            child.material?.dispose?.();
+        }
     }
+    updateTrajectoryGeometry();
 }
 
 let lastX = null, lastY = null;
 
 function initRealTimeSystem() {
-    const wsUrl = `ws://${window.location.hostname}:18800`;
+    const wsUrl = `ws://${window.location.hostname}:18765`;
     wsConnection = new WebSocket(wsUrl);
 
     wsConnection.onopen = () => {
@@ -740,7 +1347,7 @@ function initRealTimeSystem() {
 
     wsConnection.onmessage = (event) => {
         try {
-            const data = JSON.parse(event.data);
+            const data = normalizeIncomingData(JSON.parse(event.data));
             handleIncomingData(data);
         } catch (err) {
             console.error('WS parse error:', err);
@@ -763,6 +1370,13 @@ function handleIncomingData(data) {
     if (demoSimRunning) return; // Ignore real data if demo is running
 
     if (data.type === 'imu_stream' || data.S3q) {
+        const connEl = document.getElementById('valConn');
+        if (connEl) {
+            connEl.textContent = 'LIVE STREAM';
+            connEl.classList.remove('warning');
+            connEl.style.color = '#10b981';
+        }
+
         // 1. Update 3D Hand Mesh
         if (window.handWidgetUpdate) {
             window.handWidgetUpdate(data);
@@ -771,21 +1385,26 @@ function handleIncomingData(data) {
         // 2. 3-Second Multi-Stroke Timer Logic
         if (isWaitingForStroke || isPredictMode) {
             // Detect first pen down
-            if (data.pen && !strokeTimer) {
+            if (data.pen && !wasPenDown && !strokeTimer) {
                 const status = document.getElementById('mlStatusText');
                 if (status) {
                     status.textContent = isPredictMode ? 'Status: Auto-predict (Listening 3s...)' : `Status: Recording "${pendingRecordLabel}" (Listening 3s...)`;
                 }
                 
                 // Clear canvas at start of new multi-stroke sequence
+                recordedFrames = [];
                 clearTrajectory();
                 
                 strokeTimer = setTimeout(() => {
                     // Timer finished
                     strokeTimer = null;
                     if (isWaitingForStroke) {
-                        isWaitingForStroke = false;
                         submitRecording(pendingRecordLabel, recordedFrames);
+                        if (guidedRecordingActive) {
+                            isWaitingForStroke = true;
+                        } else {
+                            isWaitingForStroke = false;
+                        }
                     } else if (isPredictMode) {
                         if (recordedFrames.length >= 5) {
                             triggerPrediction(recordedFrames);
@@ -815,66 +1434,113 @@ function handleIncomingData(data) {
 
         // 3. 3D WebGL Trajectory Drawing with Heatmap
         if (data.pos) {
-            const viewfinderBox = document.getElementById('viewfinderBox');
+            const posEl = document.getElementById('valPos');
+            if (posEl) {
+                posEl.innerHTML =
+                    `X: ${data.pos.x.toFixed(3)}<br>` +
+                    `Y: ${data.pos.y.toFixed(3)}<br>` +
+                    `Z: ${data.pos.z.toFixed(3)}`;
+            }
+
+            const zuptEl = document.getElementById('valZupt');
+            if (zuptEl) {
+                const isActive = !!data.zupt;
+                zuptEl.textContent = isActive ? 'ACTIVE' : 'INACTIVE';
+                zuptEl.classList.toggle('warning', !isActive);
+                zuptEl.style.color = isActive ? '#10b981' : '#f59e0b';
+            }
+
+            const renderPos = toVec3Object(data.renderPos ?? data.fk ?? data.S3fk ?? data.pos ?? data.S3p ?? data.p);
+            if (!renderPos) return;
+            lastRenderSensorPos = new THREE.Vector3(renderPos.x, renderPos.y, renderPos.z);
+            if (!hasPenCalibrationOrigin) {
+                penCalibrationOrigin.copy(lastRenderSensorPos);
+                hasPenCalibrationOrigin = true;
+            }
+
+            const currentPos = mapSensorPositionToWorld(renderPos).add(computeHandVisualOffset(data));
+            const currentTime = Date.now();
+
+            let direction = lastPenDirection.clone();
+            if (lastTrajPos !== null) {
+                const delta = currentPos.clone().sub(lastTrajPos);
+                if (delta.lengthSq() > 1e-5) {
+                    direction.copy(delta.normalize());
+                }
+            } else if (data.vel) {
+                const velDir = new THREE.Vector3(data.vel.x, data.vel.z, -data.vel.y);
+                if (velDir.lengthSq() > 1e-6) direction.copy(velDir.normalize());
+            } else if (data.S3q && data.S3q.length === 4) {
+                const q = new THREE.Quaternion(data.S3q[1], data.S3q[2], data.S3q[3], data.S3q[0]);
+                direction.copy(new THREE.Vector3(0, 0, -1).applyQuaternion(q));
+            }
+
+            const towardBoard = boardOrigin.clone().sub(currentPos).normalize();
+            direction.lerp(towardBoard, 0.32).normalize();
+
+            if (trajPenGroup) {
+                trajPenGroup.position.copy(currentPos);
+                orientPenGroup(trajPenGroup, direction);
+                trajPenGroup.visible = true;
+
+                const bodyColor = data.pen ? new THREE.Color(0xff6b8d) : new THREE.Color(0x38bdf8);
+                trajPenBody.material.color.copy(bodyColor);
+                trajPenBody.material.emissive.copy(bodyColor);
+            }
+
+            const preview = projectTipToBoardPreview(currentPos);
+            if (preview && trajBoardCursor && trajBoardCursorHalo) {
+                const cursorNormal = boardNormal.clone().applyQuaternion(trajBoardRoot.quaternion).normalize();
+                const cursorQuat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), cursorNormal);
+                const glowColor = data.pen ? new THREE.Color(0xff6b8d) : new THREE.Color(0x67e8f9);
+                const nearFactor = THREE.MathUtils.clamp(1 - (Math.max(preview.depth, 0) / Math.max(penSpace.drawDistance, 0.001)), 0, 1);
+                const visible = preview.inBounds;
+
+                trajBoardCursor.visible = visible;
+                trajBoardCursorHalo.visible = visible;
+                if (visible) {
+                    trajBoardCursor.position.copy(preview.point).add(cursorNormal.clone().multiplyScalar(0.002));
+                    trajBoardCursorHalo.position.copy(preview.point).add(cursorNormal.clone().multiplyScalar(0.0015));
+                    trajBoardCursor.quaternion.copy(cursorQuat);
+                    trajBoardCursorHalo.quaternion.copy(cursorQuat);
+                    trajBoardCursor.material.color.copy(glowColor);
+                    trajBoardCursorHalo.material.color.copy(glowColor);
+                    trajBoardCursor.material.opacity = 0.35 + nearFactor * 0.55;
+                    trajBoardCursorHalo.material.opacity = 0.08 + nearFactor * 0.38;
+                    trajBoardCursor.scale.setScalar(data.pen ? 1.15 : 1.0);
+                    trajBoardCursorHalo.scale.setScalar(1.0 + nearFactor * 0.55);
+                }
+            }
 
             if (data.pen) {
-                if (viewfinderBox) viewfinderBox.classList.add('active');
-                
-                // Scale position logic
-                const currentPos = new THREE.Vector3(data.pos.x * 3, data.pos.y * 3, -data.pos.z * 3);
-                const currentTime = Date.now();
-                
-                if (lastTrajPos !== null) {
-                    const dist = currentPos.distanceTo(lastTrajPos);
+                const inkPos = projectTipToBoardIfWritable(currentPos);
+                if (inkPos && lastInkPos !== null) {
+                    const dist = inkPos.distanceTo(lastInkPos);
                     const dt = (currentTime - lastTrajTime) / 1000.0 || 0.01;
-                    const speed = dist / dt; 
-                    
-                    // Heatmap: Slow=Cyan, Fast=Orange/Red
-                    const t = Math.min(speed / 2.0, 1.0);
+                    const speed = dist / dt;
+
+                    const t = Math.min(speed / 1.4, 1.0);
                     const color = new THREE.Color();
-                    if (t < 0.5) {
-                        color.lerpColors(new THREE.Color(0x0ea5e9), new THREE.Color(0xf59e0b), t * 2);
-                    } else {
-                        color.lerpColors(new THREE.Color(0xf59e0b), new THREE.Color(0xef4444), (t - 0.5) * 2);
-                    }
-                    
-                    trajPositions.push(currentPos.x, currentPos.y, currentPos.z);
+                    color.lerpColors(new THREE.Color(0x7dd3fc), new THREE.Color(0xf8fafc), t);
+
+                    trajPositions.push(lastInkPos.x, lastInkPos.y, lastInkPos.z);
+                    trajPositions.push(inkPos.x, inkPos.y, inkPos.z);
                     trajColors.push(color.r, color.g, color.b);
-                    
-                    if (trajGeometry) {
-                        trajGeometry.setAttribute('position', new THREE.Float32BufferAttribute(trajPositions, 3));
-                        trajGeometry.setAttribute('color', new THREE.Float32BufferAttribute(trajColors, 3));
-                        trajGeometry.computeBoundingSphere();
-                        // Slight zoom out over time
-                        if (trajControls) trajControls.target.copy(currentPos).multiplyScalar(0.1);
-                    }
-                    
-                    if (trajPenTip) {
-                        trajPenTip.position.copy(currentPos);
-                        trajPenTip.visible = true;
-                        trajPenTip.material.color.copy(color);
-                        trajPenTip.material.emissive.copy(color);
-                    }
-                } else {
-                    trajPositions.push(currentPos.x, currentPos.y, currentPos.z);
-                    trajColors.push(0.05, 0.64, 0.91); // Cyan
-                    if (trajPenTip) {
-                        trajPenTip.position.copy(currentPos);
-                        trajPenTip.visible = true;
-                    }
+                    trajColors.push(color.r, color.g, color.b);
+                    addInkSegment(lastInkPos, inkPos, color);
+                    updateTrajectoryGeometry();
                 }
-                
-                lastTrajPos = currentPos;
-                lastTrajTime = currentTime;
+                lastInkPos = inkPos ? inkPos.clone() : null;
             } else {
-                if (viewfinderBox) viewfinderBox.classList.remove('active');
-                if (trajPenTip) trajPenTip.visible = false;
-                lastTrajPos = null;
+                lastInkPos = null;
             }
+
+            lastTrajPos = currentPos;
+            lastTrajTime = currentTime;
         }
         
         wasPenDown = !!data.pen;
-    } else if (data.type === 'ml_result' || data.word) {
+    } else if (data.type === 'ml_result' || data.type === 'recognition' || data.word) {
         // Handle Recognition Result
         const resultWord = document.getElementById('aiResultWord');
         const resultScore = document.getElementById('aiResultScore');
@@ -896,6 +1562,71 @@ function logToTerminal(msg) {
     div.textContent = msg;
     term.appendChild(div);
     term.parentElement.scrollTop = term.parentElement.scrollHeight;
+}
+
+async function triggerPrediction(frames) {
+    const status = document.getElementById('mlStatusText');
+    const strokePos = frames
+        .map(frame => extractCorrectedStrokePos(frame))
+        .filter(Boolean)
+        .map(pos => [pos.x, pos.y, pos.z]);
+
+    if (strokePos.length < 5) {
+        if (status) status.textContent = 'Status: Not enough points for prediction.';
+        return;
+    }
+
+    if (status) status.textContent = 'Status: Predicting...';
+
+    try {
+        const res = await fetch('/api/ml/predict', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ stroke_pos: strokePos })
+        });
+
+        if (!res.ok) throw new Error('Prediction request failed');
+        const payload = await res.json();
+        const predictions = Array.isArray(payload.predictions) ? payload.predictions : [];
+        const best = predictions[0];
+
+        const resultWord = document.getElementById('aiResultWord');
+        const resultScore = document.getElementById('aiResultScore');
+        const candidates = document.getElementById('aiCandidates');
+        const overlay = document.getElementById('recognizedTextOverlay');
+
+        if (best) {
+            if (resultWord) resultWord.textContent = best.label;
+            if (resultScore) resultScore.textContent = `(${(best.confidence * 100).toFixed(1)}%)`;
+            if (overlay) {
+                overlay.textContent = best.label;
+                overlay.style.opacity = '1';
+                setTimeout(() => { overlay.style.opacity = '0'; }, 1200);
+            }
+            if (status) status.textContent = `Status: Predicted ${best.label}`;
+        } else {
+            if (resultWord) resultWord.textContent = '--';
+            if (resultScore) resultScore.textContent = '(0.0%)';
+            if (status) status.textContent = 'Status: No prediction available';
+        }
+
+        if (candidates) {
+            candidates.innerHTML = predictions.slice(0, 3).map(pred => `
+                <div class="candidate-bar">
+                    <div class="c-name">${pred.label}</div>
+                    <div class="c-val">${(pred.confidence * 100).toFixed(1)}%</div>
+                </div>
+            `).join('') || `
+                <div class="candidate-bar">
+                    <div class="c-name">-</div>
+                    <div class="c-val">-</div>
+                </div>
+            `;
+        }
+    } catch (err) {
+        console.error('Prediction failed:', err);
+        if (status) status.textContent = 'Status: Prediction failed';
+    }
 }
 
 /* =========================================
@@ -969,14 +1700,6 @@ function initDataPipeline() {
 
 function playRecordedFrames(frames) {
     if (!frames || frames.length === 0) return;
-    
-    // Clear Canvas
-    if (ctx) ctx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
-    lastX = null;
-    lastY = null;
-    
-    // Stop Demo if running
-    if (demoSimRunning) toggleDemoSimulator();
 
     let i = 0;
     const interval = setInterval(() => {
@@ -1038,7 +1761,32 @@ function showActionToast(word, intent) {
     }, 5000);
 }
 
+function initKeyboardShortcuts() {
+    document.addEventListener('keydown', (event) => {
+        const tag = event.target?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+        const key = event.key.toLowerCase();
+        if (key === 'r') {
+            clearTrajectory();
+            const status = document.getElementById('mlStatusText');
+            if (status && !guidedRecordingActive) status.textContent = 'Status: Board cleared.';
+            event.preventDefault();
+            return;
+        }
+
+        if (key === 'c') {
+            const ok = recalibratePenFromCurrentPose();
+            const status = document.getElementById('mlStatusText');
+            if (!ok && status) status.textContent = 'Status: No live pen pose available for calibration.';
+            event.preventDefault();
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     initRealTimeSystem();
     initDataPipeline();
+    initKeyboardShortcuts();
+    updateMlRecordButton();
 });
