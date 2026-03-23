@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initQrModal();
   initMlLabelModal();
   initQuickSkewControls();
+  initMacroOsControls();
   initComments();
   fetchNetworkIp();
   fetchMlStats();
@@ -206,6 +207,41 @@ function initStudioButtons() {
   }
 
   // HTML buttons now use window.selectTab directly.
+}
+
+/* =========================================
+   5.5 MACRO OS PROFILE CONTROLS (v3.0 Pivot)
+   ========================================= */
+function initMacroOsControls() {
+    const selector = document.getElementById('selectProfile');
+    const desc = document.getElementById('profileDesc');
+    
+    if (!selector || !desc) return;
+
+    const profileDetails = {
+        'RUNNING': '러닝 모드: 전화, 음악, 위치공유, 손전등',
+        'LAB': '실험 모드: 타이머, 카메라, 노트, 손전등',
+        'PRESENTATION': '발표 모드: 다음, 이전, 캡처, 확인',
+        'BED': '침대 모드: 음악, 조명, 전화'
+    };
+
+    selector.addEventListener('change', async () => {
+        const val = selector.value;
+        desc.textContent = profileDetails[val] || '';
+        
+        try {
+            const res = await fetch('/api/macro_os/profile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ profile: val })
+            });
+            if (!res.ok) throw new Error('API Error');
+            console.log(`[MacroOS] Profile changed to ${val}`);
+        } catch (err) {
+            console.error('Failed to change profile:', err);
+            alert('프로필 변경에 실패했습니다.');
+        }
+    });
 }
 
 /* =========================================

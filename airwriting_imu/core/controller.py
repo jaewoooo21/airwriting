@@ -19,6 +19,8 @@ from airwriting_imu.constraints.biomechanical import BiomechanicalConstraints
 from airwriting_imu.constraints.writing_plane import WritingPlaneDetector
 from airwriting_imu.constraints.drift_observer import DriftObserver
 from airwriting_imu.constraints.loop_closure import LoopClosureDetector
+from airwriting_imu.core.command_bus import CommandBus
+from airwriting_imu.core.policy_engine import PolicyEngine
 
 log = logging.getLogger(__name__)
 
@@ -61,6 +63,7 @@ class AirWritingIMUController:
         self._uni_port = ports.get("python_to_unity", 12346)
         self._dash_port = ports.get("python_to_dashboard", 12347)
         self._action_port = ports.get("python_to_action", 12348)
+        self._ctrl_port = ports.get("python_control", 12350)
         self._uni_ip = config.network.get("unity", {}).get("ip", "127.0.0.1")
         self._dash_ip = config.network.get("dashboard", {}).get("ip", "127.0.0.1")
 
@@ -156,31 +159,35 @@ class AirWritingIMUController:
         self._stroke_active = False
         self._stroke_positions = []  # v2.5: collect FK positions during stroke
 
-        # ── Action Dispatch (v2.5: keyword→phone) ──
-        action_cfg = getattr(config, 'fusion', {}).get('action_dispatch', None)
-        # Also check top-level config (system.yaml)
-        self._action_enabled = False
-        self._action_threshold = 0.7
+        # ── Macro OS: Command Bus & Policy Engine (v3.0 Pivot) ──
+        self._macro_os_enabled = False
         try:
-            import yaml
             cfg_dir = getattr(config, '_config_dir', None)
             if cfg_dir:
                 sys_path = Path(cfg_dir) / 'system.yaml'
                 if sys_path.exists():
                     with open(sys_path, encoding='utf-8') as f:
                         sys_data = yaml.safe_load(f)
-                    ad = sys_data.get('action_dispatch', {})
-                    self._action_enabled = ad.get('enabled', False)
-                    self._action_threshold = ad.get('confidence_threshold', 0.7)
-        except Exception:
-            pass
+                    mos = sys_data.get('macro_os', {})
+                    self._macro_os_enabled = mos.get('enabled', False)
+                    if self._macro_os_enabled:
+                        profiles = mos.get('profiles', {})
+                        active_profile = mos.get('active_profile', 'RUNNING')
+                        udp_ports = mos.get('udp_ports', {})
+                        
+                        # Initialize Policy Engine
+                        self.policy_engine = PolicyEngine(profiles, initial_profile=active_profile)
+                        
+                        # Initialize Command Bus with Policy Engine for context-aware mapping
+                        self.command_bus = CommandBus(self.policy_engine, udp_ports)
+                        log.info(f"🌐 Macro OS enabled (Active: {active_profile}, Profiles: {list(profiles.keys())})")
+        except Exception as e:
+            log.warning(f"⚠️ Failed to initialize Macro OS: {e}")
 
         # ── Per-sensor gyro cache (v2.2: for FK confidence) ──
         self._gyro_cache = {s: np.zeros(3) for s in config.imu_sensors}
 
         log.info("✅ IMU-Only Controller init OK")
-        if self._action_enabled:
-            log.info(f"📱 Action Dispatch enabled (threshold={self._action_threshold}, port={self._action_port})")
 
     # ════════════════════════════════════
     # Lifecycle
@@ -196,27 +203,57 @@ class AirWritingIMUController:
 
         self._tx_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
+        self._ctrl_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._ctrl_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self._ctrl_sock.bind(("0.0.0.0", self._ctrl_port))
+        self._ctrl_sock.settimeout(0.1)
+
         self._thread = threading.Thread(
             target=self._loop, daemon=True, name="ctrl-rx"
         )
         self._thread.start()
+
+        self._ctrl_thread = threading.Thread(
+            target=self._control_loop, daemon=True, name="ctrl-cmd"
+        )
+        self._ctrl_thread.start()
         self._cal_t0 = time.monotonic()
         log.info(f"🚀 Listening :{self._esp_port}  →Unity :{self._uni_port} (IMU-only)")
 
     def request_stop(self):
         self._stop_flag = True
 
-    def stop(self):
-        self.running = False
-        if hasattr(self, "_thread"):
-            self._thread.join(timeout=2)
-        for s in ("_rx_sock", "_tx_sock"):
-            if hasattr(self, s):
-                try:
-                    getattr(self, s).close()
-                except OSError:
-                    pass
         log.info(f"🛑 Stopped. frames={self._frame} cksum_err={self._cksum_err}")
+
+    def _control_loop(self):
+        """Listen for external commands (e.g. profile switching)."""
+        while self.running and not self._stop_flag:
+            try:
+                data, addr = self._ctrl_sock.recvfrom(1024)
+                msg = json.loads(data.decode('utf-8'))
+                
+                cmd = msg.get("command")
+                if cmd == "SET_PROFILE":
+                    profile = msg.get("profile")
+                    if hasattr(self, "policy_engine"):
+                        if self.policy_engine.set_profile(profile):
+                            log.info(f"🎮 External Profile Switch: {profile}")
+                            # Notify apps about the change
+                            self._notify_profile_change(profile)
+                
+            except socket.timeout:
+                continue
+            except Exception as e:
+                log.warning(f"Control loop error: {e}")
+                
+    def _notify_profile_change(self, profile: str):
+        """Broadcast profile change to all clients."""
+        msg = json.dumps({"type": "profile_change", "profile": profile}).encode('utf-8')
+        try:
+            self._tx_sock.sendto(msg, ("127.0.0.1", self._action_port)) # Web UI
+            self._tx_sock.sendto(msg, ("127.0.0.1", 12349)) # Phone
+        except:
+            pass
 
     # ════════════════════════════════════
     # Rx Loop
@@ -763,52 +800,57 @@ class AirWritingIMUController:
             pass
 
     def _recognize_and_dispatch(self):
-        """v2.5: Run ML recognition on completed stroke and send to Action Dispatcher.
-
-        Called on pen-up when action_dispatch is enabled and stroke has enough points.
-        Sends recognition result via UDP to the Action Dispatcher (port 12348).
+        """v3.0: Run ML recognition and process through Policy Engine and Command Bus.
+        
+        Implements 'Context-Armed Silent Air Macro OS' logic:
+        ML Label -> Policy Engine (Validation/Lane) -> Command Bus (Dispatch)
         """
+        if not self._macro_os_enabled:
+            return
 
         try:
-            # Lazy-load ML engine (avoid import overhead at startup)
+            # Lazy-load ML engine
             if not hasattr(self, '_ml_engine'):
                 from tools.ml_engine import MLEngine
                 self._ml_engine = MLEngine()
-                log.info("🧠 ML Engine loaded for action dispatch")
+                log.info("🧠 ML Engine loaded for Macro OS")
 
             stroke_data = np.array(self._stroke_positions)
             predictions = self._ml_engine.predict(stroke_data, top_n=1)
 
-            if predictions:
-                label = predictions[0].get("label", "")
-                confidence = predictions[0].get("confidence", 0.0)
-                log.info(
-                    f"🤖 Recognition: '{label}' ({confidence:.1%})"
-                )
+            if not predictions:
+                log.debug("🤖 No prediction (insufficient data)")
+                return
 
-                # Send to Action Dispatcher via UDP
-                obj = {
-                    "type": "recognition",
-                    "label": label,
-                    "confidence": confidence,
-                    "stroke_length": len(self._stroke_positions),
-                }
-                try:
-                    raw = json.dumps(obj, default=_json_default).encode()
-                    # 1. Notify Web Relay (12348)
-                    self._tx_sock.sendto(raw, ("127.0.0.1", 12348))
-                    # 2. Notify Action Dispatcher (12349)
-                    self._tx_sock.sendto(raw, ("127.0.0.1", self._action_port))
-                    
-                    if hasattr(self, '_esp_last_addr'):
-                        oled_msg = f"{label},{confidence*100:.1f}".encode('utf-8')
-                        self._tx_sock.sendto(oled_msg, (self._esp_last_addr[0], 5555))
-                except Exception as e:
-                    log.debug(f"Action dispatch tx: {e}")
+            label = predictions[0].get("label", "").upper()
+            confidence = predictions[0].get("confidence", 0.0)
+            
+            # 1. Pass through Policy Engine
+            validation = self.policy_engine.validate_action(label, confidence)
+            
+            if validation:
+                lane = validation.get("lane", "REFLEX")
+                profile = validation.get("profile", "GLOBAL")
+                
+                log.info(f"🎯 Policy Match: '{label}' ({confidence:.1%}) | Lane: {lane} | Profile: {profile}")
+
+                # 2. Dispatch via Command Bus
+                self.command_bus.dispatch(label, confidence, context=profile)
+                
+                # 3. OLED Visual Feedback (if available)
+                if hasattr(self, '_esp_last_addr'):
+                    # Success feedback: Label(Conf)
+                    oled_msg = f"{label},{confidence*100:.1f}".encode('utf-8')
+                    self._tx_sock.sendto(oled_msg, (self._esp_last_addr[0], 5555))
             else:
-                log.debug("🤖 No prediction (model not ready or insufficient data)")
+                log.info(f"🛑 Policy REJECT: '{label}' ({confidence:.1%}) in {self.policy_engine.active_profile}")
+                # Optional: Send 'REJECT' to OLED if confidence was reasonable but policy failed
+                if confidence > 0.4 and hasattr(self, '_esp_last_addr'):
+                    oled_msg = f"REJECT,{confidence*100:.1f}".encode('utf-8')
+                    self._tx_sock.sendto(oled_msg, (self._esp_last_addr[0], 5555))
+
         except Exception as e:
-            log.warning(f"Recognition error: {e}")
+            log.warning(f"Macro OS Recognition error: {e}")
 
     def _stats(self, now):
         self._t_stats = now

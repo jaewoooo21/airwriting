@@ -234,19 +234,27 @@ def update_system_config():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/ip', methods=['GET'])
-def get_ip():
-    """Returns the local IP of the machine."""
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+@app.route('/api/macro_os/profile', methods=['POST'])
+def set_macro_os_profile():
+    data = request.get_json()
+    profile = data.get('profile')
+    if not profile:
+        return jsonify({"error": "Profile name is required"}), 400
+        
     try:
-        # doesn't even have to be reachable
-        s.connect(('10.255.255.255', 1))
-        IP = s.getsockname()[0]
-    except Exception:
-        IP = '127.0.0.1'
-    finally:
-        s.close()
-    return jsonify({"ip": IP})
+        # Send UDP command to Controller (12350)
+        cmd = {
+            "command": "SET_PROFILE",
+            "profile": profile
+        }
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.sendto(json.dumps(cmd).encode('utf-8'), ("127.0.0.1", 12350))
+        sock.close()
+        
+        print_and_log(f"[MacroOS] Requested profile switch to: {profile}")
+        return jsonify({"status": "success", "profile": profile})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     # Use waitress for a better production-like server
