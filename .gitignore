@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.log
+.venv/
+.pytest_cache/
+*.pth
+data/airwriting_dataset.csv
+data/cnn_model.pth
+data/labels.json
+node_modules/
+dist/
+.DS_Store
