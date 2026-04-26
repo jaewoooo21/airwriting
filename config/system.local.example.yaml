@@ -1,0 +1,14 @@
+# system.local.yaml 예시 — 로컬 환경 오버라이드
+# 이 파일을 system.local.yaml로 복사하여 사용
+# .gitignore에 의해 Git에 포함되지 않음
+
+network:
+  ports:
+    # 포트 충돌 시 여기서 오버라이드
+    # esp_receive: 12355
+
+fusion:
+  accel_noise_std: 0.3  # 환경에 따라 조정
+
+calibration:
+  num_samples: 500      # 정밀 캘리브레이션 시 증가

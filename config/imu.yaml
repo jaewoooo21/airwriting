@@ -1,62 +1,96 @@
-# IMU Configuration v3.2 (bias auto-calibrated)
+# IMU Configuration v4.0 — Hybrid-AirScribe Dual-Node
+# Dual-Node: 손목(WRIST) + 손가락(FINGER)
+# S2(HAND/손등)는 주석처리됨 — 복구 시 주석 해제
 
 sensors:
+  # ── S1: WRIST (손목) ── Global Motion Reference ──
   S1:
-    role: forearm
+    role: wrist_reference
     type: mpu6050
     bus: 0
-    address: 104
+    address: 104           # 0x68
+    i2c_pins:
+      sda: 21
+      scl: 22
     sample_rate_hz: 100
+    accel_range: 8g        # ±8g → 4096 LSB/g
+    gyro_range: 1000dps    # ±1000dps → 32.8 LSB/dps
+    registers:
+      pwr_mgmt: 0x01
+      accel_config: 0x10   # reg 0x1C
+      gyro_config: 0x10    # reg 0x1B
+    unit_conversion:
+      accel_scale: 0.00239501953125  # 9.81 / 4096
+      gyro_scale: 0.00053263221801   # (π/180) / 32.8
     bias:
-      accel:
-      - -0.007385
-      - 0.039868
-      - 0.37242
-      gyro:
-      - -0.094413
-      - -0.051521
-      - -0.022366
-  S2:
-    role: hand
-    type: mpu6050
-    bus: 0
-    address: 105
-    sample_rate_hz: 100
-    bias:
-      accel:
-      - 0.31803
-      - 0.097455
-      - 1.970345
-      gyro:
-      - -0.01552
-      - 0.030953
-      - -0.021457
+      accel: [0.0, 0.0, 0.0]
+      gyro: [0.0, 0.0, 0.0]
+
+  # ── S2: HAND (손등) ── [DISABLED] 복구 시 주석 해제 ──
+  # S2:
+  #   role: hand
+  #   type: mpu6050
+  #   bus: 0
+  #   address: 105         # 0x69
+  #   i2c_pins:
+  #     sda: 21
+  #     scl: 22
+  #   sample_rate_hz: 100
+  #   bias:
+  #     accel: [0.0, 0.0, 0.0]
+  #     gyro: [0.0, 0.0, 0.0]
+
+  # ── S3: FINGER (손가락) ── Primary Writing Trajectory ──
   S3:
-    role: finger
+    role: finger_tip
     type: icm20948
     bus: 1
-    address: 104
+    address: 104           # 0x68 (다른 I2C 버스이므로 S1과 충돌하지 않음)
+    i2c_pins:
+      sda: 32
+      scl: 33
     sample_rate_hz: 100
-    has_magnetometer: false
+    has_magnetometer: true
+    magnetometer:
+      type: ak09916
+      address: 12          # 0x0C
+      mode: continuous_100hz
+      scale: 0.15          # raw * 0.15 → µT
+    accel_range: 8g
+    gyro_range: 1000dps
+    registers:
+      pwr_mgmt: 0x01
+      accel_config: 0x10   # Bank 2, reg 0x1C
+      gyro_config: 0x10    # Bank 2
+    unit_conversion:
+      accel_scale: 0.00239501953125
+      gyro_scale: 0.00053263221801
     bias:
-      accel:
-      - 0.0
-      - 0.0
-      - 0.0
-      gyro:
-      - 0.0
-      - 0.0
-      - 0.0
-skeleton_chain:
-- joint: forearm
-  sensor: S1
-  bone_length_m: 0.25
-  parent: null
-- joint: hand
-  sensor: S2
-  bone_length_m: 0.18
-  parent: forearm
-- joint: finger
-  sensor: S3
-  bone_length_m: 0.08
-  parent: hand
+      accel: [0.0, 0.0, 0.0]
+      gyro: [0.0, 0.0, 0.0]
+
+# Dual-Node 설정
+dual_node:
+  reference: S1             # WRIST — Global motion reference (팔 움직임 감지)
+  primary: S3               # FINGER — 필기 궤적 추출 대상
+  motion_disentangle: true  # 손목 기준 노이즈 상쇄 활성화
+
+# 축 반전 (물리 장착 방향 보정)
+axis_remap:
+  accel: [-1, -1, 1]       # x=-x, y=-y, z=z
+  gyro: [-1, -1, 1]
+
+# ── 이전 스켈레톤 체인 (3-IMU용) ── [DISABLED] 복구 시 주석 해제 ──
+# skeleton_chain:
+# - joint: forearm
+#   sensor: S1
+#   bone_length_m: 0.25
+#   parent: null
+# - joint: hand
+#   sensor: S2
+#   bone_length_m: 0.18
+#   parent: forearm
+# - joint: finger
+#   sensor: S3
+#   bone_length_m: 0.08
+#   parent: hand

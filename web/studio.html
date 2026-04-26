@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AirScribe — Training Studio</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100;300;400;700&family=Inter:wght@300;400;600;800&family=Outfit:wght@200;400;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root { --bg: #000000; --text: #ffffff; --panel-bg: rgba(15,15,20,0.8); --accent: #ffffff; --green: #00ffaa; --red: #ff3366; --border: rgba(255,255,255,0.15); }
+body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; display: flex; flex-direction: column; background: radial-gradient(circle at center, rgba(30,30,40,0.3) 0%, #000 100%);}
+
+/* Header */
+.header { display: flex; align-items: center; justify-content: space-between; padding: 24px 48px; border-bottom: 1px solid var(--border); background: rgba(0,0,0,0.5); backdrop-filter: blur(10px); z-index:100; }
+.header-brand { display: flex; align-items: center; gap: 16px; }
+.header-brand h1 { font-family: 'Outfit'; font-size: 24px; font-weight: 800; letter-spacing: 3px; }
+.header-brand .tag { font-family: 'JetBrains Mono'; font-size: 9px; color: #000; background: #fff; padding: 4px 10px; font-weight:700; }
+.header-nav { display: flex; gap: 24px; }
+.nav-btn { font-family: 'JetBrains Mono'; font-size: 11px; font-weight: 600; text-transform: uppercase; color: #777; cursor: pointer; transition: 0.3s; text-decoration: none; border: none; background: transparent; padding-bottom: 4px; }
+.nav-btn:hover { color: #fff; }
+.nav-btn.active { color: #fff; border-bottom: 2px solid #fff; }
+
+/* Main Content Grid */
+.main-grid { display: grid; grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 200px; gap: 24px; padding: 24px 48px; flex: 1; min-height: 0; }
+
+/* Center/Left: Large Airwriting Canvas */
+.panel-canvas { grid-column: 1 / 2; grid-row: 1 / 2; background: var(--panel-bg); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+.panel-header { padding: 16px 24px; border-bottom: 1px solid var(--border); font-family: 'JetBrains Mono'; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #aaa; display: flex; justify-content: space-between; align-items: center; }
+.canvas-container { flex: 1; position: relative; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at center, rgba(255,255,255,0.02) 0%, transparent 70%); }
+#traceCanvas { width: 100%; height: 100%; cursor: crosshair; }
+.canvas-hint { position: absolute; bottom: 20px; font-family: 'JetBrains Mono'; font-size: 10px; color: #666; pointer-events: none; }
+.btn-group { display: flex; gap: 8px; }
+.btn { padding: 8px 16px; font-family: 'Outfit'; font-size: 11px; font-weight: 700; text-transform: uppercase; background: #fff; color: #000; border: none; cursor: pointer; border-radius: 4px; transition: 0.2s; }
+.btn:hover { background: #ddd; }
+.btn-outline { background: transparent; color: #fff; border: 1px solid var(--border); }
+.btn-outline:hover { background: rgba(255,255,255,0.1); }
+
+/* Right: Control & Diagnostics */
+.panel-sidebar { grid-column: 2 / 3; grid-row: 1 / 3; display: flex; flex-direction: column; gap: 24px; overflow-y: auto; padding-right: 8px; }
+/* Custom Scrollbar */
+.panel-sidebar::-webkit-scrollbar { width: 6px; }
+.panel-sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+
+.card { background: var(--panel-bg); border: 1px solid var(--border); border-radius: 8px; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+.card-title { font-family: 'JetBrains Mono'; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #aaa; border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 8px; }
+.stat-row { display: flex; justify-content: space-between; align-items: center; font-family: 'JetBrains Mono'; font-size: 12px; }
+.stat-label { color: #888; }
+.stat-val { font-weight: bold; }
+.stat-val.good { color: var(--green); }
+
+/* Hyperparameters */
+.form-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.form-group label { font-family: 'JetBrains Mono'; font-size: 10px; color: #888; }
+.form-group input, .form-group select { background: rgba(0,0,0,0.5); border: 1px solid var(--border); color: #fff; padding: 8px; font-family: 'JetBrains Mono'; font-size: 12px; border-radius: 4px; outline: none; }
+.form-group input:focus { border-color: #fff; }
+
+/* Bottom: Terminal Log Stream */
+.panel-terminal { grid-column: 1 / 2; grid-row: 2 / 3; background: #000; border: 1px solid var(--border); border-radius: 8px; padding: 16px; font-family: 'JetBrains Mono'; font-size: 11px; overflow-y: auto; color: #aaa; line-height: 1.5; box-shadow: inset 0 0 20px rgba(0,0,0,0.8); }
+.log-row { margin-bottom: 4px; }
+.log-time { color: #555; margin-right: 8px; }
+.log-info { color: #888; }
+.log-success { color: var(--green); }
+.log-error { color: var(--red); }
+.log-warning { color: #ffaa00; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-brand"><h1>AirScribe</h1><span class="tag">TRAINING STUDIO</span></div>
+  <div class="header-nav"><a href="/" class="nav-btn">Live Demo</a><button class="nav-btn active">Training Studio</button></div>
+</div>
+
+<div class="main-grid">
+  <!-- Large Canvas -->
+  <div class="panel-canvas">
+    <div class="panel-header">
+      <span>IMU Sensor Trace (Airwriting)</span>
+      <div class="btn-group">
+        <button class="btn btn-outline" id="btnClear">Clear (Z)</button>
+        <button class="btn" id="btnTest">Run Test Inference</button>
+      </div>
+    </div>
+    <div class="canvas-container" id="canvasWrap">
+      <canvas id="traceCanvas"></canvas>
+      <div class="canvas-hint">Drag to draw. Press 'Z' to clear.</div>
+    </div>
+  </div>
+
+  <!-- Terminal / Log View -->
+  <div class="panel-terminal" id="terminal">
+    <div class="log-row"><span class="log-time">[SYS]</span> <span class="log-info">Studio initialized. Awaiting connection...</span></div>
+  </div>
+
+  <!-- Right Sidebar: Diagnostics & Controls -->
+  <div class="panel-sidebar">
+    <div class="card">
+      <div class="card-title">System Status</div>
+      <div class="stat-row"><span class="stat-label">Model Endpoint</span> <span class="stat-val good">Online (:12347)</span></div>
+      <div class="stat-row"><span class="stat-label">IMU Buffer</span> <span class="stat-val">Ready (0 points)</span></div>
+      <div class="stat-row"><span class="stat-label">GPU Memory</span> <span class="stat-val">120 MB / 8 GB</span></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Training Control</div>
+      <div class="form-group">
+        <label>Dataset Path</label>
+        <input type="text" value="data/iam/words" disabled>
+      </div>
+      <div class="form-group">
+        <label>Epochs</label>
+        <input type="number" id="inpEpochs" value="50">
+      </div>
+      <div class="form-group">
+        <label>Batch Size</label>
+        <input type="number" id="inpBatch" value="32">
+      </div>
+      <div class="form-group">
+        <label>Learning Rate</label>
+        <input type="text" id="inpLR" value="0.001">
+      </div>
+      <button class="btn" id="btnTrain" style="width:100%; margin-top:8px;">Start Training (IAM Dataset)</button>
+      <div style="margin-top:16px;">
+        <canvas id="lossChart" height="150"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// --- Logger ---
+const term = document.getElementById('terminal');
+function logTerminal(msg, type='info') {
+  const t = new Date().toLocaleTimeString('en-US', {hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  const div = document.createElement('div'); div.className = 'log-row';
+  div.innerHTML = `<span class="log-time">[${t}]</span> <span class="log-${type}">${msg}</span>`;
+  term.appendChild(div); term.scrollTop = term.scrollHeight;
+}
+
+// --- Canvas Drawing Logic ---
+const canvas = document.getElementById('traceCanvas');
+const wrapper = document.getElementById('canvasWrap');
+const ctx = canvas.getContext('2d');
+let drawing = false; let strokes = []; let currentStroke = [];
+
+function resizeCanvas() {
+  canvas.width = wrapper.clientWidth; canvas.height = wrapper.clientHeight;
+  redraw();
+}
+window.addEventListener('resize', resizeCanvas);
+
+function getPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  const c = e.touches ? e.touches[0] : e;
+  // Normalize to 0~1 space
+  return { x: (c.clientX - rect.left) / rect.width, y: (c.clientY - rect.top) / rect.height };
+}
+
+canvas.addEventListener('mousedown', e => { drawing = true; currentStroke = [getPos(e)]; });
+canvas.addEventListener('mousemove', e => { if(!drawing) return; currentStroke.push(getPos(e)); redraw(); });
+canvas.addEventListener('mouseup', () => { if(drawing) { strokes.push([...currentStroke]); currentStroke = []; drawing = false; } });
+canvas.addEventListener('mouseleave', () => { if(drawing) { strokes.push([...currentStroke]); currentStroke = []; drawing = false; } });
+// Touch support
+canvas.addEventListener('touchstart', e => { e.preventDefault(); drawing = true; currentStroke = [getPos(e)]; }, {passive:false});
+canvas.addEventListener('touchmove', e => { e.preventDefault(); if(!drawing) return; currentStroke.push(getPos(e)); redraw(); }, {passive:false});
+canvas.addEventListener('touchend', e => { if(drawing) { strokes.push([...currentStroke]); currentStroke = []; drawing = false; } });
+
+function redraw() {
+  ctx.clearRect(0,0, canvas.width, canvas.height);
+  
+  // Draw grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  for(let i=1; i<10; i++) {
+    ctx.moveTo(0, canvas.height * (i/10)); ctx.lineTo(canvas.width, canvas.height * (i/10));
+    ctx.moveTo(canvas.width * (i/10), 0); ctx.lineTo(canvas.width * (i/10), canvas.height);
+  }
+  ctx.stroke();
+
+  // Draw strokes
+  ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  const allStrokes = [...strokes, currentStroke].filter(s => s.length > 0);
+  
+  allStrokes.forEach((stroke, i) => {
+    // Add glowing effect to the latest stroke
+    if(i === allStrokes.length - 1 && drawing) { ctx.shadowColor = '#00ffaa'; ctx.shadowBlur = 10; } 
+    else { ctx.shadowBlur = 0; }
+
+    ctx.beginPath();
+    ctx.moveTo(stroke[0].x * canvas.width, stroke[0].y * canvas.height);
+    for(let j=1; j<stroke.length; j++) {
+      ctx.lineTo(stroke[j].x * canvas.width, stroke[j].y * canvas.height);
+    }
+    ctx.stroke();
+  });
+  ctx.shadowBlur = 0;
+}
+
+function clearCanvas() {
+  strokes = []; currentStroke = [];
+  redraw();
+  logTerminal('Canvas cleared (Z).', 'info');
+}
+document.getElementById('btnClear').onclick = clearCanvas;
+
+// Keyboard shortcut (Z key)
+document.addEventListener('keydown', e => {
+  if (e.key === 'z' || e.key === 'Z') {
+    clearCanvas();
+  }
+});
+
+// Initial Setup
+setTimeout(resizeCanvas, 100);
+
+// --- WebSocket & Chart Logic ---
+let ws;
+const ctxChart = document.getElementById('lossChart').getContext('2d');
+const lossChart = new Chart(ctxChart, {
+  type: 'line',
+  data: { labels: [], datasets: [
+    { label: 'Train Loss', borderColor: '#ff0055', backgroundColor: 'transparent', data: [], tension: 0.4, borderWidth: 2 },
+    { label: 'Accuracy', borderColor: '#00ffaa', backgroundColor: 'transparent', data: [], tension: 0.4, borderWidth: 2}
+  ]},
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { labels: { color: '#888', font: {family: 'JetBrains Mono', size: 10} } } },
+    scales: { 
+      x: { display: false }, 
+      y: { ticks: { color: '#666', font: {family: 'JetBrains Mono', size: 9} }, grid: { color: 'rgba(255,255,255,0.05)' } }
+    }
+  }
+});
+
+function connectWS() {
+  ws = new WebSocket(`ws://${location.hostname||'localhost'}:12347`);
+  ws.onopen = () => logTerminal('WebSocket connected to backend Engine.', 'success');
+  ws.onmessage = e => {
+    try {
+      const d = JSON.parse(e.data);
+      if (d.type === 'log') logTerminal(d.msg, d.level || 'info');
+      if (d.type === 'train_log') logTerminal(d.message, d.level || 'info');
+      if (d.type === 'train_complete') logTerminal(`Training Complete! Accuracy: ${d.accuracy}`, 'success');
+      if (d.type === 'train_progress' || d.type === 'train_update') {
+        const ep = d.epoch || 0; const loss = d.loss || 0; const acc = d.acc || 0;
+        if(ep) {
+            logTerminal(`[Epoch ${ep}] Loss: ${loss.toFixed(4)} | Acc: ${(acc*100).toFixed(1)}%`, 'info');
+            lossChart.data.labels.push(ep);
+            lossChart.data.datasets[0].data.push(loss);
+            lossChart.data.datasets[1].data.push(acc);
+            lossChart.update();
+        }
+      }
+      if (d.type === 'recognize_result') {
+        logTerminal(`[Inference] Predicted: '${d.result.label}' (Conf: ${(d.result.confidence*100).toFixed(1)}%)`, 'success');
+      }
+    } catch (err) {}
+  };
+  ws.onclose = () => { logTerminal('Connection lost. Retrying...', 'error'); setTimeout(connectWS, 3000); };
+}
+connectWS();
+
+document.getElementById('btnTrain').onclick = () => {
+  if(!ws || ws.readyState !== WebSocket.OPEN) return;
+  const ep = parseInt(document.getElementById('inpEpochs').value);
+  const bs = parseInt(document.getElementById('inpBatch').value);
+  const lr = parseFloat(document.getElementById('inpLR').value);
+  lossChart.data.labels = []; lossChart.data.datasets[0].data = []; lossChart.data.datasets[1].data = []; lossChart.update();
+  ws.send(JSON.stringify({action: 'train_jw_v1', epochs: ep, batch_size: bs, lr: lr}));
+  logTerminal(`Dispatched TRN_START req <EP:${ep} BS:${bs}>`, 'warning');
+};
+
+document.getElementById('btnTest').onclick = () => {
+  if(!ws || ws.readyState !== WebSocket.OPEN) { logTerminal('Engine disconnected.', 'error'); return; }
+  if(strokes.length === 0) { logTerminal('No trajectory data in canvas.', 'warning'); return; }
+  ws.send(JSON.stringify({action: 'recognize', strokes: strokes}));
+  logTerminal('Inference request sent.', 'info');
+};
+
+</script>
+</body>
+</html>

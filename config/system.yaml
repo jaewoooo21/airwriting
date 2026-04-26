@@ -1,63 +1,48 @@
-macro_os:
-  enabled: true
-  active_profile: "RUNNING"
-  udp_ports:
-    web_ui: 12348
-    phone: 12349
-  
-  profiles:
-    RUNNING:
-      allowed_gestures: ["C", "O", "V", "L"]
-      confidence_threshold: 0.65
-      secure_gestures: ["C", "V"]  # CALL, LOCATION
-      description: "러닝 모드: 전화, 음악, 위치공유, 손전등"
-      mappings:
-        C: {keyword: "CALL_FAVORITE", intent: "tel:010-1234-5678"}
-        O: {keyword: "MUSIC_PLAY_PAUSE", intent: "media:toggle"}
-        V: {keyword: "SHARE_LOCATION", intent: "sms:current_loc"}
-        L: {keyword: "TOGGLE_FLASHLIGHT", intent: "system:flashlight"}
-        
-    LAB:
-      allowed_gestures: ["T", "C", "N", "L"]
-      confidence_threshold: 0.7
-      secure_gestures: []
-      description: "실험 모드: 타이머, 카메라, 노트, 손전등"
-      mappings:
-        T: {keyword: "START_TIMER", intent: "timer:5m"}
-        C: {keyword: "OPEN_CAMERA", intent: "camera:open"}
-        N: {keyword: "QUICK_NOTE", intent: "note:voice"}
-        L: {keyword: "TOGGLE_FLASHLIGHT", intent: "system:flashlight"}
+# System Configuration v4.0 — Hybrid-AirScribe
+# 기존 포트번호 동일 유지
 
-    PRESENTATION:
-      allowed_gestures: ["N", "P", "C", "O"]
-      confidence_threshold: 0.75
-      secure_gestures: ["C"]
-      description: "발표 모드: 다음, 이전, 캡처, 확인"
-      mappings:
-        N: {keyword: "NEXT_SLIDE", intent: "key:right"}
-        P: {keyword: "PREV_SLIDE", intent: "key:left"}
-        C: {keyword: "CAPTURE_SCREEN", intent: "system:screenshot"}
-        O: {keyword: "CONFIRM_ACTION", intent: "key:enter"}
+network:
+  ports:
+    discovery: 12344        # ESP32↔Python 디스커버리
+    esp_receive: 12345      # ESP32 → Python 센서 데이터
+    unity_send: 12346       # Python → Unity 시각화
+    dashboard: 12347        # 대시보드 웹소켓
+    action_dispatch: 12348  # 액션 디스패치
+    phone: 12349            # 폰 연동
+    python_control: 12350   # Python 제어 명령
+    oled_control: 5555      # ESP32 OLED 상태 업데이트
 
-    BED:
-      allowed_gestures: ["O", "L", "C"]
-      confidence_threshold: 0.6
-      secure_gestures: ["C"]
-      description: "침대 모드: 음악, 조명, 전화"
-      mappings:
-        O: {keyword: "MUSIC_TOGGLE", intent: "media:toggle"}
-        L: {keyword: "LIGHT_CONTROL", intent: "home:light_toggle"}
-        C: {keyword: "EMERGENCY_CALL", intent: "tel:112"}
+# UDP 패킷 포맷
+packet:
+  version: 4
+  header: 0xAA
+  footer: 0x55
+  # V4: [header 1B][seq 2B][timestamp 4B][S1/WRIST 24B][S3/FINGER 36B][button 1B][checksum 1B][footer 1B] = 70B
+  # V3: [header 1B][timestamp 4B][S1 24B][S3 36B][button 1B][checksum 1B][footer 1B] = 68B (이전 펌웨어 호환)
+  # Legacy: [header 1B][timestamp 4B][S1 24B][S2 24B][S3 36B][button 1B][checksum 1B][footer 1B] = 92B
+
 
 fusion:
+  mode: dual_node_ekf       # EKF 기반 듀얼 노드 보정
   accel_noise_std: 0.5
-  drift_observer:
-    enabled: true
-  writing_plane:
-    absolute_lock: true
-  zupt:
-    gyro_threshold: 0.05
+  # drift_observer:         # [DISABLED] 복구 시 주석 해제
+  #   enabled: true
+  # writing_plane:
+  #   absolute_lock: true
 
-visualization:
-  writing_board:
-    plane_skew_deg: -2.5
+preprocessing:
+  zupt:
+    enabled: true
+    gyro_threshold: 0.05
+  zaru:
+    enabled: true            # Zero Angular Rate Update
+
+calibration:
+  num_samples: 300           # 정지 상태 캘리브레이션 샘플 수
+  quality_thresholds:
+    accel_std_max: 0.5       # m/s²
+    gyro_std_max: 0.02       # rad/s
+
+# visualization:            # [DISABLED] 복구 시 주석 해제
+#   writing_board:
+#     plane_skew_deg: -2.5
