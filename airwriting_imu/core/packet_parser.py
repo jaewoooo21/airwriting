@@ -270,7 +270,9 @@ class PacketParser:
         wa = self._remap(v[2], v[3], v[4])
         wg = self._remap(v[5], v[6], v[7])
 
-        # S2 (HAND): indices 8-13 → 무시
+        # S2 (HAND): indices 8-13
+        ha = self._remap(v[8], v[9], v[10])
+        hg = self._remap(v[11], v[12], v[13])
 
         # S3 (FINGER): indices 14-22
         fa = self._remap(v[14], v[15], v[16])
@@ -282,6 +284,8 @@ class PacketParser:
             timestamp_ms=ts,
             wrist_accel=np.array(wa, dtype=np.float32),
             wrist_gyro=np.array(wg, dtype=np.float32),
+            hand_accel=np.array(ha, dtype=np.float32),
+            hand_gyro=np.array(hg, dtype=np.float32),
             finger_accel=np.array(fa, dtype=np.float32),
             finger_gyro=np.array(fg, dtype=np.float32),
             finger_mag=np.array(fm, dtype=np.float32),

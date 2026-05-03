@@ -96,3 +96,13 @@ class TimeSync:
             "latency_ms": round(self.latency_ms, 1),
             "samples": self._sync_count,
         }
+
+    def reset(self):
+        """ESP32 리셋 시 동기화 상태 초기화"""
+        self._offsets.clear()
+        self._latencies.clear()
+        self.offset_ms = 0.0
+        self.latency_ms = 0.0
+        self.is_synced = False
+        self._sync_count = 0
+        self._esp32_boot_offset = 0

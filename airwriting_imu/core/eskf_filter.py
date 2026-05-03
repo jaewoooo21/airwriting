@@ -34,7 +34,7 @@ class ESKF:
         self.a_win = []
         self.g_win = []
         
-    def reset(self, initial_q=None, initial_bg=None, initial_mag=None):
+    def reset(self, initial_q=None, initial_ba=None, initial_bg=None, initial_mag=None):
         self.p = np.zeros(3)
         self.v = np.zeros(3)
         if initial_q is not None:
@@ -44,7 +44,11 @@ class ESKF:
         else:
             self.q = Rotation.from_quat([0, 0, 0, 1])
             
-        self.a_b = np.zeros(3)
+        if initial_ba is not None:
+            self.a_b = initial_ba.copy()
+        else:
+            self.a_b = np.zeros(3)
+            
         if initial_bg is not None:
             self.w_b = initial_bg.copy()
         else:
@@ -119,7 +123,7 @@ class ESKF:
             self.v *= 0.90 # 정지 상태 강력한 제동
         else:
             self.Q = self.Q_base * 2.0
-            self.v *= 0.975 # 초당 약 ~48% 보존되도록 살짝 더 잡아줌 (너무 빠름 방지)
+            self.v *= 0.995 # 초당 ~65% 보존 (85Hz 기준: 0.995^85 ≈ 0.65)
             
         # 속도 클램핑 (최대 2.0 m/s 제한, 인간 필기 속도 한계)
         v_norm = np.linalg.norm(self.v)

@@ -121,77 +121,70 @@ class GestureTransformer(nn.Module):
         return out
 
 
-# ─── Phase 9: CNN-BiLSTM 하이브리드 (SOTA) ───
-class GestureCNNBiLSTM(nn.Module):
+# ─── Phase 10: 순수 시계열 BiLSTM (CNN 완전 배제) ───
+class PureBiLSTMAttention(nn.Module):
     """
-    CNN(로컬 모션 패턴 추출) + BiLSTM(양방향 시퀀스 이해) + Attention Pooling
-    
-    IMU 손글씨 인식 SOTA 아키텍처 (arXiv 2024 벤치마크 기준)
-    Jetson Orin Nano FP16 추론에 최적화된 경량 설계
+    CNN 필터가 시간축(Time-warp)의 미세한 변화를 왜곡하는 문제를 해결하기 위해
+    CNN을 완전히 제거하고 순수 시계열 처리만 수행하는 아키텍처.
     """
-    def __init__(self, input_dim=8, num_classes=2, hidden_dim=64):
+    def __init__(self, input_dim=8, num_classes=2, hidden_dim=128):
         super().__init__()
         
-        # 1D-CNN: 로컬 시간 패턴 추출 (커널 3→5→7 다중 스케일)
-        self.cnn = nn.Sequential(
-            nn.Conv1d(input_dim, 32, kernel_size=3, padding=1),
-            nn.BatchNorm1d(32),
-            nn.ReLU(),
+        # 1. Linear Projection (특징 차원 확장)
+        self.projection = nn.Sequential(
+            nn.Linear(input_dim, 64),
+            nn.LayerNorm(64),
+            nn.GELU(),
             nn.Dropout(0.1),
-            
-            nn.Conv1d(32, 64, kernel_size=5, padding=2),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            
-            nn.Conv1d(64, hidden_dim, kernel_size=7, padding=3),
-            nn.BatchNorm1d(hidden_dim),
-            nn.ReLU(),
-            nn.Dropout(0.1),
+            nn.Linear(64, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.GELU(),
+            nn.Dropout(0.1)
         )
         
-        # BiLSTM: 양방향 시퀀스 컨텍스트
+        # 2. BiLSTM (순차적 문맥 파악)
         self.lstm = nn.LSTM(
             input_size=hidden_dim,
             hidden_size=hidden_dim,
-            num_layers=2,
+            num_layers=3,  # 레이어 수 증가로 복잡한 궤적 학습
             batch_first=True,
             bidirectional=True,
+            dropout=0.3
+        )
+        
+        # 3. Multi-Head Attention (중요한 획/모션 부분에 집중)
+        self.attention = nn.MultiheadAttention(
+            embed_dim=hidden_dim * 2,
+            num_heads=4,
+            batch_first=True,
             dropout=0.2
         )
         
-        # Attention Pooling: 중요한 타임스텝에 가중치 집중
-        self.attention = nn.Sequential(
-            nn.Linear(hidden_dim * 2, 1),
-            nn.Softmax(dim=1)
+        # 4. Classifier
+        self.classifier = nn.Sequential(
+            nn.Linear(hidden_dim * 2, 128),
+            nn.BatchNorm1d(128),
+            nn.GELU(),
+            nn.Dropout(0.4),
+            nn.Linear(128, num_classes)
         )
         
-        # Classifier
-        self.classifier = nn.Sequential(
-            nn.Linear(hidden_dim * 2, 64),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(64, num_classes)
-        )
-    
     def forward(self, x):
         # x shape: [batch, seq_len, input_dim]
         
-        # CNN expects [batch, channels, seq_len]
-        x_cnn = x.transpose(1, 2)
-        x_cnn = self.cnn(x_cnn)
+        # 1. Projection
+        x_proj = self.projection(x)  # [batch, seq_len, hidden_dim]
         
-        # Back to [batch, seq_len, features]
-        x_lstm_in = x_cnn.transpose(1, 2)
+        # 2. BiLSTM
+        lstm_out, _ = self.lstm(x_proj)  # [batch, seq_len, hidden_dim * 2]
         
-        # BiLSTM
-        lstm_out, _ = self.lstm(x_lstm_in)
+        # 3. Self-Attention Pooling
+        attn_out, _ = self.attention(lstm_out, lstm_out, lstm_out) # [batch, seq_len, hidden_dim * 2]
         
-        # Attention Pooling
-        attn_weights = self.attention(lstm_out)  # [batch, seq_len, 1]
-        context = torch.sum(attn_weights * lstm_out, dim=1)  # [batch, hidden*2]
+        # Global Average Pooling over sequence length
+        context = torch.mean(attn_out, dim=1)  # [batch, hidden_dim * 2]
         
-        # Classification
+        # 4. Classification
         out = self.classifier(context)
         return out
 
@@ -200,9 +193,10 @@ class AirWritingAI:
     """
     통합 AI 관리자.
     model_type:
-      - "jw_v1"      : JW v1 (VQ-VAE + Mamba SSM) — 최신
-      - "cnn_bilstm"  : CNN-BiLSTM 하이브리드 — 하위 호환
-      - "transformer" : 기존 Transformer — 하위 호환
+      - "pure_bilstm" : 순수 시계열 BiLSTM + Attention (CNN 배제, 권장)
+      - "jw_v2"      : JW v2 (Pure Continuous Mamba)
+      - "transformer" : 기존 Transformer
+      - "fastkan"    : FastKAN (KAN 기반 초경량 분류, ~18KB INT8)
     """
     def __init__(self):
         self.model = None
@@ -210,8 +204,8 @@ class AirWritingAI:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.label_map = {}
         self.scaler = None
-        self.model_type = "jw_v1"
-        self.renderer = None  # TrajectoryRenderer (JW v1용)
+        self.model_type = "pure_bilstm"
+        self.renderer = None  # JW v1용 (현재 미사용)
         
     def train(self, data_dir="dataset", epochs=30, model_type=None,
               augment_factor=0, image_size=128, lr=0.001,
@@ -226,8 +220,10 @@ class AirWritingAI:
         if mt == "jw_v1":
             return self._train_jw_v1(data_dir, epochs, augment_factor,
                                      image_size, lr, batch_size, callback)
+        elif mt == "fastkan":
+            return self._train_sequence(data_dir, epochs, lr, batch_size, callback)
         else:
-            return self._train_legacy(data_dir, epochs)
+            return self._train_sequence(data_dir, epochs, lr, batch_size, callback)
     
     def _train_jw_v1(self, data_dir, epochs, augment_factor,
                      image_size, lr, batch_size, callback):
@@ -404,9 +400,11 @@ class AirWritingAI:
         log(f"JW v1 학습 완료! {num_classes}개 클래스, 정확도 {final_acc:.1f}%", "success")
         return True, f"학습 성공! {num_classes}개 클래스, 정확도 {final_acc:.1f}%"
     
-    def _train_legacy(self, data_dir, epochs):
-        """기존 CNN-BiLSTM/Transformer 학습 (하위 호환)"""
-        print(f"AI {self.model_type.upper()} 학습 모듈 초기화...")
+    def _train_sequence(self, data_dir, epochs, lr, batch_size, callback):
+        """순수 시계열(Pure BiLSTM / Transformer) 학습 모듈"""
+        log = callback or (lambda msg, lvl="info", **kw: print(f"[{lvl}] {msg}"))
+        
+        log(f"AI {self.model_type.upper()} 학습 모듈 초기화...", "info")
         self.dataset = GestureDataset(data_dir=data_dir)
         
         if len(self.dataset) == 0:
@@ -418,15 +416,27 @@ class AirWritingAI:
         if num_classes < 2:
             return False, "최소 2종류 이상의 글자를 수집하세요."
         
-        self.model = GestureCNNBiLSTM(num_classes=num_classes).to(self.device)
+        if self.model_type == "pure_bilstm":
+            self.model = PureBiLSTMAttention(num_classes=num_classes).to(self.device)
+        elif self.model_type == "jw_v2":
+            from airwriting_imu.core.jw_v1 import JWv2_Continuous
+            self.model = JWv2_Continuous(num_classes=num_classes).to(self.device)
+        elif self.model_type == "fastkan":
+            from airwriting_imu.core.fastkan import FastKANClassifier
+            self.model = FastKANClassifier(
+                input_dim=8, hidden_dim=32, num_classes=num_classes, num_grids=8
+            ).to(self.device)
+        else:
+            self.model = GestureTransformer(num_classes=num_classes).to(self.device)
+            
         criterion = nn.CrossEntropyLoss()
-        optimizer = optim.AdamW(self.model.parameters(), lr=0.001, weight_decay=0.01)
+        optimizer = optim.AdamW(self.model.parameters(), lr=lr, weight_decay=0.01)
         scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
-        loader = DataLoader(self.dataset, batch_size=16, shuffle=True)
+        loader = DataLoader(self.dataset, batch_size=batch_size, shuffle=True)
         
         best_loss = float('inf')
         patience_counter = 0
-        acc = 0
+        final_acc = 0
         
         self.model.train()
         for epoch in range(epochs):
@@ -439,6 +449,7 @@ class AirWritingAI:
                 out = self.model(x)
                 loss = criterion(out, y)
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
                 optimizer.step()
                 total_loss += loss.item()
                 pred = torch.argmax(out, dim=1)
@@ -448,27 +459,34 @@ class AirWritingAI:
             scheduler.step()
             avg_loss = total_loss / len(loader)
             acc = correct / total * 100
-            print(f"Epoch {epoch+1}/{epochs} | Loss: {avg_loss:.4f} | Acc: {acc:.1f}%")
+            final_acc = acc
+            
+            progress = int((epoch + 1) / epochs * 100)
+            log(f"Epoch {epoch+1}/{epochs} | Loss: {avg_loss:.4f} | Acc: {acc:.1f}%",
+                "info", epoch=epoch+1, accuracy=f"{acc:.1f}", progress=progress, loss=avg_loss, acc=acc/100)
             
             if avg_loss < best_loss:
                 best_loss = avg_loss
                 patience_counter = 0
             else:
                 patience_counter += 1
-                if patience_counter >= 7:
+                if patience_counter >= 15: # Early stopping 인내심 증가 (15)
+                    log(f"Early stopping at epoch {epoch+1}", "warn")
                     break
             
         os.makedirs("weights", exist_ok=True)
-        torch.save(self.model.state_dict(), "weights/cnn_bilstm.pt")
+        model_filename = f"{self.model_type}.pt"
+        torch.save(self.model.state_dict(), f"weights/{model_filename}")
         import pickle
         with open("weights/meta.pkl", "wb") as f:
             pickle.dump({
                 "label_map": self.label_map,
                 "scaler": self.dataset.scaler,
-                "model_type": "cnn_bilstm"
+                "model_type": self.model_type
             }, f)
             
-        return True, f"학습 성공! {num_classes}개 클래스, 정확도 {acc:.1f}%"
+        log(f"학습 완료! {num_classes}개 클래스, 정확도 {final_acc:.1f}%", "success")
+        return True, f"학습 성공! {num_classes}개 클래스, 정확도 {final_acc:.1f}%"
         
     def load_model(self):
         import pickle
@@ -490,7 +508,24 @@ class AirWritingAI:
                 from airwriting_imu.core.trajectory_renderer import TrajectoryRenderer
                 img_size = meta.get("image_size", 128)
                 self.renderer = TrajectoryRenderer(size=img_size)
+            elif model_type == "pure_bilstm":
+                self.model = PureBiLSTMAttention(num_classes=num_classes).to(self.device)
+                self.model.load_state_dict(
+                    torch.load("weights/pure_bilstm.pt", map_location=self.device))
+            elif model_type == "jw_v2":
+                from airwriting_imu.core.jw_v1 import JWv2_Continuous
+                self.model = JWv2_Continuous(num_classes=num_classes).to(self.device)
+                self.model.load_state_dict(
+                    torch.load("weights/jw_v2.pt", map_location=self.device))
+            elif model_type == "fastkan":
+                from airwriting_imu.core.fastkan import FastKANClassifier
+                self.model = FastKANClassifier(
+                    input_dim=8, hidden_dim=32, num_classes=num_classes, num_grids=8
+                ).to(self.device)
+                self.model.load_state_dict(
+                    torch.load("weights/fastkan.pt", map_location=self.device))
             elif model_type == "cnn_bilstm":
+                # Legacy compatibility
                 self.model = GestureCNNBiLSTM(num_classes=num_classes).to(self.device)
                 self.model.load_state_dict(
                     torch.load("weights/cnn_bilstm.pt", map_location=self.device))
@@ -559,7 +594,7 @@ class AirWritingAI:
         return label
     
     def _predict_legacy(self, session_strokes):
-        """기존 CNN-BiLSTM 추론"""
+        """순수 시계열 모델 (Pure BiLSTM / Transformer) 추론"""
         flattened = []
         for st in session_strokes:
             for pt in st:
@@ -574,15 +609,16 @@ class AirWritingAI:
             return None
             
         seq = np.array(flattened)
-        seq_norm = self.scaler.transform(seq)
+        if self.scaler:
+            seq = self.scaler.transform(seq)
         
-        if len(seq_norm) > 200:
-            seq_norm = seq_norm[:200]
+        if len(seq) > 200:
+            seq = seq[:200]
         else:
-            pad_len = 200 - len(seq_norm)
-            seq_norm = np.pad(seq_norm, ((0, pad_len), (0, 0)), mode='constant')
+            pad_len = 200 - len(seq)
+            seq = np.pad(seq, ((0, pad_len), (0, 0)), mode='constant')
             
-        x = torch.tensor(seq_norm, dtype=torch.float32).unsqueeze(0).to(self.device)
+        x = torch.tensor(seq, dtype=torch.float32).unsqueeze(0).to(self.device)
         
         with torch.no_grad():
             out = self.model(x)
@@ -591,12 +627,12 @@ class AirWritingAI:
             conf = confidence.item()
             idx = pred_idx.item()
             
-        if conf < 0.5:
+        if conf < 0.3: # Threshold 완화
             return None
             
         for label, i in self.label_map.items():
             if i == idx:
-                print(f"[AI] 예측: {label} (신뢰도: {conf*100:.1f}%)")
+                print(f"[AI {self.model_type}] 예측: {label} (신뢰도: {conf*100:.1f}%)")
                 return label
         return None
     

@@ -752,6 +752,104 @@ class JWv1(nn.Module):
 
 
 # ═══════════════════════════════════════════════════════════════════
+# Stage 4: JW v2 (Pure Continuous Mamba)
+# ═══════════════════════════════════════════════════════════════════
+
+class JWv2_Continuous(nn.Module):
+    """
+    JW v2 — 순수 연속(Continuous) 시계열 Mamba 모델.
+    
+    VQ-VAE 이산화(Tokenization) 및 CNN(Motion/Image Encoder)을 완전히 배제하고,
+    IMU 8채널 센서값을 직접 연속 공간(Continuous Space)에서 Mamba 블록으로 처리.
+    Time-warp(속도 편차)에 대해 왜곡 없는 순수 Sequence 모델링.
+    """
+    def __init__(
+        self,
+        input_dim: int = 8,
+        d_model: int = 128,
+        n_layers: int = 4,
+        d_state: int = 16,
+        expand: int = 2,
+        num_classes: int = 62,
+        dropout: float = 0.2,
+    ):
+        super().__init__()
+        self.d_model = d_model
+        self.num_classes = num_classes
+        
+        # 1. Continuous Linear Projection (CNN 배제)
+        self.input_proj = nn.Sequential(
+            nn.Linear(input_dim, 64),
+            nn.RMSNorm(64),
+            nn.SiLU(),
+            nn.Dropout(dropout),
+            nn.Linear(64, d_model),
+            nn.RMSNorm(d_model)
+        )
+        
+        # 2. Mamba Backbone
+        self.blocks = nn.ModuleList([
+            MambaBlock(d_model=d_model, d_state=d_state, 
+                       expand=expand, dropout=dropout)
+            for _ in range(n_layers)
+        ])
+        
+        self.final_norm = nn.RMSNorm(d_model)
+        
+        # 3. Classifier Head (Attention Pooling 추가)
+        self.attention = nn.MultiheadAttention(
+            embed_dim=d_model, num_heads=4, batch_first=True, dropout=0.1
+        )
+        
+        self.cls_head = nn.Sequential(
+            nn.Linear(d_model, d_model),
+            nn.SiLU(),
+            nn.Dropout(dropout),
+            nn.Linear(d_model, num_classes)
+        )
+        
+        self._init_weights()
+        
+    def _init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_normal_(m.weight, gain=0.5)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+                    
+    def forward(self, imu_seq: torch.Tensor, mode: str = "classify"):
+        """
+        imu_seq: [B, T, 8] — IMU 시계열 연속 데이터
+        Returns: [B, num_classes] 로짓
+        """
+        # 1. Projection: [B, T, 8] -> [B, T, d_model]
+        x = self.input_proj(imu_seq)
+        
+        # 2. Mamba Blocks
+        for block in self.blocks:
+            x = block(x)
+        x = self.final_norm(x)
+        
+        # 3. Attention Pooling
+        attn_out, _ = self.attention(x, x, x)
+        
+        # Global Average Pooling
+        pooled = attn_out.mean(dim=1)
+        
+        # 4. Classification
+        logits = self.cls_head(pooled)
+        return logits
+
+    def count_parameters(self) -> dict:
+        total = sum(p.numel() for p in self.parameters())
+        trainable = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        return {
+            "total": total,
+            "trainable": trainable,
+            "size_mb_fp16": total * 2 / (1024 ** 2),
+        }
+
+# ═══════════════════════════════════════════════════════════════════
 # Self-Test: 모델 생성 및 파라미터 확인
 # ═══════════════════════════════════════════════════════════════════
 

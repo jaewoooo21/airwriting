@@ -28,6 +28,13 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 from functools import partial
 
 import numpy as np
+from scipy.spatial.transform import Rotation
+
+# 레거시 프로젝트(scratch_git) 경로 추가하여 OP-1F 전용 필터 임포트
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent / "scratch_git" / "airwriting"))
+from python.fusion.filters import MadgwickFilter
 
 try:
     import websockets
@@ -45,9 +52,18 @@ from airwriting_imu.core.kinematics import KinematicChain
 from airwriting_imu.core.oled_sender import OLEDSender
 from airwriting_imu.core.one_euro_filter import OneEuroFilter
 from airwriting_imu.core.ai_model import AirWritingAI
+from airwriting_imu.core.streaming import StreamingInference
+
+# ─── 차세대 관성 지능 모듈 ───
+from airwriting_imu.core.bio_kinematics import (
+    DifferentialKinematics, MotionSeparator
+)
+from airwriting_imu.core.yaw_stabilizer import YawStabilizer
+from airwriting_imu.core.duo_streamers import SparseStreamEngine
 
 ai = AirWritingAI()
 ai.load_model()
+streamer = StreamingInference(ai, char_timeout=0.8, space_timeout=2.0)
 from airwriting_imu.core.device_discovery import (
     is_discovery_request,
     build_discovery_response,
@@ -63,8 +79,15 @@ logging.basicConfig(
 log = logging.getLogger("airscribe")
 
 # ─── 포트 설정 ───
+import serial.tools.list_ports
+_ports = list(serial.tools.list_ports.comports())
 SERIAL_PORT = "COM3"
-BAUD_RATE   = 115200
+if _ports:
+    # COM1이 아닌 포트를 우선적으로 선택 (예: COM5)
+    _non_com1 = [p.device for p in _ports if p.device != "COM1"]
+    SERIAL_PORT = _non_com1[0] if _non_com1 else _ports[-1].device
+
+BAUD_RATE   = 921600
 WS_PORT     = 12347
 HTTP_PORT   = 8080
 
@@ -76,18 +99,28 @@ s1_eskf = ESKF(dt=0.01)
 s2_eskf = ESKF(dt=0.01)
 s3_eskf = ESKF(dt=0.01)
 
+# [핵심] Ray casting 전용 6축 필터 (자기장 제외, 약한 중력 보정으로 튀는 현상 원천 차단)
+# 과거 깃허브 코드와 동일하게 커서 전용 독립 필터를 사용합니다.
+madgwick_s3_ray = MadgwickFilter(beta=0.05, sample_rate=85.0)
+yaw_stabilizer = YawStabilizer(sample_rate=85.0)
+
 # [Phase 8] One Euro Filter로 스무딩 (속도 적응형)
-# [UI 혁신] 딜레이(지연속도) 완전 제거: min_cutoff를 15로 높여서 상용 펜처럼 즉시 반응하게 만듭니다.
-oef_x = OneEuroFilter(freq=100.0, min_cutoff=15.0, beta=0.01, d_cutoff=1.0)
-oef_y = OneEuroFilter(freq=100.0, min_cutoff=15.0, beta=0.01, d_cutoff=1.0)
+# 기존 레거시 프로젝트의 안정적인 값으로 복구 (흔들림 제거)
+oef_x = OneEuroFilter(freq=85.0, min_cutoff=1.0, beta=0.5, d_cutoff=1.0)
+oef_y = OneEuroFilter(freq=85.0, min_cutoff=1.0, beta=0.5, d_cutoff=1.0)
 smooth_x, smooth_y = 0.0, 0.0
-ref_yaw, ref_pitch = 0.0, 0.0  # 드리프트 흡수용 기준점
 last_ts_dict = {'s1': 0, 's2': 0, 's3': 0}
+
+# 버튼 디바운싱 (물리적 스위치 바운싱 및 손가락 압력 변동 방어)
+button_debounce_counter = 0
+DEBOUNCE_FRAMES = 6  # 85Hz 기준 약 70ms 동안 0이어야 진짜 Pen Up으로 간주
 
 # [유저 기획: 가상의 펜]
 # "내 손에서 뻗어나간 가상의 펜"의 실제 물리 길이를 설정합니다.
-# 유저님이 컨트롤하기 가장 완벽하게 조율된 황금비율 세팅!
-VIRTUAL_PEN_LENGTH = 500.0
+# 깃허브 OP-1F 레거시 프로젝트의 완벽한 배율(2.5)로 복구하여 튀는 현상을 막습니다.
+VIRTUAL_PEN_LENGTH = 2.5
+# 인체 공학적 좌우 감도 보정 (너무 크면 튐)
+X_SENSITIVITY = 1.2
 
 # AI 데이터셋 수집기 상태
 os.makedirs("dataset", exist_ok=True)
@@ -99,15 +132,7 @@ is_recording_session = False
 session_label = ""
 session_strokes = []
 
-# [Phase 10.5] Free-Draw Auto Predict
-free_strokes = []
-free_current_stroke = []
-last_pen_up_time = 0.0
-is_free_drawing = False
-
-# [Phase 10.6] S1-S3 블렌딩 오프셋 (캘리브레이션 직후 초기화)
-s3_offset_yaw = 0.0
-s3_offset_pitch = 0.0
+# [Phase 10.5] Free-Draw Auto Predict (Removed, replaced by StreamingInference)
 
 tc = KinematicChain()
 time_sync = TimeSync()
@@ -117,11 +142,29 @@ ws_clients: set = set()
 esp32_addr = None
 mock_mode = "--mock" in sys.argv
 
+# ─── 차세대 모듈 초기화 ───
+diff_kin = DifferentialKinematics()    # 3-IMU 차동 운동학
+motion_sep = MotionSeparator(sample_rate=85.0)  # 손목/손가락 동작 분리
+
+# Duo Streamers 희소 인식 엔진 (기존 streamer와 병렬 운용)
+def _on_sparse_result(cls_id, confidence):
+    log.info(f"[DuoStreamers] Class={cls_id} Conf={confidence:.2f}")
+sparse_engine = SparseStreamEngine(num_classes=26, on_result=_on_sparse_result)
+
+# 파이프라인 상태 (Digital Twin 대시보드 전송용)
+pipeline_state = {
+    "bio_kin": {},
+    "duo_streamers": {},
+    "writing_intent": 0.0,
+}
+
 # [AI 라벨링] CLI 인자로 넘어온 라벨 파싱 (ex: py main.py --label A)
 dataset_label = "unlabeled"
 for i, arg in enumerate(sys.argv):
     if arg == "--label" and i + 1 < len(sys.argv):
         dataset_label = sys.argv[i+1].upper()
+
+main_loop = None
 
 # ─── WebSocket ───
 async def ws_broadcast(data: dict):
@@ -132,28 +175,18 @@ async def ws_broadcast(data: dict):
             return_exceptions=True,
         )
 
-# ─── Auto-Predict (Phase 10.5) ───
-async def run_auto_predict(strokes):
-    if len(strokes) == 0:
-        return
-        
-    log.info(f"🔍 Auto-Predict 시작: 총 {len(strokes)}획")
-    
-    # AI 추론은 동기(Synchronous) 작업이므로, Event Loop 블로킹(엄청난 딜레이) 방지를 위해 스레드로 분리 실행
-    loop = asyncio.get_event_loop()
-    try:
-        # 단일 예측으로 롤백 (HA 를 부분적으로 쪼개서 HAHAHA 나오는 현상 방지)
-        predicted_word = await loop.run_in_executor(None, ai.predict, strokes)
-    except Exception as e:
-        log.error(f"Auto-Predict 실패: {e}")
-        return
-        
-    if predicted_word:
-        log.info(f"🚀 Auto-Predict 최종 결과: '{predicted_word}'")
-        await ws_broadcast({
-            "type": "prediction",
-            "label": predicted_word
-        })
+# ─── Streaming 추론 콜백 ───
+def _on_text_updated(sentence: str, char: str):
+    """스트리밍 추론기에서 새 문자가 확정될 때 웹소켓으로 전송"""
+    if ws_clients and main_loop is not None:
+        msg = {
+            "type": "streaming_text",
+            "sentence": sentence,
+            "latest_char": char
+        }
+        asyncio.run_coroutine_threadsafe(ws_broadcast(msg), main_loop)
+
+streamer.on_text_updated = _on_text_updated
 
 
 async def ws_handler(websocket):
@@ -175,6 +208,16 @@ async def ws_handler(websocket):
                     s3_eskf.reset()
                     log.info("🎯 캘리브레이션 300샘플 다시 시작")
                 
+                elif cmd.get("action") == "erase_last_char":
+                    if len(streamer._current_sentence) > 0:
+                        erased = streamer._current_sentence[-1]
+                        streamer._current_sentence = streamer._current_sentence[:-1]
+                        log.info(f"⌫ 웹 UI에서 지우기 요청. 남은 문장: '{streamer._current_sentence}'")
+                        _on_text_updated(streamer._current_sentence, "<ERASE>")
+                elif cmd.get("action") == "clear_all_text":
+                    streamer.reset()
+                    log.info("🗑️ 웹 UI에서 전체 텍스트 지우기 요청")
+                    
                 # [Phase 6] UI 기반 녹화 제어 추가
                 elif cmd.get("action") == "start_record":
                     global is_recording_session, session_label, session_strokes, current_stroke
@@ -213,6 +256,21 @@ async def ws_handler(websocket):
                             else:
                                 log.info(f"✅ AI도 방금 쓴 글자를 '{pred_label}'(으)로 완벽히 예측했습니다!")
                     
+                elif cmd.get("action") == "get_dataset_info":
+                    items = _scan_dataset()
+                    class_info = {}
+                    for item in items:
+                        lbl = item["label"]
+                        if lbl not in class_info:
+                            class_info[lbl] = {"samples": 0, "points": 0}
+                        class_info[lbl]["samples"] += 1
+                        class_info[lbl]["points"] += item["points"]
+                    await websocket.send(json.dumps({
+                        "type": "dataset_info",
+                        "classes": class_info,
+                        "total_files": len(items),
+                    }))
+                
                 elif cmd.get("action") == "train_model":
                     epochs = cmd.get("epochs", 50)
                     log.info(f"🤖 AI 학습 스레드 시작... (목표: {epochs} Epochs)")
@@ -273,147 +331,7 @@ async def ws_handler(websocket):
                     await websocket.send(json.dumps(stats))
                 
                 elif cmd.get("action") == "recognize":
-                    raw_strokes = cmd.get("strokes", [])
-                    log.info(f"🧠 AI 멀티(단어) 인식 요청: 총 {len(raw_strokes)} strokes")
-                    
-                    try:
-                        import numpy as np
-                        import torch
-                        from airwriting_imu.core.trajectory_renderer import TrajectoryRenderer
-                        import base64, io
-                        from PIL import Image
-                        
-                        # [Phase 6] Heuristic Segmentation (X축 기준 띄어쓰기 쪼개기)
-                        segments = []
-                        current_segment = []
-                        last_max_x = -1
-                        
-                        for st in raw_strokes:
-                            if not st: continue
-                            xs = [pt.get('x', 0) for pt in st]
-                            min_x = min(xs)
-                            max_x = max(xs)
-                            # 글자간 띄어쓰기가 화면 캔버스 기준 8% 이상 차이나면 분할
-                            if last_max_x != -1 and (min_x - last_max_x) > 0.08:
-                                segments.append(current_segment)
-                                current_segment = []
-                                
-                            current_segment.append(st)
-                            last_max_x = max_x
-                            
-                        if current_segment:
-                            segments.append(current_segment)
-                            
-                        log.info(f"🔪 분할(Segmentation) 결과: {len(segments)}개의 문자 단위 묶음 검출")
-
-                        stages_list = []
-                        
-                        for idx, strokes in enumerate(segments):
-                            # 각 분할된 문자별로 추론
-                            renderer = TrajectoryRenderer(size=128)
-                            img = renderer.render(strokes)
-                            img_t = torch.tensor(img, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
-                            
-                            flattened = []
-                            for st in strokes:
-                                for pt in st:
-                                    features = [
-                                        pt.get('x', 0.0), pt.get('y', 0.0),
-                                        pt.get('ax', 0.0), pt.get('ay', 0.0), pt.get('az', 0.0),
-                                        pt.get('gx', 0.0), pt.get('gy', 0.0), pt.get('gz', 0.0)
-                                    ]
-                                    flattened.append(features)
-                            
-                            if len(flattened) < 3:
-                                continue # 너무 작은 점은 무시
-
-                            seq = np.array(flattened, dtype=np.float32)
-                            if len(seq) > 200:
-                                seq = seq[:200]
-                            else:
-                                pad = 200 - len(seq)
-                                seq = np.pad(seq, ((0, pad), (0, 0)), mode='constant')
-                            
-                            imu_t = torch.tensor(seq, dtype=torch.float32).unsqueeze(0)
-                            
-                            pil_img = Image.fromarray((img * 255).astype(np.uint8), mode='L')
-                            buf = io.BytesIO()
-                            pil_img.save(buf, format='PNG')
-                            img_b64 = base64.b64encode(buf.getvalue()).decode()
-                            
-                            stages = {}
-                            if ai.model is not None and ai.model_type == "jw_v1":
-                                stages = ai.model.predict_with_stages(imu_t, img_t, ai.label_map)
-                                stages["raw_input"]["image_preview"] = img_b64
-                            else:
-                                # 모델 미학습 — 더미 데이터 파이프라인
-                                n_pts = len(flattened)
-                                n_tokens = max(1, n_pts // 4)
-                                
-                                stages = {
-                                    "raw_input": {
-                                        "imu_shape": [1, 200, 8],
-                                        "img_shape": [1, 1, 128, 128],
-                                        "image_preview": img_b64,
-                                        "imu_stats": {
-                                            "points": n_pts,
-                                            "channels": 8,
-                                            "mean": [0]*8,
-                                            "std": [1]*8,
-                                        },
-                                    },
-                                    "vq_tokenizer": {
-                                        "token_ids": [random.randint(0, 511) for _ in range(n_tokens)],
-                                        "codebook_size": 512,
-                                        "n_tokens": n_tokens,
-                                        "gate_values": [round(random.uniform(0.3, 0.7), 2) for _ in range(n_tokens)],
-                                        "vq_loss": round(random.uniform(0.1, 0.5), 3),
-                                    },
-                                    "mamba_backbone": {
-                                        "n_layers": 4,
-                                        "d_model": 128,
-                                        "layer_activations": [
-                                            {"mean": round(random.gauss(0, 0.5), 3),
-                                             "std": round(random.uniform(0.5, 1.5), 3),
-                                             "norm": round(random.uniform(2, 8), 2)} 
-                                            for _ in range(4)
-                                        ],
-                                    },
-                                    "classification": {
-                                        "num_classes": 2,
-                                        "top_k": [
-                                            {"label": "?", "confidence": 0.5},
-                                            {"label": "?", "confidence": 0.3},
-                                        ],
-                                        "all_probs": [{"label": "?", "prob": 0.5}],
-                                    },
-                                    "result": {
-                                        "label": "?",
-                                        "confidence": 0.0,
-                                        "inference_ms": 0.0,
-                                        "top_3": [{"label": "?", "confidence": 0.0}],
-                                    },
-                                }
-                                
-                            stages["segment_strokes"] = strokes
-                            stages_list.append(stages)
-                            
-                        # 모든 분할된 문자 추론 결과 반환
-                        if len(stages_list) == 0:
-                            await websocket.send(json.dumps({"type": "recognize_error", "message": "유효한 궤적이 없습니다."}))
-                        else:
-                            await websocket.send(json.dumps({
-                                "type": "recognize_result_multiple",
-                                "stages_list": stages_list
-                            }))
-                    except Exception as e:
-                        log.error(f"인식 오류: {e}")
-                        import traceback
-                        traceback.print_exc()
-                        await websocket.send(json.dumps({
-                            "type": "recognize_error",
-                            "message": str(e),
-                        }))
+                    log.warning("프론트엔드에서의 'recognize' 액션은 백엔드 스트리밍 아키텍처 도입으로 폐기되었습니다. 글씨를 쓰면 자동으로 streaming_text가 전송됩니다.")
                 
                 # ─── JW v1 Training Studio API ───
                 elif cmd.get("action") == "studio_init":
@@ -455,61 +373,59 @@ async def ws_handler(websocket):
                         }))
                 
                 elif cmd.get("action") == "train_jw_v1":
-                    log.info("🧠 JW v1 학습 시작...")
+                    log.info("🧠 실제 모델 학습 시작...")
                     _loop = asyncio.get_event_loop()
-                    def _do_train_jw():
-                        async def _simulate_training():
-                            try:
-                                epochs = int(cmd.get("epochs", 30))
-                                bs = cmd.get("batch_size", 16)
-                                log.info(f"🧠 JW v1 프리젠테이션 모드 학습 시작 (Epochs: {epochs}, Batch: {bs})")
+                    def _do_train_real():
+                        try:
+                            epochs = int(cmd.get("epochs", 30))
+                            bs = cmd.get("batch_size", 16)
+                            lr = 0.002
+                            
+                            def ws_log_callback(msg_text, lvl="info", epoch=None, progress=None, loss=None, acc=None, accuracy=None):
+                                msg = {
+                                    "type": "train_log", 
+                                    "message": msg_text, 
+                                    "level": lvl
+                                }
+                                if epoch is not None: msg["epoch"] = epoch
+                                if progress is not None: msg["progress"] = progress
+                                if loss is not None: msg["loss"] = loss
+                                if acc is not None: msg["acc"] = acc
+                                if accuracy is not None: msg["accuracy"] = accuracy
                                 
-                                start_loss = 2.45
-                                start_acc = 0.12
+                                asyncio.run_coroutine_threadsafe(ws_broadcast(msg), _loop)
+                            
+                            model_type = cmd.get("model_type", "pure_bilstm")
+                            success, result_msg = ai.train(
+                                data_dir="dataset", 
+                                epochs=epochs, 
+                                lr=lr, 
+                                batch_size=bs, 
+                                model_type=model_type,
+                                callback=ws_log_callback
+                            )
+                            
+                            if success:
+                                # 학습 완료 후 즉시 새 가중치를 추론에 반영 (Hot-Reload)
+                                ai.load_model()
+                                streamer.engine = ai
+                                asyncio.run_coroutine_threadsafe(ws_broadcast({
+                                    "type": "train_complete", "accuracy": result_msg.split()[-1].replace('%', '')
+                                }), _loop)
+                                log.info(f"✅ 학습 완료 + 모델 Hot-Reload: {result_msg}")
+                            else:
+                                ws_log_callback(f"학습 실패: {result_msg}", "error")
                                 
-                                for epoch in range(epochs):
-                                    await asyncio.sleep(0.5) # Non-blocking sleep for GIL release
-                                    
-                                    # Exponential decay for loss and log growth for accuracy
-                                    decay = math.exp(-epoch / (epochs * 0.4))
-                                    current_loss = start_loss * decay + random.uniform(0.01, 0.05)
-                                    current_acc = 1.0 - (1.0 - start_acc) * decay - random.uniform(0.0, 0.02)
-                                    current_acc = min(0.99, max(0.0, current_acc))
-                                    current_lr = 0.001 * math.exp(-epoch / epochs)
-                                    
-                                    progress = int((epoch + 1) / epochs * 100)
-                                    msg = f"Epoch {epoch+1}/{epochs} | Loss: {current_loss:.4f} | Acc: {current_acc*100:.1f}% | LR: {current_lr:.6f}"
-                                    
-                                    # Send directly async
-                                    await websocket.send(json.dumps({
-                                        "type": "train_log", 
-                                        "message": msg, 
-                                        "level": "info",
-                                        "epoch": epoch+1,
-                                        "progress": progress,
-                                        "loss": current_loss,
-                                        "acc": current_acc,
-                                        "accuracy": f"{current_acc*100:.1f}"
-                                    }))
-                                
-                                await websocket.send(json.dumps({
-                                    "type": "train_complete", "accuracy": "98.5"
-                                }))
-                                log.info(f"✅ JW v1 학습 완료")
-                                
-                            except Exception as e:
-                                import traceback
-                                err_trace = traceback.format_exc()
-                                log.error(f"Train Async Crash: {err_trace}")
-                                await websocket.send(json.dumps({
-                                    "type": "train_log", "message": f"Error: {e}", "level": "error"
-                                }))
-                        
-                        # run the sync wrapper which spawns async task
-                        asyncio.run_coroutine_threadsafe(_simulate_training(), _loop)
-                        
+                        except Exception as e:
+                            import traceback
+                            err_trace = traceback.format_exc()
+                            log.error(f"Train Crash: {err_trace}")
+                            asyncio.run_coroutine_threadsafe(ws_broadcast({
+                                "type": "train_log", "message": f"Error: {e}", "level": "error"
+                            }), _loop)
+                    
                     # start the background trigger
-                    threading.Thread(target=_do_train_jw, daemon=True).start()
+                    threading.Thread(target=_do_train_real, daemon=True).start()
                 
                 elif cmd.get("action") == "ai_query":
                     query = cmd.get("query", "")
@@ -600,42 +516,52 @@ def _ai_analyze(query: str) -> str:
     return f"총 {len(items)}개 샘플, {len(labels)}개 클래스, {total_pts:,}개 포인트. 구체적으로 질문해주세요 (예: '데이터 불균형 확인', '추천 설정')"
 
 
-# ─── USB Serial 수신 ───
+# ─── USB Serial 수신 (자동 재연결) ───
 def serial_reader_thread(loop, queue: asyncio.Queue):
     import serial
-    try:
-        ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
-        log.info(f"🔌 USB Serial 연결됨: {SERIAL_PORT} ({BAUD_RATE} bps)")
-        buffer = bytearray()
-        while True:
-            data = ser.read(1024)
-            if data:
-                buffer.extend(data)
-                while len(buffer) >= 94:
-                    idx = buffer.find(0xAA)
-                    if idx >= 0:
+    while True:
+        try:
+            ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+            log.info(f"🔌 USB Serial 연결됨: {SERIAL_PORT} ({BAUD_RATE} bps)")
+            buffer = bytearray()
+            while True:
+                data = ser.read(1024)
+                if data:
+                    buffer.extend(data)
+                    while len(buffer) >= 68:
+                        idx = buffer.find(0xAA)
+                        if idx < 0:
+                            buffer.clear()
+                            break
                         if idx > 0:
                             buffer = buffer[idx:]
-                        if len(buffer) >= 94:
-                            if buffer[93] == 0x55:
-                                packet = bytes(buffer[:94])
+                        packet_found = False
+                        for p_size in [92, 94, 68, 70]:
+                            if len(buffer) >= p_size and buffer[p_size-1] == 0x55:
+                                packet = bytes(buffer[:p_size])
                                 loop.call_soon_threadsafe(queue.put_nowait, packet)
-                                buffer = buffer[94:]
-                            else:
+                                buffer = buffer[p_size:]
+                                packet_found = True
+                                break
+                        if not packet_found:
+                            if len(buffer) > 100:
                                 buffer = buffer[1:]
-                        else:
-                            break
-                    else:
-                        buffer.clear()
-                        break
-    except Exception as e:
-        log.error(f"Serial 에러 (선이 뽑혔거나 포트가 틀렸습니다): {e}")
+                            else:
+                                break
+        except serial.SerialException as e:
+            log.warning(f"🔌 Serial 끊김 ({e}) — 3초 후 재연결 시도...")
+            import time as _time
+            _time.sleep(3)
+        except Exception as e:
+            log.error(f"Serial 에러: {e}")
+            import time as _time
+            _time.sleep(3)
 
 async def process_serial_queue(queue: asyncio.Queue):
-    global esp32_addr, smooth_x, smooth_y, oef_x, oef_y, ref_yaw, ref_pitch, last_ts_dict
-    global was_writing, current_stroke, is_recording_session, session_strokes
-    global is_free_drawing, free_strokes, free_current_stroke, last_pen_up_time
+    global esp32_addr, smooth_x, smooth_y, oef_x, oef_y, last_ts_dict
+    global was_writing, current_stroke, is_recording_session, session_strokes, button_debounce_counter
     esp32_addr = "USB"
+    last_ws_time = 0.0
     while True:
         try:
             # 모든 패킷을 ESKF에 빠짐없이 통과시키되, 웹소켓 전송은 마지막 1개만!
@@ -674,19 +600,35 @@ async def process_serial_queue(queue: asyncio.Queue):
                         log.info(f"   [S2 Hand]   q_align: {calibrator.q_align['s2']}")
                         log.info(f"   [S1 Wrist]  q_align: {calibrator.q_align['s1']}")
                         
-                        s1_eskf.reset(initial_q=calibrator.q_align['s1'], initial_bg=calibrator.bg['s1'])
-                        s2_eskf.reset(initial_q=calibrator.q_align['s2'], initial_bg=calibrator.bg['s2'])
-                        s3_eskf.reset(initial_q=calibrator.q_align['s3'], initial_bg=calibrator.bg['s3'], initial_mag=calibrator.m_ref.get('s3'))
+                        s1_eskf.reset(initial_q=calibrator.q_align['s1'].astype(np.float64), initial_ba=calibrator.ba['s1'], initial_bg=calibrator.bg['s1'])
+                        s2_eskf.reset(initial_q=calibrator.q_align['s2'].astype(np.float64), initial_ba=calibrator.ba['s2'], initial_bg=calibrator.bg['s2'])
+                        s3_eskf.reset(initial_q=calibrator.q_align['s3'].astype(np.float64), initial_ba=calibrator.ba['s3'], initial_bg=calibrator.bg['s3'], initial_mag=calibrator.m_ref.get('s3'))
                         
+                        # 커서 전용 필터 리셋 (int64 강제 캐스팅 에러 방지용 dtype 명시)
+                        q_s3 = calibrator.q_align['s3']
+                        madgwick_s3_ray.q = np.array([q_s3[3], q_s3[0], q_s3[1], q_s3[2]], dtype=np.float64)
 
                         smooth_x, smooth_y = 0.0, 0.0
                         oef_x.reset()
                         oef_y.reset()
                         
-                        # 드리프트 흡수 기준점 초기화
+                        # Yaw Stabilizer 초기화 (자기장 캘리브레이션 포함)
                         s1_y0, _, s1_p0 = s1_eskf.q.as_euler('ZYX', degrees=False)
-                        ref_yaw = s1_y0
-                        ref_pitch = s1_p0
+                        s3_y0, _, _ = s3_eskf.q.as_euler('ZYX', degrees=False)
+                        
+                        # 캘리브레이션 중 수집된 자기장 데이터로 MagFusion 활성화
+                        mag_samples = calibrator.samples.get('s3_m', [])
+                        if len(mag_samples) > 5:
+                            mag_arr = np.array(mag_samples)
+                            yaw_stabilizer.calibrate(
+                                mag_samples=mag_arr, s1_yaw=s1_y0, s3_yaw=s3_y0, heading=0.0
+                            )
+                            log.info(f"🧲 MagFusion 활성화: {len(mag_samples)}개 샘플, norm={np.median(np.linalg.norm(mag_arr, axis=1)):.1f}µT")
+                        else:
+                            yaw_stabilizer.calibrate(
+                                mag_samples=None, s1_yaw=s1_y0, s3_yaw=s3_y0, heading=0.0
+                            )
+                            log.warning("⚠️ MagFusion 비활성화 (자기장 데이터 부족)")
                         
                         msg = {
                             "type": "status",
@@ -696,10 +638,34 @@ async def process_serial_queue(queue: asyncio.Queue):
                         asyncio.ensure_future(ws_broadcast(msg))
                     continue
 
-                # 동적 dt 계산
-
+                # ── ESP32 리셋 자동 감지 ──
+                # 타임스탬프가 과거로 점프하거나 500ms+ 공백이면 ESP32가 리셋된 것으로 판단
                 ts = frame.timestamp_ms
-                dt = 0.014
+                if last_ts_dict['s3'] > 0:
+                    ts_diff = ts - last_ts_dict['s3']
+                    if ts_diff < -100 or ts_diff > 500:
+                        log.warning(f"⚡ ESP32 리셋 감지! (ts_diff={ts_diff}ms) → 자동 재캘리브레이션 시작")
+                        calibrator.reset()
+                        s1_eskf.reset()
+                        s2_eskf.reset()
+                        s3_eskf.reset()
+                        madgwick_s3_ray.q = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float64)
+                        oef_x.reset()
+                        oef_y.reset()
+                        smooth_x, smooth_y = 0.0, 0.0
+                        last_ts_dict['s1'] = 0
+                        last_ts_dict['s2'] = 0
+                        last_ts_dict['s3'] = 0
+                        time_sync.reset()
+                        asyncio.ensure_future(ws_broadcast({
+                            "type": "status",
+                            "text": "ESP32 RESET — RE-CALIBRATING...",
+                            "ts": ts,
+                        }))
+                        continue
+
+                # 동적 dt 계산
+                dt = 0.0117  # 85Hz 통신 기준 정밀 타임 스텝
                 if last_ts_dict['s3'] > 0 and ts > last_ts_dict['s3']:
                     dt = (ts - last_ts_dict['s3']) / 1000.0
                 dt = max(0.005, min(dt, 0.1))
@@ -721,38 +687,95 @@ async def process_serial_queue(queue: asyncio.Queue):
                 # if np.linalg.norm(frame.finger_mag) > 1.0:
                 #     s3_eskf.update_mag(frame.finger_mag)
                 
-                is_writing = (frame.button > 0)
+                # ── 물리 버튼 디바운스 처리 (글씨 끊김 현상 방지) ──
+                raw_button = (frame.button > 0)
+                if raw_button:
+                    button_debounce_counter = DEBOUNCE_FRAMES
+                    is_writing = True
+                else:
+                    if button_debounce_counter > 0:
+                        button_debounce_counter -= 1
+                        is_writing = True
+                    else:
+                        is_writing = False
                 
                 # 중력 보정 (Tilt-Drift 방지)
-                if not is_writing:
-                    s1_eskf.update_gravity_mahony(frame.wrist_accel, alpha=0.002)
-                    s3_eskf.update_gravity_mahony(frame.finger_accel, alpha=0.002)
+                # 필기 중에도 아주 약한 보정 유지 (alpha=0.0003 → time const ~39초)
+                # 한 획(~1초) 내에서는 궤적에 영향 없이, 30초+ 누적 Pitch 드리프트만 방지
+                gravity_alpha = 0.0003 if is_writing else 0.002
+                s1_eskf.update_gravity_mahony(frame.wrist_accel, alpha=gravity_alpha)
+                s3_eskf.update_gravity_mahony(frame.finger_accel, alpha=gravity_alpha)
                 
                 s3_zupt = False
 
-                # S3(손가락/펜끝) Euler 각도 선형 추출
-                # (하드웨어 배선 복구 대기 중... S3 센서로 포인터 기준을 다시 옮깁니다)
-                s3_yaw, _, s3_pitch = s3_eskf.q.as_euler('ZYX', degrees=False)
+                # ── 차세대: 3-IMU 차동 운동학 ──
+                # 기존 OP-1F 커서에 영향 없이 관절 각도/ICOR/동작 분리를 병렬 계산
+                s2_a = frame.hand_accel if frame.hand_accel is not None else frame.wrist_accel
+                s2_g = frame.hand_gyro if frame.hand_gyro is not None else frame.wrist_gyro
                 
-                # 유저가 펜을 뗀 순간만 기록 (Auto Predict 판독 타이머용)
-                if not is_writing and was_writing:
-                    last_pen_up_time = ts
+                bio_result = diff_kin.update_full_chain(
+                    s1_accel=frame.wrist_accel, s1_gyro=frame.wrist_gyro,
+                    s2_accel=s2_a, s2_gyro=s2_g,
+                    s3_accel=frame.finger_accel, s3_gyro=frame.finger_gyro,
+                    q_s1=s1_eskf.q, q_s2=s2_eskf.q, q_s3=s3_eskf.q,
+                    dt=dt,
+                )
                 
-                # 출력 = 현재 절대 각도 - 초기 기준점
-                # 유저 피드백 반영: 상하(Pitch) 부호 반전 (+) 복구 완료!
-                phys_x = -(s3_yaw - ref_yaw)
-                phys_z = s3_pitch - ref_pitch
+                # 손목/손가락 동작 분리
+                wrist_motion, finger_motion = motion_sep.separate(
+                    frame.wrist_accel, frame.finger_accel
+                )
+                writing_intent = motion_sep.get_writing_intent(finger_motion)
                 
-                # One Euro Filter
-                filtered_x = oef_x.filter(phys_x, ts * 0.001)
-                filtered_y = oef_y.filter(phys_z, ts * 0.001)
+                pipeline_state["bio_kin"] = bio_result
+                pipeline_state["writing_intent"] = writing_intent
+
+                # ── 최첨단 모델: OP-1F (Orthographic Pointing) 복구 ──
+                # 3D 스켈레톤용 ESKF는 중력 보정 시 강하게 비틀리므로(Jumping), 
+                # 2D 커서는 무조건 아주 부드러운 Madgwick(beta=0.05)을 독립적으로 구동해야 합니다!
+                
+                # [NEW] 3중 Yaw 보정기를 거친 자이로 사용 (수평 방향 드리프트 원천 차단)
+                q_s3_wxyz = madgwick_s3_ray.q
+                corrected_s3_gyro = yaw_stabilizer.process(
+                    s3_accel=frame.finger_accel,
+                    s3_gyro=frame.finger_gyro,
+                    s3_mag=frame.finger_mag,
+                    s1_gyro=frame.wrist_gyro,
+                    is_writing=is_writing,
+                    current_q_wxyz=q_s3_wxyz,
+                    dt=dt
+                )
+                
+                q_s3_ray = madgwick_s3_ray.update_imu(frame.finger_accel, corrected_s3_gyro)
+                
+                # numpy 배열 쿼터니언 [w, x, y, z] 을 scipy Rotation 객체로 변환 (x, y, z, w)
+                q_s3_ray_rot = Rotation.from_quat([q_s3_ray[1], q_s3_ray[2], q_s3_ray[3], q_s3_ray[0]])
+                
+                # ── Gimbal-Lock-Free 포인터 제어 (Forward Vector + atan2) ──
+                # Euler 분해('ZXY')는 Pitch ≈ ±90°에서 Gimbal Lock이 발생하여
+                # Yaw가 180° 점프하는 근본 원인이었음.
+                # Forward Vector에서 직접 atan2로 Yaw/Pitch를 계산하면 Gimbal Lock이 원리적으로 불가능.
+                
+                # S3 검지 센서 물리적 장착 각도(좌측 15도) 보정을 벡터 레벨에서 적용
+                tilt_rad = np.radians(15.0)
+                forward_local = np.array([np.sin(tilt_rad), -np.cos(tilt_rad), 0.0])
+                forward = q_s3_ray_rot.apply(forward_local)
+                
+                # atan2 기반 Yaw/Pitch 추출 (Roll 완전 무시, Gimbal Lock 없음)
+                phys_x = np.arctan2(forward[0], -forward[1])   # Yaw (좌우)
+                phys_z = np.arctan2(forward[2], np.sqrt(forward[0]**2 + forward[1]**2))  # Pitch (상하)
+                
+                # One Euro Filter (고정 주파수 사용)
+                # USB 패킷 지연 및 배치 처리(while loop)로 인한 dt=0 버그를 원천 방지하기 위해 timestamp=None 전달
+                filtered_x = oef_x.filter(phys_x, timestamp=None)
+                filtered_y = oef_y.filter(phys_z, timestamp=None)
                 
                 # 글 쓰는 중이든, 펜을 허공에 들고(Hover) 있든 
                 # 절대로 화면 커서가 멈추거나 튕기지 않도록 1:1 위치를 상시 보장합니다.
                 smooth_x = filtered_x
                 smooth_y = filtered_y
 
-                out_x = round(smooth_x * VIRTUAL_PEN_LENGTH, 2)
+                out_x = round(smooth_x * VIRTUAL_PEN_LENGTH * X_SENSITIVITY, 2)
                 out_y = round(smooth_y * VIRTUAL_PEN_LENGTH, 2)
 
                 # 데이터셋 수집
@@ -776,50 +799,79 @@ async def process_serial_queue(queue: asyncio.Queue):
                             log.info(f"[Record] 획 추가 완료: {len(current_stroke)} points (총 {len(session_strokes)}획)")
                         current_stroke = []
                 else:
-                    current_stroke = []
-                    # [Phase 10.5] Free-drawing (Auto-Predict) logic
-                    if is_writing:
-                        is_free_drawing = True
-                        free_current_stroke.append({
-                            "ts": ts, "dt": dt,
-                            "x": out_x, "y": out_y,
-                            "ax": float(frame.finger_accel[0]),
-                            "ay": float(frame.finger_accel[1]),
-                            "az": float(frame.finger_accel[2]),
-                            "gx": float(frame.finger_gyro[0]),
-                            "gy": float(frame.finger_gyro[1]),
-                            "gz": float(frame.finger_gyro[2])
-                        })
-                    elif was_writing and not is_writing:
-                        if len(free_current_stroke) > 10:
-                            free_strokes.append(free_current_stroke)
-                        free_current_stroke = []
-                        # last_pen_up_time은 하드웨어 타임스탬프(ts)를 기준으로 위에서 이미 업데이트됨
-                        
-                    # 타임아웃 감지 (1.5초) -> Auto Predict 트리거
-                    if is_free_drawing and not is_writing:
-                        if ts - last_pen_up_time > 1500:
-                            if len(free_strokes) > 0:
-                                log.info(f"✨ 1.5초 휴식 감지! 연속 필기 자동 분할 및 판독 시작 ({len(free_strokes)}획)")
-                                asyncio.ensure_future(run_auto_predict(free_strokes.copy()))
-                            free_strokes = []
-                            # 공간 감각(Proprioception) 유지를 위해 강제 0점 스냅 로직 완전 삭제
-                            # 이제 에어 펜은 절대 공간에 떠있는 것처럼 상대적 거리를 영구히 보존합니다.
+                    if current_stroke:
+                        current_stroke = []
+                    # 백엔드 스트리밍 인퍼런스
+                    frame_features = {
+                        "x": out_x, "y": out_y,
+                        "ax": float(frame.finger_accel[0]),
+                        "ay": float(frame.finger_accel[1]),
+                        "az": float(frame.finger_accel[2]),
+                        "gx": float(frame.finger_gyro[0]),
+                        "gy": float(frame.finger_gyro[1]),
+                        "gz": float(frame.finger_gyro[2])
+                    }
+                    streamer.process_frame(frame_features, is_writing)
+                    
+                    # 차세대: Duo Streamers 희소 인식 (병렬)
+                    sparse_engine.process_frame(frame_features, is_writing)
+                    pipeline_state["duo_streamers"] = sparse_engine.get_efficiency_stats()
+                    
                 was_writing = is_writing
 
-                # 웹소켓 전송은 배치의 마지막 패킷만!
-                if is_last_packet:
-                    msg = {
-                        "type": "position",
-                        "x": out_x,
-                        "y": out_y,
-                        "button": frame.button,
-                        "zupt": bool(s3_zupt),
-                        "ts": ts,
-                        "pkt": parser.valid_packets,
-                        "latency": round(time_sync.latency_ms, 1) if time_sync.is_synced else -1,
-                    }
-                    asyncio.ensure_future(ws_broadcast(msg))
+                # 윈도우 Serial 버퍼링(100ms 단위 청크)으로 인해 중간 패킷이 생략되는 것을 방지하기 위해
+                # 수신된 모든 프레임을 웹소켓으로 전송하여 선이 부드럽게 그려지도록 합니다.
+                msg = {
+                    # "type" 키가 있으면 handleServerMessage로 가버리므로 제거하거나 예약어가 아닌 것을 써야 함
+                    # 예전 프론트엔드는 type이 없으면 handleFrame으로 보냄
+                    "x": out_x,
+                    "y": out_y,
+                    "ray_hit": [out_x, out_y],
+                    "fingertip": [out_x, out_y, -0.68],
+                    "is_writing": is_writing,
+                    "button": frame.button,
+                    "zupt": bool(s3_zupt),
+                    "ts": ts,
+                    "pkt": parser.valid_packets,
+                    "latency": round(time_sync.latency_ms, 1) if time_sync.is_synced else -1,
+                    "orientations": {
+                        "forearm": [float(s1_eskf.q.as_quat()[3]), float(s1_eskf.q.as_quat()[0]), float(s1_eskf.q.as_quat()[1]), float(s1_eskf.q.as_quat()[2])],
+                        # Dual-Node (2센서) 모드일 경우, 손등 센서가 없으므로 손목(S1) 자세를 복사하여 스켈레톤 꺾임 방지
+                        "hand": [
+                            float(s2_eskf.q.as_quat()[3] if frame.hand_accel is not None else s1_eskf.q.as_quat()[3]),
+                            float(s2_eskf.q.as_quat()[0] if frame.hand_accel is not None else s1_eskf.q.as_quat()[0]),
+                            float(s2_eskf.q.as_quat()[1] if frame.hand_accel is not None else s1_eskf.q.as_quat()[1]),
+                            float(s2_eskf.q.as_quat()[2] if frame.hand_accel is not None else s1_eskf.q.as_quat()[2])
+                        ],
+                        "finger": [float(s3_eskf.q.as_quat()[3]), float(s3_eskf.q.as_quat()[0]), float(s3_eskf.q.as_quat()[1]), float(s3_eskf.q.as_quat()[2])],
+                    },
+                    "raw_sensors": {
+                        "s1": {
+                            "ax": float(frame.wrist_accel[0]),
+                            "ay": float(frame.wrist_accel[1]),
+                            "az": float(frame.wrist_accel[2])
+                        },
+                        "s2": {
+                            "ax": float(frame.hand_accel[0] if frame.hand_accel is not None else 0.0),
+                            "ay": float(frame.hand_accel[1] if frame.hand_accel is not None else 0.0),
+                            "az": float(frame.hand_accel[2] if frame.hand_accel is not None else 0.0)
+                        },
+                        "s3": {
+                            "ax": float(frame.finger_accel[0]),
+                            "ay": float(frame.finger_accel[1]),
+                            "az": float(frame.finger_accel[2])
+                        }
+                    },
+                    # ─── 차세대 파이프라인 상태 (Digital Twin용) ───
+                    "pipeline": {
+                        "joint_angles": pipeline_state["bio_kin"].get("joint_angles", {}),
+                        "icor_mcp": pipeline_state["bio_kin"].get("icor_mcp", [0, 0]),
+                        "icor_pip": pipeline_state["bio_kin"].get("icor_pip", [0, 0]),
+                        "writing_intent": round(pipeline_state.get("writing_intent", 0), 3),
+                        "duo_streamers": pipeline_state.get("duo_streamers", {}),
+                    },
+                }
+                asyncio.ensure_future(ws_broadcast(msg))
         except Exception as e:
             import traceback
             log.error(f"❌ 큐 프로세스 오류: {e}")
@@ -897,11 +949,20 @@ async def status_printer():
             f"latency={ts['latency_ms']}ms | "
             f"WS={len(ws_clients)}"
         )
+        
+        # 3-Layer Yaw Stabilizer 상태 로깅
+        ystats = yaw_stabilizer.get_stats()
+        log.info(
+            f"🛡️ YawStabilizer | ZARU(Bias): {ystats['bias']['bias_deg_s'][2]:.3f}°/s "
+            f"| Anchor(Dev): {ystats['anchor']['deviation_deg']:.1f}° "
+            f"| Mag(Trust): {ystats['mag']['trust']:.2f}"
+        )
 
 
 # ─── 메인 ───
 async def main():
-    loop = asyncio.get_running_loop()
+    global main_loop
+    main_loop = asyncio.get_running_loop()
 
     http_thread = threading.Thread(target=start_http_server, daemon=True)
     http_thread.start()
@@ -913,7 +974,7 @@ async def main():
     tasks = [status_printer(), process_serial_queue(serial_queue)]
     
     if not mock_mode:
-        t = threading.Thread(target=serial_reader_thread, args=(loop, serial_queue), daemon=True)
+        t = threading.Thread(target=serial_reader_thread, args=(main_loop, serial_queue), daemon=True)
         t.start()
     else:
         tasks.append(mock_data_generator())

@@ -11,9 +11,9 @@ class Calibrator:
         }
         self.is_calibrated = False
         
-        # Results
+        self.ba = {'s1': np.zeros(3), 's2': np.zeros(3), 's3': np.zeros(3)}
         self.bg = {'s1': np.zeros(3), 's2': np.zeros(3), 's3': np.zeros(3)}
-        self.q_align = {'s1': np.array([0,0,0,1]), 's2': np.array([0,0,0,1]), 's3': np.array([0,0,0,1])}
+        self.q_align = {'s1': np.array([0.,0.,0.,1.]), 's2': np.array([0.,0.,0.,1.]), 's3': np.array([0.,0.,0.,1.])}
         self.m_ref = {'s3': np.array([1,0,0])}  # 지자기 캘리브레이션 레퍼런스
 
     def add_sample(self, frame) -> bool:
@@ -50,7 +50,7 @@ class Calibrator:
         g_norm = np.linalg.norm(g_mean)
         
         if g_norm < 1e-6:
-            return bg, np.array([0, 0, 0, 1])
+            return np.zeros(3), bg, np.array([0, 0, 0, 1])
             
         # 6-DOF Auto-Alignment (Gram-Schmidt Orthogonalization)
         # 1. Z축 (World UP)은 센서가 느끼는 중력 반대 방향(g_dir)으로 완벽하게 매핑
@@ -85,12 +85,15 @@ class Calibrator:
         except Exception:
             q = np.array([0, 0, 0, 1])
             
-        return bg, q
+        # 가속도 바이어스 계산 (스칼라 차이 보정)
+        ba = g_mean - g_dir * 9.81
+            
+        return ba, bg, q
 
     def _finalize(self):
-        self.bg['s1'], self.q_align['s1'] = self._calc_alignment(self.samples['s1_a'], self.samples['s1_g'])
-        self.bg['s2'], self.q_align['s2'] = self._calc_alignment(self.samples['s2_a'], self.samples['s2_g'])
-        self.bg['s3'], self.q_align['s3'] = self._calc_alignment(self.samples['s3_a'], self.samples['s3_g'])
+        self.ba['s1'], self.bg['s1'], self.q_align['s1'] = self._calc_alignment(self.samples['s1_a'], self.samples['s1_g'])
+        self.ba['s2'], self.bg['s2'], self.q_align['s2'] = self._calc_alignment(self.samples['s2_a'], self.samples['s2_g'])
+        self.ba['s3'], self.bg['s3'], self.q_align['s3'] = self._calc_alignment(self.samples['s3_a'], self.samples['s3_g'])
         
         # [Phase 5] 지자기 캘리브레이션 (초기 정면 헤딩 고정)
         if len(self.samples['s3_m']) > 0:

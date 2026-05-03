@@ -240,18 +240,17 @@ function connectWS() {
     try {
       const d = JSON.parse(e.data);
       if (d.type === 'log') logTerminal(d.msg, d.level || 'info');
-      if (d.type === 'train_log') logTerminal(d.message, d.level || 'info');
-      if (d.type === 'train_complete') logTerminal(`Training Complete! Accuracy: ${d.accuracy}`, 'success');
-      if (d.type === 'train_progress' || d.type === 'train_update') {
-        const ep = d.epoch || 0; const loss = d.loss || 0; const acc = d.acc || 0;
-        if(ep) {
-            logTerminal(`[Epoch ${ep}] Loss: ${loss.toFixed(4)} | Acc: ${(acc*100).toFixed(1)}%`, 'info');
-            lossChart.data.labels.push(ep);
-            lossChart.data.datasets[0].data.push(loss);
-            lossChart.data.datasets[1].data.push(acc);
-            lossChart.update();
+      if (d.type === 'train_log') {
+        logTerminal(d.message, d.level || 'info');
+        // loss/acc 데이터가 포함되어 있으면 실시간 차트 업데이트
+        if (d.epoch && d.loss !== undefined) {
+          lossChart.data.labels.push(d.epoch);
+          lossChart.data.datasets[0].data.push(d.loss);
+          lossChart.data.datasets[1].data.push(d.acc || 0);
+          lossChart.update('none'); // 애니메이션 없이 빠르게 업데이트
         }
       }
+      if (d.type === 'train_complete') logTerminal(`✅ Training Complete! Accuracy: ${d.accuracy}%`, 'success');
       if (d.type === 'recognize_result') {
         logTerminal(`[Inference] Predicted: '${d.result.label}' (Conf: ${(d.result.confidence*100).toFixed(1)}%)`, 'success');
       }
